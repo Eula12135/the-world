@@ -29,20 +29,6 @@ const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'))
 const version = pkg.version;
 const tag = `v${version}`;
 
-const assets = [
-  { file: path.join(ROOT, 'release', `The World Setup ${version}.exe`), name: `The-World-Setup-${version}.exe` },
-  { file: path.join(ROOT, 'release', `The World Setup ${version}.exe.blockmap`), name: `The-World-Setup-${version}.exe.blockmap` },
-  { file: path.join(ROOT, 'android', 'app', 'build', 'outputs', 'apk', 'release', `app-release.apk`), name: `The-World-${version}-android.apk` },
-  { file: path.join(ROOT, 'android', 'app', 'build', 'outputs', 'apk', 'debug', `app-debug.apk`), name: `The-World-${version}-android.apk` },
-];
-
-function pickExistingFile(candidates) {
-  for (const c of candidates) {
-    if (fs.existsSync(c.file)) return c;
-  }
-  return null;
-}
-
 async function api(pathname, init = {}) {
   const url = `${API}${pathname}`;
   const resp = await fetch(url, init);
@@ -54,11 +40,42 @@ async function api(pathname, init = {}) {
 }
 
 async function main() {
-  const targets = assets
-    .map((a) => (a.name.endsWith('.apk') ? pickExistingFile(assets.filter((x) => x.name.endsWith('.apk'))) : a))
-    .filter(Boolean);
+  const candidates = [
+    {
+      file: path.join(ROOT, 'release', `The World Setup ${version}.exe`),
+      name: `The-World-Setup-${version}.exe`,
+    },
+    {
+      file: path.join(ROOT, 'release', `The World Setup ${version}.exe.blockmap`),
+      name: `The-World-Setup-${version}.exe.blockmap`,
+    },
+    {
+      file: path.join(ROOT, 'android', 'app', 'build', 'outputs', 'apk', 'release', 'app-release.apk'),
+      name: `The-World-${version}-android.apk`,
+    },
+  ];
 
-  const missing = targets.filter((t) => !fs.existsSync(t.file));
+  const targets = candidates.filter((c) => fs.existsSync(c.file));
+
+  // 没有 release APK 时退回 debug 包（仅用于内部测试）
+  if (!targets.some((t) => t.name.endsWith('.apk'))) {
+    const debugApk = path.join(
+      ROOT,
+      'android',
+      'app',
+      'build',
+      'outputs',
+      'apk',
+      'debug',
+      'app-debug.apk'
+    );
+    if (fs.existsSync(debugApk)) {
+      targets.push({ file: debugApk, name: `The-World-${version}-android.apk` });
+      console.warn('警告：使用 debug 签名 APK（正式分发请先 assembleRelease）');
+    }
+  }
+
+  const missing = candidates.filter((c) => !fs.existsSync(c.file) && c.name.endsWith('.exe'));
   if (missing.length > 0) {
     console.error('缺少构建产物：\n' + missing.map((m) => `  - ${path.relative(ROOT, m.file)}`).join('\n'));
     process.exit(1);

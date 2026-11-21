@@ -4,6 +4,7 @@ import { useAppStore } from '../../store/useAppStore';
 import { useMobileKeyboardOpen } from '../../utils/keyboard';
 import { Sidebar } from './Sidebar';
 import { TopBar } from './TopBar';
+import { SwipeNavigator } from './SwipeNavigator';
 
 export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { activeView, activeModal, setActiveView, setActiveModal, setSidebarOpen, providers } =
@@ -28,7 +29,9 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
 
       <div className="flex-1 flex flex-col min-w-0 h-full">
         <TopBar />
-        <main className="flex-1 flex flex-col min-h-0">{children}</main>
+        <main className="flex-1 flex flex-col min-h-0">
+          <SwipeNavigator>{children}</SwipeNavigator>
+        </main>
 
         {/* Mobile Bottom Tab Bar (hidden while IME keyboard is active so input stays unobstructed) */}
         {!keyboardOpen && (

@@ -9,9 +9,29 @@ def vParts = appVersion.tokenize('.')
 // 0.3.7 -> 0*10000 + 3*100 + 7 = 307（只需单调递增）
 def vCode = (vParts[0] as int) * 10000 + ((vParts.size() > 1 ? vParts[1] : '0') as int) * 100 + ((vParts.size() > 2 ? vParts[2] : '0') as int)
 
+// 发布签名：从 android/keystore.properties 读取（该文件与 .jks 都不入库）
+def keystorePropsFile = rootProject.file('keystore.properties')
+def keystoreProps = new Properties()
+if (keystorePropsFile.exists()) {
+    keystorePropsFile.withInputStream { keystoreProps.load(it) }
+}
+def hasReleaseKeystore = keystorePropsFile.exists() && keystoreProps['storeFile']
+
 android {
     namespace "io.github.theworld.app"
     compileSdk rootProject.ext.compileSdkVersion
+
+    signingConfigs {
+        if (hasReleaseKeystore) {
+            release {
+                storeFile rootProject.file(keystoreProps['storeFile'])
+                storePassword keystoreProps['storePassword']
+                keyAlias keystoreProps['keyAlias']
+                keyPassword keystoreProps['keyPassword']
+            }
+        }
+    }
+
     defaultConfig {
         applicationId "io.github.theworld.app"
         minSdkVersion rootProject.ext.minSdkVersion
@@ -29,6 +49,9 @@ android {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            if (hasReleaseKeystore) {
+                signingConfig signingConfigs.release
+            }
         }
     }
 }

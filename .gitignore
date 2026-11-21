@@ -8,3 +8,7 @@ android/local.properties
 *.local
 .DS_Store
 Thumbs.db
+
+# Android 发布签名（绝不入库）
+android/keystore/
+android/keystore.properties
