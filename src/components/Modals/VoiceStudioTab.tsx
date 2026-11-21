@@ -23,11 +23,14 @@ import type { VoiceConfig, VoiceProfile } from '../../types';
 import {
   audioBlobToDataUrl,
   type BreezeVoiceItem,
+  type BreezeVoicePreview,
   deleteRemoteClonedVoice,
+  designBreezeVoice,
   isBreezeCloudBase,
   listBreezeVoices,
   listNativeVoices,
   listRemoteClonedVoices,
+  saveBreezeVoiceDesign,
   speakText,
   stopSpeaking,
   STT_PRESETS,
@@ -89,7 +92,10 @@ export const VoiceStudioTab: React.FC<VoiceStudioTabProps> = ({
   const [showVoiceKey, setShowVoiceKey] = useState(false);
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [sttOpen, setSttOpen] = useState(false);
-  const [studioMode, setStudioMode] = useState<'design' | 'clone'>('design');
+  const [studioMode, setStudioMode] = useState<'existing' | 'design' | 'clone'>('existing');
+  const [designPreviews, setDesignPreviews] = useState<BreezeVoicePreview[]>([]);
+  const [designing, setDesigning] = useState(false);
+  const [savingDesignId, setSavingDesignId] = useState<string | null>(null);
 
   const [previewingVoice, setPreviewingVoice] = useState(false);
   const [previewText, setPreviewText] = useState('你好，今天想让我用怎样的声音陪你聊天？');
@@ -191,6 +197,63 @@ export const VoiceStudioTab: React.FC<VoiceStudioTabProps> = ({
       showToast(err instanceof Error ? err.message : '拉取 Breeze 音色失败', 'error');
     } finally {
       setFetchingBreezeVoices(false);
+    }
+  };
+
+  const handleGenerateDesignVoice = async () => {
+    const description = draftVoice.ttsStyleInstruction.trim();
+    if (description.length < 3) {
+      showToast('请先描述你想要的音色，例如「慵懒御姐，语速偏慢，带一点气声」', 'info');
+      return;
+    }
+    setDesigning(true);
+    setDesignPreviews([]);
+    try {
+      const previews = await designBreezeVoice({
+        baseUrl: draftVoice.ttsBaseUrl,
+        apiKey: draftVoice.ttsApiKey,
+        providers,
+        description,
+        text: previewText.trim() || undefined,
+        model: draftVoice.ttsModel.trim() || undefined,
+        previewCount: 3,
+      });
+      if (previews.length === 0) {
+        showToast('没有拿到音色预览，请换个描述再试', 'error');
+        return;
+      }
+      setDesignPreviews(previews);
+      showToast(`已生成 ${previews.length} 个候选音色，试听后保存`, 'success');
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : '生成音色失败', 'error');
+    } finally {
+      setDesigning(false);
+    }
+  };
+
+  const handleSaveDesignPreview = async (preview: BreezeVoicePreview) => {
+    setSavingDesignId(preview.generatedVoiceId);
+    try {
+      const saved = await saveBreezeVoiceDesign({
+        baseUrl: draftVoice.ttsBaseUrl,
+        apiKey: draftVoice.ttsApiKey,
+        providers,
+        generatedVoiceId: preview.generatedVoiceId,
+        name: newProfileName.trim() || draftVoice.ttsStyleInstruction.trim().slice(0, 20) || '我的自定义音色',
+        description: draftVoice.ttsStyleInstruction.trim() || undefined,
+      });
+      setDraftVoice((prev) => ({ ...prev, ttsVoice: saved.voiceId }));
+      setBreezeVoices((prev) =>
+        prev.some((v) => v.voiceId === saved.voiceId)
+          ? prev
+          : [{ voiceId: saved.voiceId, name: saved.name, category: 'designed' }, ...prev]
+      );
+      setDesignPreviews([]);
+      showToast(`已保存并设为当前音色：${saved.name}`, 'success');
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : '保存音色失败', 'error');
+    } finally {
+      setSavingDesignId(null);
     }
   };
 
@@ -729,12 +792,21 @@ export const VoiceStudioTab: React.FC<VoiceStudioTabProps> = ({
           <div className="flex items-center gap-1 p-1 rounded-xl bg-muted border border-line text-[11.5px]">
             <button
               type="button"
+              onClick={() => setStudioMode('existing')}
+              className={`px-2.5 py-1 rounded-lg font-medium cursor-pointer ${
+                studioMode === 'existing' ? 'bg-card text-accent' : 'text-secondary'
+              }`}
+            >
+              使用已有音色
+            </button>
+            <button
+              type="button"
               onClick={() => setStudioMode('design')}
               className={`px-2.5 py-1 rounded-lg font-medium cursor-pointer ${
                 studioMode === 'design' ? 'bg-card text-accent' : 'text-secondary'
               }`}
             >
-              一句话捏音色（最简单）
+              一句话捏音色
             </button>
             <button
               type="button"
@@ -748,9 +820,11 @@ export const VoiceStudioTab: React.FC<VoiceStudioTabProps> = ({
           </div>
         </div>
 
-        {studioMode === 'design' ? (
+        {studioMode !== 'clone' ? (
           <div className="space-y-3">
-            {draftVoice.ttsEngine === 'openai_api' && activeCloudPreset?.id === 'breeze' && (
+            {studioMode === 'existing' &&
+              draftVoice.ttsEngine === 'openai_api' &&
+              activeCloudPreset?.id === 'breeze' && (
               <div className="p-3 rounded-xl bg-canvas border border-line space-y-2">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <span className="text-[12px] font-medium text-ink">
@@ -788,6 +862,7 @@ export const VoiceStudioTab: React.FC<VoiceStudioTabProps> = ({
               </div>
             )}
 
+            {studioMode === 'design' && (
             <div>
               <label className="block mb-1 text-[12px] text-secondary">
                 说出你想要的音色、年龄、性格或情绪（Breeze TTS 2 / 硅基流动 CosyVoice2 / OpenAI 直接生效）
@@ -815,10 +890,59 @@ export const VoiceStudioTab: React.FC<VoiceStudioTabProps> = ({
                 ))}
               </div>
               {draftVoice.ttsEngine === 'openai_api' && activeCloudPreset?.id === 'breeze' && (
-                <div className="text-[11px] text-secondary mt-1.5 leading-relaxed">
-                  风格描述只影响语气、节奏与情绪，
-                  <span className="text-ink font-medium">不会改变音色的性别</span>。
-                  若选了「慵懒御姐」却听到男声，说明上面选中的音色本身是男声——换一个女声音色即可。
+                <div className="space-y-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={handleGenerateDesignVoice}
+                    disabled={designing}
+                    className="w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-accent text-white text-[12.5px] font-medium cursor-pointer disabled:opacity-50"
+                  >
+                    <Sparkles className="w-3.5 h-3.5" />
+                    <span>{designing ? '正在按描述生成音色…' : '按上面的描述生成音色'}</span>
+                  </button>
+                  <p className="text-[11px] text-dim leading-relaxed">
+                    会用描述「凭空造」一个新音色，<span className="text-ink font-medium">不会沿用已有音色</span>。
+                    生成后可试听，满意再保存。
+                  </p>
+                  {designPreviews.length > 0 && (
+                    <div className="space-y-2">
+                      {designPreviews.map((p, idx) => (
+                        <div
+                          key={p.generatedVoiceId}
+                          className="p-2.5 rounded-xl bg-canvas border border-line space-y-2"
+                        >
+                          <div className="flex items-center justify-between text-[11.5px] text-secondary">
+                            <span>候选 {idx + 1}</span>
+                            {typeof p.durationSecs === 'number' && (
+                              <span className="text-dim">{p.durationSecs.toFixed(1)}s</span>
+                            )}
+                          </div>
+                          <audio
+                            controls
+                            preload="metadata"
+                            src={`data:${p.mediaType};base64,${p.audioBase64}`}
+                            className="w-full h-8"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => handleSaveDesignPreview(p)}
+                            disabled={savingDesignId === p.generatedVoiceId}
+                            className="w-full flex items-center justify-center gap-1 px-2.5 py-1.5 rounded-lg border border-accent/40 bg-accent-soft text-accent text-[11.5px] font-medium cursor-pointer disabled:opacity-50"
+                          >
+                            <Check className="w-3 h-3" />
+                            <span>
+                              {savingDesignId === p.generatedVoiceId ? '保存中…' : '保存为我的音色'}
+                            </span>
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+              {draftVoice.ttsEngine !== 'openai_api' && (
+                <div className="text-[11px] text-dim mt-1.5 leading-relaxed">
+                  一句话捏音色目前仅支持 Breeze TTS 2；其他厂商请切到「使用已有音色」。
                 </div>
               )}
               {draftVoice.ttsEngine === 'native' && (
@@ -827,6 +951,7 @@ export const VoiceStudioTab: React.FC<VoiceStudioTabProps> = ({
                 </div>
               )}
             </div>
+            )}
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>

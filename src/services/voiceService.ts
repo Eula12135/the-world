@@ -257,6 +257,133 @@ export function buildBreezeTtsPayload(params: {
   return payload;
 }
 
+export interface BreezeVoicePreview {
+  generatedVoiceId: string;
+  audioBase64: string;
+  mediaType: string;
+  durationSecs?: number;
+}
+
+interface BreezeErrorBody {
+  code?: string;
+  detail?: string;
+  error?: string;
+}
+
+function breezeError(status: number, text: string): Error {
+  let msg = '';
+  try {
+    const body = JSON.parse(text) as BreezeErrorBody;
+    msg = [body?.detail, body?.error, body?.code].filter(Boolean).join(' · ');
+  } catch {
+    msg = text.slice(0, 160);
+  }
+  return new Error(`Breeze 请求失败 (HTTP ${status})${msg ? `：${msg}` : ''}`);
+}
+
+/**
+ * Voice Design：用一段自然语言描述凭空生成音色（不会沿用账号里已有的音色）。
+ * 对应 POST /v1/voice-previews/design，返回若干候选预览，每个带 generated_voice_id。
+ * 预览是临时的，需再调用 saveBreezeVoiceDesign 才会变成正式音色。
+ */
+export async function designBreezeVoice(params: {
+  baseUrl: string;
+  apiKey: string;
+  providers: ProviderConfig[];
+  description: string;
+  text?: string;
+  model?: string;
+  languageCode?: string;
+  guidanceScale?: number;
+  previewCount?: number;
+}): Promise<BreezeVoicePreview[]> {
+  const breezeBase = normalizeBreezeBaseUrl(params.baseUrl);
+  const apiKey =
+    resolveReusableApiKey(breezeBase, params.apiKey, params.providers) ||
+    resolveReusableApiKey(params.baseUrl.trim().replace(/\/+$/, ''), params.apiKey, params.providers);
+  if (!apiKey) throw new Error('请先填写 Breeze API Key');
+
+  const description = params.description.trim();
+  if (description.length < 3) throw new Error('音色描述至少需要 3 个字，例如「慵懒御姐，慢速，略带气声」');
+
+  const body: Record<string, unknown> = {
+    voice_description: description.slice(0, 500),
+    preview_count: Math.min(3, Math.max(1, params.previewCount ?? 1)),
+  };
+  const previewScript = (params.text || '').trim();
+  if (previewScript.length >= 3) body.text = previewScript.slice(0, 500);
+  if (params.model?.trim()) body.model_id = params.model.trim();
+  if (params.languageCode) body.language_code = params.languageCode;
+  if (typeof params.guidanceScale === 'number') {
+    body.guidance_scale = Math.min(10, Math.max(1, params.guidanceScale));
+  }
+
+  const resp = await crossPlatformFetchJson({
+    url: `${breezeBase}/v1/voice-previews/design?output_format=mp3`,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'xi-api-key': apiKey },
+    body: JSON.stringify(body),
+  });
+  if (!resp.ok) throw breezeError(resp.status, resp.text);
+
+  const parsed = JSON.parse(resp.text) as {
+    previews?: Array<{
+      generated_voice_id?: string;
+      audio_base_64?: string;
+      media_type?: string;
+      duration_secs?: number | null;
+    }>;
+  };
+  const rows = Array.isArray(parsed?.previews) ? parsed.previews : [];
+  return rows
+    .filter((p) => Boolean(p?.generated_voice_id && p?.audio_base_64))
+    .map((p) => ({
+      generatedVoiceId: String(p.generated_voice_id),
+      audioBase64: String(p.audio_base_64),
+      mediaType: p.media_type ? String(p.media_type) : 'audio/mpeg',
+      durationSecs: typeof p.duration_secs === 'number' ? p.duration_secs : undefined,
+    }));
+}
+
+/** 把 Voice Design 的临时预览保存成正式音色，返回可用于 TTS 的 voice_id。 */
+export async function saveBreezeVoiceDesign(params: {
+  baseUrl: string;
+  apiKey: string;
+  providers: ProviderConfig[];
+  generatedVoiceId: string;
+  name: string;
+  languageCode?: string;
+  description?: string;
+}): Promise<{ voiceId: string; name: string }> {
+  const breezeBase = normalizeBreezeBaseUrl(params.baseUrl);
+  const apiKey =
+    resolveReusableApiKey(breezeBase, params.apiKey, params.providers) ||
+    resolveReusableApiKey(params.baseUrl.trim().replace(/\/+$/, ''), params.apiKey, params.providers);
+  if (!apiKey) throw new Error('请先填写 Breeze API Key');
+  if (!params.generatedVoiceId) throw new Error('缺少预览 ID，请先生成音色预览');
+
+  const body: Record<string, unknown> = {
+    voice_name: params.name.trim().slice(0, 80) || '我的自定义音色',
+    language_code: params.languageCode || 'zh',
+  };
+  if (params.description?.trim()) {
+    body.voice_description = params.description.trim().slice(0, 1000);
+  }
+
+  const resp = await crossPlatformFetchJson({
+    url: `${breezeBase}/v1/voice-previews/${encodeURIComponent(params.generatedVoiceId)}/save`,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'xi-api-key': apiKey },
+    body: JSON.stringify(body),
+  });
+  if (!resp.ok) throw breezeError(resp.status, resp.text);
+
+  const parsed = JSON.parse(resp.text) as { voice_id?: string; name?: string };
+  const voiceId = String(parsed?.voice_id || '').trim();
+  if (!voiceId) throw new Error('保存成功但接口未返回 voice_id');
+  return { voiceId, name: String(parsed?.name || body.voice_name) };
+}
+
 export async function listBreezeVoices(params: {
   baseUrl: string;
   apiKey: string;

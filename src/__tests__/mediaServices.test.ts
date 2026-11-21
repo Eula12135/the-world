@@ -3,12 +3,14 @@ import { buildCharacterImagePrompt, resolveReusableApiKey } from '../services/im
 import {
   buildBreezeTtsPayload,
   buildTtsSpeechPayload,
+  designBreezeVoice,
   formatTtsHttpError,
   isBreezeCloudBase,
   listBreezeVoices,
   normalizeBreezeBaseUrl,
   resolveEffectiveVoiceConfig,
   sanitizeCloneCustomName,
+  saveBreezeVoiceDesign,
   splitSpeechChunks,
   stripMarkdownForSpeech,
   uploadClonedVoice,
@@ -163,6 +165,103 @@ describe('imageGenService & voiceService helpers', () => {
     expect(msg).not.toContain('{"ok"');
 
     expect(formatTtsHttpError(401, '{"detail":"invalid api key"}')).toContain('鉴权失败');
+  });
+
+  it('designs a voice from a description and saves it (Voice Design, not TTS instructions)', async () => {
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            text: '试听台词',
+            previews: [
+              {
+                generated_voice_id: 'gvi_abc',
+                audio_base_64: 'SUQz',
+                media_type: 'audio/mpeg',
+                duration_secs: 3.4,
+              },
+              { generated_voice_id: '', audio_base_64: '' },
+            ],
+          }),
+          { status: 200 }
+        )
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ voice_id: 'voc_new', name: '慵懒御姐' }), { status: 200 })
+      );
+
+    const origFetch = globalThis.fetch;
+    globalThis.fetch = mockFetch;
+    try {
+      const previews = await designBreezeVoice({
+        baseUrl: 'https://api.breezeblue.ai/v1',
+        apiKey: 'brz_test',
+        providers: [],
+        description: '慵懒御姐，语速偏慢，略带气声',
+        text: '试听台词',
+        previewCount: 9,
+      });
+
+      // 空 preview 被过滤，preview_count 被夹到 1..3
+      expect(previews).toHaveLength(1);
+      expect(previews[0]).toMatchObject({
+        generatedVoiceId: 'gvi_abc',
+        mediaType: 'audio/mpeg',
+        durationSecs: 3.4,
+      });
+      const [url, init] = mockFetch.mock.calls[0];
+      expect(url).toBe('https://api.breeze.blue/v1/voice-previews/design?output_format=mp3');
+      const sentBody = JSON.parse(init.body);
+      expect(sentBody.voice_description).toBe('慵懒御姐，语速偏慢，略带气声');
+      expect(sentBody.preview_count).toBe(3);
+      expect(sentBody.text).toBe('试听台词');
+
+      const saved = await saveBreezeVoiceDesign({
+        baseUrl: 'https://api.breeze.blue',
+        apiKey: 'brz_test',
+        providers: [],
+        generatedVoiceId: 'gvi_abc',
+        name: '慵懒御姐',
+      });
+      expect(saved).toEqual({ voiceId: 'voc_new', name: '慵懒御姐' });
+
+      const [saveUrl, saveInit] = mockFetch.mock.calls[1];
+      expect(saveUrl).toBe('https://api.breeze.blue/v1/voice-previews/gvi_abc/save');
+      expect(JSON.parse(saveInit.body)).toMatchObject({
+        voice_name: '慵懒御姐',
+        language_code: 'zh',
+      });
+    } finally {
+      globalThis.fetch = origFetch;
+    }
+  });
+
+  it('surfaces Breeze error detail instead of a bare status code', async () => {
+    const origFetch = globalThis.fetch;
+    globalThis.fetch = vi.fn().mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          ok: false,
+          code: 'VALIDATION_ERROR',
+          detail: 'guidance_scale must be between 1 and 10',
+          error: 'bad',
+        }),
+        { status: 422 }
+      )
+    );
+    try {
+      await expect(
+        designBreezeVoice({
+          baseUrl: 'https://api.breeze.blue',
+          apiKey: 'k',
+          providers: [],
+          description: '温柔的少女音',
+        })
+      ).rejects.toThrow(/HTTP 422.*guidance_scale/);
+    } finally {
+      globalThis.fetch = origFetch;
+    }
   });
 
   it('normalizes Breeze cloud URLs and builds strict 5-key Breeze payload + lists voices with xi-api-key', async () => {
