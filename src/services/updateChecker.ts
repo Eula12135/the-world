@@ -1,0 +1,210 @@
+import { crossPlatformFetchJson } from './llm';
+import { isAndroidNative } from '../utils/platform';
+
+export const APP_VERSION = '0.3.0';
+
+export const DEFAULT_UPDATE_SOURCE: string =
+  (typeof import.meta !== 'undefined' &&
+    (import.meta as unknown as { env?: Record<string, string> }).env?.VITE_UPDATE_REPO) ||
+  '';
+
+export type UpdateSourceKind = 'github' | 'gitee' | 'manifest' | 'empty';
+
+export interface UpdateCheckResult {
+  hasUpdate: boolean;
+  currentVersion: string;
+  latestVersion: string;
+  releaseUrl: string;
+  downloadUrl: string;
+  releaseNotes: string;
+  sourceKind?: UpdateSourceKind;
+}
+
+export function compareSemver(a: string, b: string): number {
+  const pa = a.replace(/^v/i, '').split('.').map((n) => parseInt(n, 10) || 0);
+  const pb = b.replace(/^v/i, '').split('.').map((n) => parseInt(n, 10) || 0);
+  const len = Math.max(pa.length, pb.length, 3);
+  for (let i = 0; i < len; i++) {
+    const va = pa[i] || 0;
+    const vb = pb[i] || 0;
+    if (va > vb) return 1;
+    if (va < vb) return -1;
+  }
+  return 0;
+}
+
+export function pickAssetDownloadUrl(
+  assets: Array<{ name?: string; browser_download_url?: string }>,
+  preferAndroid: boolean
+): string {
+  const valid = assets.filter((a) => a.browser_download_url && a.name);
+  if (preferAndroid) {
+    const apk = valid.find((a) => a.name!.toLowerCase().endsWith('.apk'));
+    if (apk?.browser_download_url) return apk.browser_download_url;
+  } else {
+    const exe =
+      valid.find((a) => a.name!.toLowerCase().includes('setup') && a.name!.toLowerCase().endsWith('.exe')) ||
+      valid.find((a) => a.name!.toLowerCase().endsWith('.exe'));
+    if (exe?.browser_download_url) return exe.browser_download_url;
+  }
+  return '';
+}
+
+export function detectUpdateSource(source: string): { kind: UpdateSourceKind; normalized: string } {
+  const raw = source.trim();
+  if (!raw) {
+    return { kind: 'empty', normalized: '' };
+  }
+
+  if (/^https?:\/\//i.test(raw)) {
+    try {
+      const parsed = new URL(raw);
+      const pathLower = parsed.pathname.toLowerCase();
+      if (pathLower.endsWith('.json')) {
+        return { kind: 'manifest', normalized: raw };
+      }
+      const parts = parsed.pathname.split('/').filter(Boolean);
+      if (parsed.hostname.toLowerCase() === 'gitee.com' && parts.length >= 2 && parts[0] !== 'api') {
+        return { kind: 'gitee', normalized: `${parts[0]}/${parts[1].replace(/\.git$/i, '')}` };
+      }
+      if (parsed.hostname.toLowerCase() === 'github.com' && parts.length >= 2) {
+        return { kind: 'github', normalized: `${parts[0]}/${parts[1].replace(/\.git$/i, '')}` };
+      }
+      return { kind: 'manifest', normalized: raw };
+    } catch {
+      throw new Error('更新源 URL 格式不正确');
+    }
+  }
+
+  if (/^gitee:/i.test(raw)) {
+    const slug = raw
+      .replace(/^gitee:/i, '')
+      .replace(/^\/+|\/+$/g, '')
+      .replace(/\.git$/i, '');
+    if (!/^[^/\s]+\/[^/\s]+$/.test(slug)) {
+      throw new Error('Gitee 仓库格式应为 gitee:owner/repo');
+    }
+    return { kind: 'gitee', normalized: slug };
+  }
+
+  const ghSlug = raw
+    .replace(/^github:/i, '')
+    .replace(/^\/+|\/+$/g, '')
+    .replace(/\.git$/i, '');
+  if (/^[^/\s]+\/[^/\s]+$/.test(ghSlug)) {
+    return { kind: 'github', normalized: ghSlug };
+  }
+
+  throw new Error(
+    '更新源格式不正确，支持：owner/repo（GitHub）、gitee:owner/repo（Gitee）或 http(s)://.../latest.json（清单地址）'
+  );
+}
+
+function resolveRelativeUrl(candidate: string, baseUrl: string): string {
+  const trimmed = candidate.trim();
+  if (!trimmed) return '';
+  try {
+    return new URL(trimmed, baseUrl).toString();
+  } catch {
+    return trimmed;
+  }
+}
+
+export function parseManifestJson(
+  rawText: string,
+  sourceUrl: string,
+  preferAndroid: boolean
+): UpdateCheckResult {
+  let data: Record<string, unknown>;
+  try {
+    data = JSON.parse(rawText);
+  } catch {
+    throw new Error('更新清单不是有效的 JSON 格式');
+  }
+
+  const latestVersion = String(data.version || data.tag_name || APP_VERSION)
+    .trim()
+    .replace(/^v/i, '');
+  const releaseNotes = String(data.notes || data.releaseNotes || data.body || '').slice(0, 800);
+  const releaseUrl =
+    resolveRelativeUrl(String(data.releaseUrl || data.html_url || sourceUrl), sourceUrl) || sourceUrl;
+
+  const platformCandidate = preferAndroid
+    ? String(data.androidUrl || data.apkUrl || data.downloadUrl || '')
+    : String(data.windowsUrl || data.exeUrl || data.desktopUrl || data.downloadUrl || '');
+  const downloadUrl = resolveRelativeUrl(platformCandidate, sourceUrl) || releaseUrl;
+
+  return {
+    hasUpdate: compareSemver(latestVersion, APP_VERSION) > 0,
+    currentVersion: APP_VERSION,
+    latestVersion,
+    releaseUrl,
+    downloadUrl,
+    releaseNotes,
+    sourceKind: 'manifest',
+  };
+}
+
+export async function checkForAppUpdate(
+  source: string,
+  preferAndroid: boolean = isAndroidNative()
+): Promise<UpdateCheckResult> {
+  const effective = source.trim() || DEFAULT_UPDATE_SOURCE;
+  const detected = detectUpdateSource(effective);
+
+  if (detected.kind === 'empty') {
+    throw new Error(
+      '尚未配置更新源，请输入 GitHub 仓库（owner/repo）、gitee:owner/repo 或 latest.json 链接'
+    );
+  }
+
+  if (detected.kind === 'manifest') {
+    const resp = await crossPlatformFetchJson({
+      url: detected.normalized,
+      method: 'GET',
+      headers: { Accept: 'application/json' },
+    });
+    if (!resp.ok) {
+      throw new Error(`检查更新失败 (HTTP ${resp.status})`);
+    }
+    return parseManifestJson(resp.text, detected.normalized, preferAndroid);
+  }
+
+  const isGitee = detected.kind === 'gitee';
+  const apiUrl = isGitee
+    ? `https://gitee.com/api/v5/repos/${detected.normalized}/releases/latest`
+    : `https://api.github.com/repos/${detected.normalized}/releases/latest`;
+  const fallbackReleasePage = isGitee
+    ? `https://gitee.com/${detected.normalized}/releases`
+    : `https://github.com/${detected.normalized}/releases`;
+
+  const resp = await crossPlatformFetchJson({
+    url: apiUrl,
+    method: 'GET',
+    headers: { Accept: isGitee ? 'application/json' : 'application/vnd.github+json' },
+  });
+
+  if (!resp.ok) {
+    throw new Error(`检查更新失败 (HTTP ${resp.status})`);
+  }
+
+  const data = JSON.parse(resp.text);
+  const latestVersion = String(data.tag_name || data.name || APP_VERSION)
+    .trim()
+    .replace(/^v/i, '');
+  const releaseUrl = String(data.html_url || fallbackReleasePage);
+  const assets = Array.isArray(data.assets) ? data.assets : [];
+  const downloadUrl = pickAssetDownloadUrl(assets, preferAndroid) || releaseUrl;
+
+  return {
+    hasUpdate: compareSemver(latestVersion, APP_VERSION) > 0,
+    currentVersion: APP_VERSION,
+    latestVersion,
+    releaseUrl,
+    downloadUrl,
+    releaseNotes: String(data.body || '').slice(0, 800),
+    sourceKind: detected.kind,
+  };
+}
+
+export const checkGithubReleaseUpdate = checkForAppUpdate;

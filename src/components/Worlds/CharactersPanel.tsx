@@ -1,0 +1,547 @@
+import React, { useMemo, useRef, useState } from 'react';
+import {
+  ArrowLeft,
+  ImagePlus,
+  Loader2,
+  MessageSquare,
+  Plus,
+  Search,
+  Sparkles,
+  Trash2,
+  Users,
+  X,
+} from 'lucide-react';
+import { useAppStore } from '../../store/useAppStore';
+import type { Character } from '../../types';
+import {
+  buildCharacterImagePrompt,
+  compressImageDataToDataUrl,
+  generateImage,
+} from '../../services/imageGenService';
+import { createId } from '../../utils/platform';
+
+const AVATAR_COLORS = ['#4d6bfe', '#10b981', '#f59e0b', '#ec4899', '#8b5cf6', '#06b6d4', '#ef4444'];
+
+export const CharactersPanel: React.FC<{ worldId: string }> = ({ worldId }) => {
+  const {
+    characters,
+    worlds,
+    providers,
+    settings,
+    upsertCharacter,
+    deleteCharacter,
+    startNewDraft,
+    setActiveModal,
+    requestConfirm,
+    showToast,
+  } = useAppStore();
+
+  const [query, setQuery] = useState('');
+  const [editing, setEditing] = useState<Character | null>(null);
+  const [imgPromptOpen, setImgPromptOpen] = useState(false);
+  const [imgPrompt, setImgPrompt] = useState('');
+  const [generatingImg, setGeneratingImg] = useState(false);
+  const [imgError, setImgError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const boundWorld = useMemo(
+    () => worlds.find((w) => w.id === worldId),
+    [worlds, worldId]
+  );
+
+  const worldChars = useMemo(
+    () =>
+      characters
+        .filter((c) => c.worldId === worldId)
+        .filter((c) => {
+          const q = query.trim().toLowerCase();
+          if (!q) return true;
+          return (
+            c.name.toLowerCase().includes(q) ||
+            c.identity.toLowerCase().includes(q) ||
+            c.personality.toLowerCase().includes(q)
+          );
+        })
+        .sort((a, b) => b.updatedAt - a.updatedAt),
+    [characters, worldId, query]
+  );
+
+  const openEditor = (char: Character) => {
+    setEditing({ ...char });
+    setImgPromptOpen(false);
+    setImgError(null);
+    setImgPrompt(buildCharacterImagePrompt(char, boundWorld, settings.imageGen.styleHint));
+  };
+
+  const openNew = () => {
+    const fresh: Character = {
+      id: createId('char'),
+      worldId,
+      name: '',
+      identity: '',
+      personality: '',
+      status: '',
+      relationsNote: '',
+      notes: '',
+      avatarColor: AVATAR_COLORS[worldChars.length % AVATAR_COLORS.length],
+      updatedAt: Date.now(),
+    };
+    openEditor(fresh);
+  };
+
+  const handleSave = async (): Promise<Character | null> => {
+    if (!editing || !editing.name.trim()) return null;
+    const saved: Character = {
+      ...editing,
+      name: editing.name.trim(),
+      updatedAt: Date.now(),
+    };
+    await upsertCharacter(saved);
+    setEditing(saved);
+    showToast('角色卡已保存', 'success');
+    return saved;
+  };
+
+  const handleStartRoleChat = async (char: Character) => {
+    if (editing && editing.id === char.id && editing.name.trim()) {
+      const saved = await handleSave();
+      if (!saved) return;
+    }
+    await startNewDraft({
+      worldId,
+      chatMode: 'character_role',
+      roleCharacterId: char.id,
+    });
+  };
+
+  const handleDelete = (c: Character) => {
+    requestConfirm({
+      title: '删除角色卡',
+      message: `确定要删除角色「${c.name}」吗？相关时间线中的角色标记也会同步清除。`,
+      onConfirm: async () => {
+        await deleteCharacter(c.id);
+        if (editing?.id === c.id) setEditing(null);
+        showToast('角色已删除');
+      },
+    });
+  };
+
+  const handleUploadAvatar = async (file: File) => {
+    if (!editing) return;
+    setImgError(null);
+    try {
+      const dataUrl = await compressImageDataToDataUrl(file, 512, 0.85);
+      setEditing({ ...editing, avatarImage: dataUrl });
+      showToast('角色图片已压缩载入，记得点击「保存角色」', 'success');
+    } catch (err) {
+      setImgError(err instanceof Error ? err.message : '读取图片失败');
+    }
+  };
+
+  const handleGenerateAvatar = async () => {
+    if (!editing) return;
+    const promptToUse =
+      imgPrompt.trim() || buildCharacterImagePrompt(editing, boundWorld, settings.imageGen.styleHint);
+    if (!imgPrompt.trim()) setImgPrompt(promptToUse);
+
+    setGeneratingImg(true);
+    setImgError(null);
+    try {
+      const dataUrl = await generateImage({
+        config: settings.imageGen,
+        providers,
+        prompt: promptToUse,
+      });
+      setEditing((prev) => (prev ? { ...prev, avatarImage: dataUrl } : prev));
+      showToast('AI 角色图生成完成，请点击「保存角色」', 'success');
+    } catch (err) {
+      setImgError(err instanceof Error ? err.message : '生成角色图失败');
+    } finally {
+      setGeneratingImg(false);
+    }
+  };
+
+  if (editing) {
+    return (
+      <div className="flex-1 flex flex-col min-h-0 rounded-2xl bg-card border border-line overflow-hidden">
+        <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 border-b border-line bg-sidebar">
+          <button
+            onClick={() => setEditing(null)}
+            className="flex items-center gap-1.5 text-[13px] font-medium text-secondary hover:text-ink cursor-pointer"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            <span>返回角色列表</span>
+          </button>
+
+          <div className="flex flex-wrap items-center gap-2">
+            {editing.name.trim() && (
+              <button
+                type="button"
+                onClick={() => handleStartRoleChat(editing)}
+                className="flex items-center gap-1 px-3 py-1.5 rounded-xl text-[12px] border border-accent/40 bg-accent-soft text-accent font-medium hover:opacity-90 cursor-pointer whitespace-nowrap"
+              >
+                <MessageSquare className="w-3.5 h-3.5" />
+                <span>以该角色对话</span>
+              </button>
+            )}
+            {characters.some((c) => c.id === editing.id) && (
+              <button
+                onClick={() => handleDelete(editing)}
+                className="flex items-center gap-1 px-3 py-1.5 rounded-xl text-[12px] text-red-500 border border-red-500/30 hover:bg-red-500/10 cursor-pointer whitespace-nowrap"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>删除</span>
+              </button>
+            )}
+            <button
+              onClick={handleSave}
+              disabled={!editing.name.trim()}
+              className="px-4 py-1.5 rounded-xl text-[13px] font-medium bg-accent text-white disabled:opacity-40 cursor-pointer whitespace-nowrap"
+            >
+              保存角色
+            </button>
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-4 md:p-6">
+          <div className="max-w-2xl mx-auto space-y-4 text-[13px]">
+            {/* Portrait & AI Image Generation */}
+            <div className="p-3.5 rounded-2xl bg-sidebar border border-line space-y-3">
+              <div className="flex flex-wrap items-center gap-4">
+                {editing.avatarImage ? (
+                  <img
+                    src={editing.avatarImage}
+                    alt={editing.name || '角色立绘'}
+                    className="w-20 h-20 rounded-2xl object-cover border border-line shrink-0"
+                  />
+                ) : (
+                  <div
+                    className="w-20 h-20 rounded-2xl flex items-center justify-center text-white text-2xl font-bold shrink-0"
+                    style={{ backgroundColor: editing.avatarColor || '#4d6bfe' }}
+                  >
+                    {(editing.name || '?').slice(0, 1)}
+                  </div>
+                )}
+
+                <div className="flex-1 min-w-[200px] space-y-2">
+                  <div className="font-medium text-ink">角色形象（头像 / 立绘）</div>
+                  <div className="flex flex-wrap gap-2">
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => {
+                        const f = e.target.files?.[0];
+                        if (f) handleUploadAvatar(f);
+                        e.target.value = '';
+                      }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="flex items-center gap-1 px-3 py-1.5 rounded-xl border border-line bg-canvas text-[12px] text-ink hover:bg-hover cursor-pointer"
+                    >
+                      <ImagePlus className="w-3.5 h-3.5 text-accent" />
+                      <span>上传本地图片</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const nextOpen = !imgPromptOpen;
+                        setImgPromptOpen(nextOpen);
+                        if (nextOpen && !imgPrompt.trim()) {
+                          setImgPrompt(
+                            buildCharacterImagePrompt(
+                              editing,
+                              boundWorld,
+                              settings.imageGen.styleHint
+                            )
+                          );
+                        }
+                      }}
+                      className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-accent-soft text-accent text-[12px] font-medium hover:opacity-90 cursor-pointer"
+                    >
+                      <Sparkles className="w-3.5 h-3.5" />
+                      <span>AI 生成角色图</span>
+                    </button>
+                    {editing.avatarImage && (
+                      <button
+                        type="button"
+                        onClick={() => setEditing({ ...editing, avatarImage: undefined })}
+                        className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-line text-[12px] text-dim hover:text-red-500 cursor-pointer"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                        <span>清除</span>
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {imgPromptOpen && (
+                <div className="pt-2 border-t border-line space-y-2">
+                  <div className="flex items-center justify-between text-[12px]">
+                    <span className="text-secondary">
+                      画面描述词（当前生图模型：<code className="text-accent">{settings.imageGen.model}</code>）
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setImgPrompt(
+                          buildCharacterImagePrompt(editing, boundWorld, settings.imageGen.styleHint)
+                        )
+                      }
+                      className="text-accent hover:underline cursor-pointer"
+                    >
+                      按设定自动生成提示词
+                    </button>
+                  </div>
+                  <textarea
+                    rows={3}
+                    value={imgPrompt}
+                    onChange={(e) => setImgPrompt(e.target.value)}
+                    placeholder="描述角色外貌、服装、神态与背景光影..."
+                    className="w-full p-2.5 rounded-xl bg-canvas border border-line text-[12.5px] text-ink outline-none focus:border-accent"
+                  />
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setActiveModal('providers')}
+                      className="text-[12px] text-dim hover:text-accent underline cursor-pointer"
+                    >
+                      配置生图模型 / API Key
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleGenerateAvatar}
+                      disabled={generatingImg}
+                      className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-accent text-white text-[12px] font-medium disabled:opacity-50 cursor-pointer"
+                    >
+                      {generatingImg ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      ) : (
+                        <Sparkles className="w-3.5 h-3.5" />
+                      )}
+                      <span>{generatingImg ? '生成中...' : '立即生成角色图'}</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {imgError && (
+                <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 rounded-xl bg-red-500/10 border border-red-500/30 text-red-500 text-[12px]">
+                  <span>{imgError}</span>
+                  <button
+                    type="button"
+                    onClick={() => setActiveModal('providers')}
+                    className="underline font-medium shrink-0 cursor-pointer"
+                  >
+                    前往配置生图 Key
+                  </button>
+                </div>
+              )}
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block mb-1.5 font-medium text-secondary">姓名 *</label>
+                <input
+                  value={editing.name}
+                  onChange={(e) => setEditing({ ...editing, name: e.target.value })}
+                  placeholder="例如：林澈"
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-canvas border border-line text-[15px] text-ink outline-none focus:border-accent"
+                />
+              </div>
+              <div>
+                <label className="block mb-1.5 font-medium text-secondary">身份 / 定位</label>
+                <input
+                  value={editing.identity}
+                  onChange={(e) => setEditing({ ...editing, identity: e.target.value })}
+                  placeholder="例如：主角 · 边境调查员"
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-canvas border border-line text-[15px] text-ink outline-none focus:border-accent"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block mb-1.5 font-medium text-secondary">标识色</label>
+                <div className="flex items-center gap-2.5 pt-1">
+                  {AVATAR_COLORS.map((c) => (
+                    <button
+                      key={c}
+                      type="button"
+                      onClick={() => setEditing({ ...editing, avatarColor: c })}
+                      className={`w-7 h-7 rounded-full cursor-pointer transition ${
+                        editing.avatarColor === c ? 'ring-2 ring-accent scale-110' : 'opacity-80'
+                      }`}
+                      style={{ backgroundColor: c }}
+                      aria-label={`选择颜色 ${c}`}
+                    />
+                  ))}
+                </div>
+              </div>
+              <div>
+                <label className="block mb-1.5 font-medium text-secondary">
+                  专属音色 ID（可选，API 语音朗读时优先使用）
+                </label>
+                <input
+                  value={editing.voiceName || ''}
+                  onChange={(e) => setEditing({ ...editing, voiceName: e.target.value })}
+                  placeholder="例如：FunAudioLLM/CosyVoice2-0.5B:alex"
+                  className="w-full px-3.5 py-2 rounded-xl bg-canvas border border-line text-[13px] font-mono text-ink outline-none focus:border-accent"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block mb-1.5 font-medium text-secondary">性格特点</label>
+              <textarea
+                rows={3}
+                value={editing.personality}
+                onChange={(e) => setEditing({ ...editing, personality: e.target.value })}
+                placeholder="例如：表面冷静克制，实则对旧日誓言极为执着，说话简洁少废话。"
+                className="w-full px-3.5 py-2.5 rounded-xl bg-canvas border border-line text-[14px] text-ink outline-none focus:border-accent"
+              />
+            </div>
+
+            <div>
+              <label className="block mb-1.5 font-medium text-secondary">目前状态</label>
+              <input
+                value={editing.status}
+                onChange={(e) => setEditing({ ...editing, status: e.target.value })}
+                placeholder="例如：正在前往北境调查失踪案，负轻伤"
+                className="w-full px-3.5 py-2.5 rounded-xl bg-canvas border border-line text-[14px] text-ink outline-none focus:border-accent"
+              />
+            </div>
+
+            <div>
+              <label className="block mb-1.5 font-medium text-secondary">人物关系简记</label>
+              <textarea
+                rows={3}
+                value={editing.relationsNote}
+                onChange={(e) => setEditing({ ...editing, relationsNote: e.target.value })}
+                placeholder="例如：与苏岚：旧日搭档，因三年前事故产生隔阂；与沈老：师徒，受其暗中庇护。"
+                className="w-full px-3.5 py-2.5 rounded-xl bg-canvas border border-line text-[14px] text-ink outline-none focus:border-accent"
+              />
+            </div>
+
+            <div>
+              <label className="block mb-1.5 font-medium text-secondary">补充备注（外貌、习惯、背景）</label>
+              <textarea
+                rows={4}
+                value={editing.notes}
+                onChange={(e) => setEditing({ ...editing, notes: e.target.value })}
+                placeholder="任何想让 AI 注意的角色细节..."
+                className="w-full px-3.5 py-2.5 rounded-xl bg-canvas border border-line text-[14px] text-ink outline-none focus:border-accent"
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex-1 overflow-y-auto space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-card border border-line w-full sm:w-64">
+          <Search className="w-3.5 h-3.5 text-dim shrink-0" />
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="搜索角色姓名或身份..."
+            className="w-full bg-transparent text-[13px] text-ink outline-none placeholder:text-dim"
+          />
+        </div>
+
+        <button
+          onClick={openNew}
+          className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-[13px] font-medium bg-accent text-white hover:opacity-95 cursor-pointer"
+        >
+          <Plus className="w-4 h-4" />
+          <span>新建角色卡</span>
+        </button>
+      </div>
+
+      {worldChars.length === 0 ? (
+        <div className="py-16 text-center rounded-2xl border border-dashed border-line space-y-2">
+          <Users className="w-8 h-8 mx-auto text-dim" />
+          <div className="text-[14px] text-secondary">还没有角色卡</div>
+          <p className="text-[12px] text-dim">
+            角色卡支持上传或 AI 生成立绘，并可直接让 AI 以该角色第一人称对话。
+          </p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          {worldChars.map((c) => (
+            <div
+              key={c.id}
+              onClick={() => openEditor(c)}
+              className="p-4 rounded-2xl bg-card border border-line hover:border-accent/50 transition cursor-pointer flex flex-col justify-between gap-3"
+            >
+              <div className="space-y-2">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    {c.avatarImage ? (
+                      <img
+                        src={c.avatarImage}
+                        alt={c.name}
+                        className="w-10 h-10 rounded-full object-cover shrink-0 border border-line"
+                      />
+                    ) : (
+                      <div
+                        className="w-10 h-10 rounded-full flex items-center justify-center text-white font-semibold text-sm shrink-0"
+                        style={{ backgroundColor: c.avatarColor || '#4d6bfe' }}
+                      >
+                        {c.name.slice(0, 1)}
+                      </div>
+                    )}
+                    <div className="min-w-0">
+                      <div className="text-[15px] font-semibold text-ink truncate">{c.name}</div>
+                      {c.identity && (
+                        <div className="text-[12px] text-dim truncate">{c.identity}</div>
+                      )}
+                    </div>
+                  </div>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDelete(c);
+                    }}
+                    className="p-1.5 rounded-lg text-dim hover:text-red-500 hover:bg-red-500/10 cursor-pointer"
+                    title="删除角色"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+
+                <p className="text-[13px] text-secondary line-clamp-2 leading-relaxed">
+                  {c.personality || c.relationsNote || c.notes || '点击编辑角色详情...'}
+                </p>
+              </div>
+
+              <div className="pt-2 border-t border-line flex items-center justify-between gap-2 text-[12px]">
+                <span className="text-dim truncate">
+                  {c.status ? `状态：${c.status}` : '点击卡片编辑资料'}
+                </span>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleStartRoleChat(c);
+                  }}
+                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-accent-soft text-accent font-medium hover:opacity-90 shrink-0 cursor-pointer"
+                >
+                  <MessageSquare className="w-3 h-3" />
+                  <span>角色对话</span>
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
