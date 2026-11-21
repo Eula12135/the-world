@@ -21,6 +21,27 @@ GET https://api.github.com/repos/Eula12135/the-world/releases/latest
 > ⚠️ **每次构建都必须带上 `VITE_UPDATE_REPO`**。
 > 漏了的话包里的更新源是空字符串，App 永远不会提示更新——而且这个错误在界面上看不出来。
 
+### 更新源优先级（0.3.10 起）
+
+```
+1. https://gitee.com/qiutonger/the-world/raw/main/latest.json   ← 清单，可动态换下载源
+2. gitee:qiutonger/the-world                                     ← Gitee Release API
+3. Eula12135/the-world                                           ← GitHub Release API
+```
+
+清单里按平台分流，**原因很重要**：
+
+| 平台 | 下载来源 | MIME |
+|---|---|---|
+| Android | **GitHub** | `application/vnd.android.package-archive` ✅ |
+| Windows | Gitee | `application/vnd.microsoft.portable-executable` ✅ |
+
+**Gitee 用 `Content-Type: application/zip` 提供 `.apk`**，浏览器会把它当压缩包、追加 `.zip`，
+换浏览器/改文件名都没用（浏览器按 MIME 判定）。所以 APK 必须走 GitHub。
+
+> ⚠️ **Gitee raw 有约 4 分钟的 CDN 缓存**：发版后立即提交 `latest.json`，
+> 客户端要过几分钟才能看到新版本。验证时如果读到旧版本，等一会再试，别以为没生效。
+
 ---
 
 ## 1. 升版本号
