@@ -158,6 +158,12 @@ export const WorldContextPopover: React.FC<WorldContextPopoverProps> = ({ draftI
     const next = base.includes(heading)
       ? base.filter((h) => h !== heading)
       : [...base, heading];
+    // `selectedSections: []` 的约定是「全部章节」，所以「一个都不选」无法表达。
+    // 不拦住的话，用户取消最后一项会看到复选框全部重新勾上，像是点击无效。
+    if (next.length === 0) {
+      showToast('至少保留一个设定章节；若想完全不带入设定，请关闭上方的世界观上下文开关', 'info');
+      return;
+    }
     const normalized = next.length === allNames.length ? [] : next;
     await updateWorld(boundWorld.id, { selectedSections: normalized });
   };

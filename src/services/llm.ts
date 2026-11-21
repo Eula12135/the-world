@@ -1,6 +1,6 @@
 import { Capacitor, CapacitorHttp } from '@capacitor/core';
 import type { AppSettings, ChatMessage, ProviderConfig } from '../types';
-import { createId } from '../utils/platform';
+import { createId, detectUnreachableLocalhost } from '../utils/platform';
 
 export interface StreamCallbacks {
   onDelta: (partial: { content: string; reasoning: string }) => void;
@@ -246,6 +246,11 @@ export function streamChat(
   }
   if (!provider.baseUrl.trim()) {
     callbacks.onError(new Error('API Base URL 不能为空'));
+    return () => {};
+  }
+  const localhostWarning = detectUnreachableLocalhost(provider.baseUrl);
+  if (localhostWarning) {
+    callbacks.onError(new Error(localhostWarning));
     return () => {};
   }
 
@@ -516,6 +521,10 @@ export async function fetchProviderModels(provider: ProviderConfig): Promise<str
   if (provider.protocol === 'anthropic') {
     return provider.models;
   }
+  const localhostWarning = detectUnreachableLocalhost(provider.baseUrl);
+  if (localhostWarning) {
+    throw new Error(localhostWarning);
+  }
   const cleanBase = provider.baseUrl.replace(/\/+$/, '');
   const headers: Record<string, string> = {};
   if (provider.apiKey.trim()) {
@@ -546,6 +555,10 @@ export async function testProviderConnection(
 ): Promise<{ ok: boolean; latencyMs: number; message: string }> {
   if (provider.requiresKey && !provider.apiKey.trim()) {
     return { ok: false, latencyMs: 0, message: '请先填写 API Key' };
+  }
+  const localhostWarning = detectUnreachableLocalhost(provider.baseUrl);
+  if (localhostWarning) {
+    return { ok: false, latencyMs: 0, message: localhostWarning };
   }
   const started = Date.now();
   const cleanBase = provider.baseUrl.replace(/\/+$/, '');

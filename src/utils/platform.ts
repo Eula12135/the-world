@@ -21,6 +21,24 @@ export function isSafeHttpUrl(url: string): boolean {
   }
 }
 
+const LOOPBACK_HOSTS = new Set(['localhost', '127.0.0.1', '0.0.0.0', '[::1]', '::1']);
+
+/**
+ * 手机端的 localhost 指的是手机自己，不是跑着 Ollama / 本地推理服务的电脑。
+ * 这类地址在 Android 上必然连不通，提前给出可操作的指引，
+ * 比让用户看到 "Failed to fetch" 或 ECONNREFUSED 有用得多。
+ */
+export function detectUnreachableLocalhost(baseUrl: string): string | null {
+  if (!isAndroidNative()) return null;
+  try {
+    const host = new URL(baseUrl).hostname.toLowerCase();
+    if (!LOOPBACK_HOSTS.has(host)) return null;
+    return `手机端连不上 ${host}（在手机上它指向手机自身）。请把 Base URL 改成电脑的局域网地址，例如 http://192.168.1.10:11434/v1，并确认手机和电脑在同一个 Wi-Fi 下。`;
+  } catch {
+    return null;
+  }
+}
+
 export async function openExternalUrl(url: string): Promise<void> {
   if (!isSafeHttpUrl(url)) {
     throw new Error('仅支持打开 http:// 或 https:// 协议的外部链接');

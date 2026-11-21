@@ -1,7 +1,9 @@
 import { crossPlatformFetchJson } from './llm';
 import { isAndroidNative } from '../utils/platform';
 
-export const APP_VERSION = '0.3.0';
+// 构建时由 vite.config.ts 的 define 注入 package.json 的 version；脱离构建环境时回退
+export const APP_VERSION: string =
+  typeof __APP_VERSION__ === 'string' && __APP_VERSION__ ? __APP_VERSION__ : '0.3.0';
 
 export const DEFAULT_UPDATE_SOURCE: string =
   (typeof import.meta !== 'undefined' &&

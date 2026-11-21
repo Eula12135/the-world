@@ -435,13 +435,8 @@ export const useAppStore = create<AppState>((set, get) => ({
     };
 
     await db.messages.bulkPut([userMsg, assistantMsg]);
-    await db.sessions.update(targetSessionId!, {
-      title:
-        existingMessages.length === 0 && session.title === '新对话'
-          ? trimmed.slice(0, 24)
-          : session.title,
-      updatedAt: now,
-    });
+    // 会话标题在创建时已由首条消息生成，这里只需推进 updatedAt
+    await db.sessions.update(targetSessionId!, { updatedAt: now });
 
     const updatedSessions = await db.sessions.orderBy('updatedAt').reverse().toArray();
     if (get().activeSessionId === targetSessionId) {
