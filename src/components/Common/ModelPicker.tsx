@@ -55,15 +55,12 @@ export const ModelPicker: React.FC<ModelPickerProps> = ({ providerId, model, onS
 
       {open && (
         <>
-          <div
-            className="fixed inset-0 z-40 bg-black/40 md:bg-transparent"
-            onClick={() => setOpen(false)}
-          />
+          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
 
-          <div className="fixed inset-x-0 bottom-0 md:absolute md:inset-auto md:left-1/2 md:-translate-x-1/2 md:top-full md:mt-2 z-50 w-full md:w-88 rounded-t-2xl md:rounded-2xl bg-card border border-line shadow-2xl overflow-hidden flex flex-col max-h-[75vh] md:max-h-[440px]">
-            <div className="flex items-center justify-between px-4 py-3 border-b border-line md:hidden">
-              <span className="text-[15px] font-semibold">选择模型</span>
-              <button onClick={() => setOpen(false)} className="p-1 text-dim">
+          <div className="absolute left-1/2 top-full z-50 mt-2 w-[min(92vw,22rem)] -translate-x-1/2 rounded-2xl bg-card border border-line shadow-2xl overflow-hidden flex flex-col max-h-[60vh]">
+            <div className="flex items-center justify-between px-4 py-2.5 border-b border-line">
+              <span className="text-[13px] font-semibold text-ink">选择模型</span>
+              <button onClick={() => setOpen(false)} className="p-1 text-dim hover:text-ink cursor-pointer">
                 <X className="w-4 h-4" />
               </button>
             </div>

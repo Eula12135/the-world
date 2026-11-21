@@ -178,9 +178,15 @@ export const VoiceStudioTab: React.FC<VoiceStudioTabProps> = ({
       const currentVoiceId = draftVoice.ttsVoice.trim();
       const matched = list.find((v) => v.voiceId === currentVoiceId);
       if (!matched) {
-        setDraftVoice((prev) => ({ ...prev, ttsVoice: list[0].voiceId }));
+        const fallback = list[0];
+        setDraftVoice((prev) => ({ ...prev, ttsVoice: fallback.voiceId }));
+        showToast(
+          `已获取 ${list.length} 个音色，默认选用「${fallback.name}」。音色决定声音的性别与音质，风格描述只改语气`,
+          'info'
+        );
+      } else {
+        showToast(`已获取 ${list.length} 个 Breeze 音色`, 'success');
       }
-      showToast(`已获取 ${list.length} 个 Breeze 音色`, 'success');
     } catch (err) {
       showToast(err instanceof Error ? err.message : '拉取 Breeze 音色失败', 'error');
     } finally {
@@ -748,7 +754,8 @@ export const VoiceStudioTab: React.FC<VoiceStudioTabProps> = ({
               <div className="p-3 rounded-xl bg-canvas border border-line space-y-2">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <span className="text-[12px] font-medium text-ink">
-                    选择 Breeze 音色（不选也能试听，将自动选用账号下首个音色）
+                    选择 Breeze 音色 —— <span className="text-accent">它决定声音的性别与音质</span>
+                    （不选会自动使用账号下第一个音色）
                   </span>
                   <button
                     type="button"
@@ -807,6 +814,13 @@ export const VoiceStudioTab: React.FC<VoiceStudioTabProps> = ({
                   </button>
                 ))}
               </div>
+              {draftVoice.ttsEngine === 'openai_api' && activeCloudPreset?.id === 'breeze' && (
+                <div className="text-[11px] text-secondary mt-1.5 leading-relaxed">
+                  风格描述只影响语气、节奏与情绪，
+                  <span className="text-ink font-medium">不会改变音色的性别</span>。
+                  若选了「慵懒御姐」却听到男声，说明上面选中的音色本身是男声——换一个女声音色即可。
+                </div>
+              )}
               {draftVoice.ttsEngine === 'native' && (
                 <div className="text-[11px] text-amber-500 mt-1.5">
                   提示：你当前选的是「系统自带语音」，只支持语速/音调调节；如需根据文字描述凭空捏出新音色，请在第一步选 Breeze TTS 2 或硅基流动等云端模型。
