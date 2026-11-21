@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Download, Loader2, X } from 'lucide-react';
+import { Download, ExternalLink, Loader2, X } from 'lucide-react';
 import { useAppStore } from './store/useAppStore';
 import { AppShell } from './components/Layout/AppShell';
 import { ChatView } from './components/Chat/ChatView';
@@ -129,14 +129,34 @@ export const App: React.FC = () => {
                 </span>
               </button>
             ) : (
-              <button
-                onClick={() => openExternalUrl(updateNotice.downloadUrl)}
-                className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-accent text-white font-medium cursor-pointer"
-              >
-                <Download className="w-3 h-3" />
-                <span>下载更新</span>
-              </button>
+              <>
+                <button
+                  onClick={() =>
+                    openExternalUrl(updateNotice.pageUrl || updateNotice.releaseUrl)
+                  }
+                  className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-accent text-white font-medium cursor-pointer"
+                >
+                  <ExternalLink className="w-3 h-3" />
+                  <span>查看更新</span>
+                </button>
+                {updateNotice.downloadUrl && (
+                  <button
+                    onClick={() => openExternalUrl(updateNotice.downloadUrl)}
+                    className="flex items-center gap-1 px-2.5 py-1 rounded-lg border border-line text-ink font-medium cursor-pointer"
+                  >
+                    <Download className="w-3 h-3" />
+                    <span>直接下载</span>
+                  </button>
+                )}
+              </>
             )}
+            <button
+              onClick={() => openExternalUrl(updateNotice.pageUrl || updateNotice.releaseUrl)}
+              className="px-1.5 py-1 text-[11.5px] text-accent hover:underline cursor-pointer"
+              aria-label="打开更新页面"
+            >
+              查看更新
+            </button>
             <button
               onClick={() => {
                 apkCleanupRef.current?.();

@@ -18,6 +18,8 @@ export interface UpdateCheckResult {
   latestVersion: string;
   releaseUrl: string;
   downloadUrl: string;
+  /** 供「查看更新」打开的网页地址（默认同 releaseUrl），便于展示下载页/更新说明 */
+  pageUrl?: string;
   releaseNotes: string;
   sourceKind?: UpdateSourceKind;
 }
@@ -135,6 +137,7 @@ export function parseManifestJson(
     ? String(data.androidUrl || data.apkUrl || data.downloadUrl || '')
     : String(data.windowsUrl || data.exeUrl || data.desktopUrl || data.downloadUrl || '');
   const downloadUrl = resolveRelativeUrl(platformCandidate, sourceUrl) || releaseUrl;
+  const pageUrl = resolveRelativeUrl(String(data.pageUrl || data.page_url || ''), sourceUrl) || releaseUrl;
 
   return {
     hasUpdate: compareSemver(latestVersion, APP_VERSION) > 0,
@@ -142,6 +145,7 @@ export function parseManifestJson(
     latestVersion,
     releaseUrl,
     downloadUrl,
+    pageUrl,
     releaseNotes,
     sourceKind: 'manifest',
   };
@@ -242,6 +246,7 @@ async function checkSingleSource(
     latestVersion,
     releaseUrl,
     downloadUrl,
+    pageUrl: releaseUrl,
     releaseNotes: String(data.body || '').slice(0, 800),
     sourceKind: detected.kind,
   };
