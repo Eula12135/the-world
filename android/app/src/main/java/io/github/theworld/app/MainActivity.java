@@ -122,7 +122,7 @@ public class MainActivity extends BridgeActivity {
     }
 
     @Override
-    protected void onSaveInstanceState(Bundle outState) {
+    public void onSaveInstanceState(Bundle outState) {
         super.onSaveInstanceState(outState);
         if (pendingInstallApk != null) {
             outState.putString(STATE_PENDING_INSTALL_APK, pendingInstallApk.getAbsolutePath());
