@@ -34,6 +34,12 @@ import { createId } from '../utils/platform';
 
 export type ActiveView = 'chat' | 'worlds';
 export type ModalKind = 'none' | 'providers' | 'dataTransfer' | 'settings';
+export type ProvidersModalTab = 'llm' | 'image' | 'voice';
+export type VoiceStudioSubTab = 'library' | 'create' | 'stt';
+export type PendingVoiceBindTarget =
+  | { kind: 'character'; characterId: string; characterName: string }
+  | { kind: 'persona' }
+  | null;
 
 export interface DraftSessionConfig {
   providerId: string;
@@ -65,6 +71,10 @@ interface AppState {
   initialized: boolean;
   activeView: ActiveView;
   activeModal: ModalKind;
+  providersModalTab: ProvidersModalTab;
+  voiceStudioSubTab: VoiceStudioSubTab;
+  pendingVoiceBindTarget: PendingVoiceBindTarget;
+  lastCreatedVoiceForTarget: { targetKey: string; profileId: string } | null;
   sidebarOpen: boolean;
 
   providers: ProviderConfig[];
@@ -97,6 +107,18 @@ interface AppState {
   init: () => Promise<void>;
   setActiveView: (v: ActiveView) => void;
   setActiveModal: (m: ModalKind) => void;
+  setProvidersModalTab: (tab: ProvidersModalTab) => void;
+  setVoiceStudioSubTab: (subTab: VoiceStudioSubTab) => void;
+  openProvidersModal: (
+    tab: ProvidersModalTab,
+    opts?: {
+      voiceSubTab?: VoiceStudioSubTab;
+      bindTarget?: PendingVoiceBindTarget;
+    }
+  ) => void;
+  clearPendingVoiceBind: () => void;
+  completePendingVoiceBind: (profileId: string) => Promise<void>;
+  clearLastCreatedVoiceForTarget: () => void;
   setSidebarOpen: (open: boolean) => void;
   setUpdateNotice: (u: UpdateCheckResult | null) => void;
   setSpeakingMessageId: (id: string | null) => void;
@@ -185,10 +207,17 @@ function pickDefaultModelConfig(
   };
 }
 
+let selectSessionSeq = 0;
+let isSendingLock = false;
+
 export const useAppStore = create<AppState>((set, get) => ({
   initialized: false,
   activeView: 'chat',
   activeModal: 'none',
+  providersModalTab: 'llm',
+  voiceStudioSubTab: 'library',
+  pendingVoiceBindTarget: null,
+  lastCreatedVoiceForTarget: null,
   sidebarOpen: typeof window !== 'undefined' ? window.innerWidth >= 768 : true,
 
   providers: [],
@@ -279,7 +308,48 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   setActiveView: (v) => set({ activeView: v }),
-  setActiveModal: (m) => set({ activeModal: m }),
+  setActiveModal: (m) =>
+    set((s) => ({
+      activeModal: m,
+      pendingVoiceBindTarget: m === 'none' ? null : s.pendingVoiceBindTarget,
+    })),
+  setProvidersModalTab: (tab) => set({ providersModalTab: tab }),
+  setVoiceStudioSubTab: (subTab) => set({ voiceStudioSubTab: subTab }),
+  openProvidersModal: (tab, opts) =>
+    set({
+      activeModal: 'providers',
+      providersModalTab: tab,
+      voiceStudioSubTab: opts?.voiceSubTab ?? (tab === 'voice' ? 'library' : get().voiceStudioSubTab),
+      pendingVoiceBindTarget: opts?.bindTarget ?? null,
+    }),
+  clearPendingVoiceBind: () => set({ pendingVoiceBindTarget: null }),
+  completePendingVoiceBind: async (profileId) => {
+    const target = get().pendingVoiceBindTarget;
+    if (!target) {
+      set({ activeModal: 'none', pendingVoiceBindTarget: null });
+      return;
+    }
+    const targetKey =
+      target.kind === 'character' ? `character:${target.characterId}` : 'persona';
+    if (target.kind === 'character') {
+      const existingChar = get().characters.find((c) => c.id === target.characterId);
+      if (existingChar) {
+        await get().upsertCharacter({
+          ...existingChar,
+          voiceProfileId: profileId,
+          updatedAt: Date.now(),
+        });
+      }
+    }
+    set({
+      lastCreatedVoiceForTarget: { targetKey, profileId },
+      pendingVoiceBindTarget: null,
+      activeModal: 'none',
+    });
+    const label = target.kind === 'character' ? target.characterName || '角色' : '人设';
+    get().showToast(`已创建声音并绑定到「${label}」`, 'success');
+  },
+  clearLastCreatedVoiceForTarget: () => set({ lastCreatedVoiceForTarget: null }),
   setSidebarOpen: (open) => set({ sidebarOpen: open }),
   setUpdateNotice: (u) => set({ updateNotice: u }),
   setSpeakingMessageId: (id) => set({ speakingMessageId: id }),
@@ -303,7 +373,30 @@ export const useAppStore = create<AppState>((set, get) => ({
   deleteProvider: async (id) => {
     await db.providers.delete(id);
     const providers = await loadProvidersDecrypted();
-    set({ providers });
+    const fallback = pickDefaultModelConfig(providers, get().settings.defaultProviderId);
+    const fallbackProviderId = providers.some((p) => p.id === get().settings.defaultProviderId)
+      ? get().settings.defaultProviderId
+      : fallback.providerId;
+    await db.sessions
+      .where('providerId')
+      .equals(id)
+      .modify((s) => {
+        s.providerId = fallback.providerId;
+        s.model = fallback.model;
+      });
+    const sessions = await db.sessions.orderBy('updatedAt').reverse().toArray();
+    const draft = get().draftConfig;
+    set({
+      providers,
+      sessions,
+      draftConfig:
+        draft.providerId === id
+          ? { ...draft, providerId: fallback.providerId, model: fallback.model }
+          : draft,
+    });
+    if (get().settings.defaultProviderId !== fallbackProviderId) {
+      await get().updateSettings({ defaultProviderId: fallbackProviderId });
+    }
   },
 
   upsertPersonaPreset: async (preset) => {
@@ -313,9 +406,25 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   deletePersonaPreset: async (id) => {
-    await db.personaPresets.delete(id);
-    const personaPresets = await db.personaPresets.orderBy('updatedAt').reverse().toArray();
-    set({ personaPresets });
+    await db.transaction('rw', db.personaPresets, db.sessions, async () => {
+      await db.personaPresets.delete(id);
+      await db.sessions.toCollection().modify((s) => {
+        if (s.personaPresetId === id) {
+          s.personaPresetId = undefined;
+        }
+      });
+    });
+    const [personaPresets, sessions] = await Promise.all([
+      db.personaPresets.orderBy('updatedAt').reverse().toArray(),
+      db.sessions.orderBy('updatedAt').reverse().toArray(),
+    ]);
+    const draft = get().draftConfig;
+    set({
+      personaPresets,
+      sessions,
+      draftConfig:
+        draft.personaPresetId === id ? { ...draft, personaPresetId: undefined } : draft,
+    });
   },
 
   upsertVoiceProfile: async (profile) => {
@@ -352,8 +461,10 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   selectSession: async (sessionId) => {
+    const seq = ++selectSessionSeq;
     stopSpeaking();
     const messages = await db.messages.where('sessionId').equals(sessionId).sortBy('createdAt');
+    if (seq !== selectSessionSeq) return;
     set({
       activeSessionId: sessionId,
       messages,
@@ -364,6 +475,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   startNewDraft: async (opts) => {
+    selectSessionSeq++;
     stopSpeaking();
     const { providers, settings, activeSessionId, sessions } = get();
     const currentSess = sessions.find((s) => s.id === activeSessionId);
@@ -405,6 +517,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   deleteSession: async (sessionId) => {
+    selectSessionSeq++;
     if (get().streamingSessionId === sessionId) {
       get().stopStreaming();
     }
@@ -421,262 +534,312 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   sendMessage: async (text) => {
     const trimmed = text.trim();
-    if (!trimmed || get().isStreaming) return;
+    if (!trimmed || get().isStreaming || isSendingLock) return;
+    isSendingLock = true;
+    try {
+      const now = Date.now();
+      let targetSessionId = get().activeSessionId;
+      let session = targetSessionId
+        ? get().sessions.find((s) => s.id === targetSessionId) ?? null
+        : null;
 
-    const now = Date.now();
-    let targetSessionId = get().activeSessionId;
-    let session = targetSessionId
-      ? get().sessions.find((s) => s.id === targetSessionId) ?? null
-      : null;
+      if (!session) {
+        const draft = get().draftConfig;
+        targetSessionId = createId('sess');
+        session = {
+          id: targetSessionId,
+          title: trimmed.slice(0, 24),
+          pinned: false,
+          providerId: draft.providerId,
+          model: draft.model,
+          chatMode: draft.chatMode,
+          personaPresetId: draft.personaPresetId,
+          roleCharacterId: draft.roleCharacterId,
+          systemPromptOverride: draft.systemPromptOverride,
+          worldId: draft.worldId,
+          enableWorldContext: draft.enableWorldContext,
+          storyPointEventId: draft.storyPointEventId,
+          createdAt: now,
+          updatedAt: now,
+        };
+        await db.sessions.put(session);
+        set({ activeSessionId: targetSessionId });
+      }
 
-    if (!session) {
-      const draft = get().draftConfig;
-      targetSessionId = createId('sess');
-      session = {
-        id: targetSessionId,
-        title: trimmed.slice(0, 24),
-        pinned: false,
-        providerId: draft.providerId,
-        model: draft.model,
-        chatMode: draft.chatMode,
-        personaPresetId: draft.personaPresetId,
-        roleCharacterId: draft.roleCharacterId,
-        systemPromptOverride: draft.systemPromptOverride,
-        worldId: draft.worldId,
-        enableWorldContext: draft.enableWorldContext,
-        storyPointEventId: draft.storyPointEventId,
+      const provider =
+        get().providers.find((p) => p.id === session!.providerId) || get().providers[0];
+      if (!provider) {
+        set({ streamingError: '未找到可用的模型厂商配置' });
+        return;
+      }
+
+      const existingMessages = await db.messages
+        .where('sessionId')
+        .equals(targetSessionId!)
+        .sortBy('createdAt');
+
+      const userMsg: ChatMessage = {
+        id: createId('msg'),
+        sessionId: targetSessionId!,
+        role: 'user',
+        content: trimmed,
         createdAt: now,
-        updatedAt: now,
       };
-      await db.sessions.put(session);
-      set({ activeSessionId: targetSessionId });
-    }
 
-    const provider =
-      get().providers.find((p) => p.id === session!.providerId) || get().providers[0];
-    if (!provider) {
-      set({ streamingError: '未找到可用的模型厂商配置' });
-      return;
-    }
+      const assistantMsg: ChatMessage = {
+        id: createId('msg'),
+        sessionId: targetSessionId!,
+        role: 'assistant',
+        content: '',
+        reasoning: '',
+        createdAt: now + 1,
+      };
 
-    const existingMessages = await db.messages
-      .where('sessionId')
-      .equals(targetSessionId!)
-      .sortBy('createdAt');
+      await db.messages.bulkPut([userMsg, assistantMsg]);
+      // 会话标题在创建时已由首条消息生成，这里只需推进 updatedAt
+      await db.sessions.update(targetSessionId!, { updatedAt: now });
 
-    const userMsg: ChatMessage = {
-      id: createId('msg'),
-      sessionId: targetSessionId!,
-      role: 'user',
-      content: trimmed,
-      createdAt: now,
-    };
-
-    const assistantMsg: ChatMessage = {
-      id: createId('msg'),
-      sessionId: targetSessionId!,
-      role: 'assistant',
-      content: '',
-      reasoning: '',
-      createdAt: now + 1,
-    };
-
-    await db.messages.bulkPut([userMsg, assistantMsg]);
-    // 会话标题在创建时已由首条消息生成，这里只需推进 updatedAt
-    await db.sessions.update(targetSessionId!, { updatedAt: now });
-
-    const updatedSessions = await db.sessions.orderBy('updatedAt').reverse().toArray();
-    if (get().activeSessionId === targetSessionId) {
-      set({ messages: [...existingMessages, userMsg, assistantMsg] });
-    }
-    set({
-      sessions: updatedSessions,
-      isStreaming: true,
-      streamingSessionId: targetSessionId,
-      streamingError: null,
-    });
-
-    let world: WorldProject | null = null;
-    const needsWorldData =
-      (session.enableWorldContext && session.worldId) ||
-      session.chatMode === 'character_role';
-    let worldData = {
-      characters: [] as Character[],
-      relations: [] as CharacterRelation[],
-      timelineEvents: [] as TimelineEvent[],
-    };
-    if (needsWorldData) {
-      let targetWid = session.worldId;
-      if (!targetWid && session.roleCharacterId) {
-        const roleChar = await db.characters.get(session.roleCharacterId);
-        if (roleChar) targetWid = roleChar.worldId;
+      const updatedSessions = await db.sessions.orderBy('updatedAt').reverse().toArray();
+      if (get().activeSessionId === targetSessionId) {
+        set({ messages: [...existingMessages, userMsg, assistantMsg] });
       }
-      if (targetWid) {
-        world = (await db.worlds.get(targetWid)) ?? null;
-        const [wChars, wRels, wEvents] = await Promise.all([
-          db.characters.where('worldId').equals(targetWid).toArray(),
-          db.relations.where('worldId').equals(targetWid).toArray(),
-          db.timelineEvents.where('worldId').equals(targetWid).sortBy('orderIndex'),
-        ]);
-        worldData = { characters: wChars, relations: wRels, timelineEvents: wEvents };
-      }
-    }
+      set({
+        sessions: updatedSessions,
+        isStreaming: true,
+        streamingSessionId: targetSessionId,
+        streamingError: null,
+      });
 
-    // Only send unsummarized recent turns when rollingSummary is active
-    const skipCount =
-      session.rollingSummary && session.summarizedCount && session.summarizedCount > 0
-        ? Math.min(session.summarizedCount, existingMessages.length)
-        : 0;
-    const recentSlice = existingMessages.slice(skipCount);
-
-    const { prompt: systemPrompt } = buildSessionSystemPrompt({
-      settings: get().settings,
-      session,
-      world,
-      characters: worldData.characters,
-      relations: worldData.relations,
-      events: worldData.timelineEvents,
-      recentMessages: recentSlice,
-      draftInput: trimmed,
-    });
-
-    const historyForApi = [...recentSlice, userMsg];
-    const startedAt = Date.now();
-
-    // 流式过程中每个 token 都写一次 IndexedDB 会产生数千次写事务（手机端明显卡顿）。
-    // 这里改成「最多每 400ms 落盘一次最新快照」，结束时再写终值。
-    let persistTimer: ReturnType<typeof setTimeout> | null = null;
-    let latestSnapshot: { content: string; reasoning?: string } | null = null;
-
-    const cancelPendingPersist = () => {
-      if (persistTimer) {
-        clearTimeout(persistTimer);
-        persistTimer = null;
-      }
-      latestSnapshot = null;
-    };
-
-    const persistThrottled = (snapshot: { content: string; reasoning?: string }) => {
-      latestSnapshot = snapshot;
-      if (persistTimer) return;
-      persistTimer = setTimeout(() => {
-        persistTimer = null;
-        const snapshotToWrite = latestSnapshot;
-        latestSnapshot = null;
-        if (snapshotToWrite) {
-          db.messages.update(assistantMsg.id, snapshotToWrite).catch(() => {});
+      let world: WorldProject | null = null;
+      const needsWorldData =
+        (session.enableWorldContext && session.worldId) ||
+        session.chatMode === 'character_role';
+      let worldData = {
+        characters: [] as Character[],
+        relations: [] as CharacterRelation[],
+        timelineEvents: [] as TimelineEvent[],
+      };
+      if (needsWorldData) {
+        let targetWid = session.worldId;
+        if (!targetWid && session.roleCharacterId) {
+          const roleChar = await db.characters.get(session.roleCharacterId);
+          if (roleChar) targetWid = roleChar.worldId;
         }
-      }, 400);
-    };
+        if (targetWid) {
+          world = (await db.worlds.get(targetWid)) ?? null;
+          const [wChars, wRels, wEvents] = await Promise.all([
+            db.characters.where('worldId').equals(targetWid).toArray(),
+            db.relations.where('worldId').equals(targetWid).toArray(),
+            db.timelineEvents.where('worldId').equals(targetWid).sortBy('orderIndex'),
+          ]);
+          worldData = { characters: wChars, relations: wRels, timelineEvents: wEvents };
+        }
+      }
 
-    const abort = streamChat(
-      {
-        provider,
-        model: session.model || provider.selectedModel || provider.models[0],
-        systemPrompt,
-        history: historyForApi,
+      // Only send unsummarized recent turns when rollingSummary is active
+      const skipCount =
+        session.rollingSummary && session.summarizedCount && session.summarizedCount > 0
+          ? Math.min(session.summarizedCount, existingMessages.length)
+          : 0;
+      const recentSlice = existingMessages.slice(skipCount);
+
+      const { prompt: systemPrompt } = buildSessionSystemPrompt({
         settings: get().settings,
-      },
-      {
-        onDelta: ({ content, reasoning }) => {
-          if (get().activeSessionId === targetSessionId) {
-            set((state) => ({
-              messages: state.messages.map((m) =>
-                m.id === assistantMsg.id ? { ...m, content, reasoning: reasoning || undefined } : m
-              ),
-            }));
-          }
-          persistThrottled({ content, reasoning: reasoning || undefined });
-        },
-        onComplete: async ({ content, reasoning }) => {
-          cancelPendingPersist();
-          const duration = reasoning
-            ? Math.round(((Date.now() - startedAt) / 1000) * 10) / 10
-            : undefined;
-          const finalMsg: ChatMessage = {
-            ...assistantMsg,
-            content,
-            reasoning: reasoning || undefined,
-            thinkingDurationSec: duration,
-          };
-          await db.messages.put(finalMsg);
-          await db.sessions.update(targetSessionId!, { updatedAt: Date.now() });
-          const freshSessions = await db.sessions.orderBy('updatedAt').reverse().toArray();
-          if (get().activeSessionId === targetSessionId) {
-            set((state) => ({
-              messages: state.messages.map((m) => (m.id === assistantMsg.id ? finalMsg : m)),
-            }));
-          }
-          set({
-            isStreaming: false,
-            streamingSessionId: null,
-            streamingAbort: null,
-            sessions: freshSessions,
-          });
+        session,
+        world,
+        characters: worldData.characters,
+        relations: worldData.relations,
+        events: worldData.timelineEvents,
+        recentMessages: recentSlice,
+        draftInput: trimmed,
+      });
 
-          const currentSettings = get().settings;
-          if (currentSettings.voice.ttsEnabled && currentSettings.voice.ttsAutoPlay && content.trim()) {
-            const latestSess = freshSessions.find((s) => s.id === targetSessionId);
-            const roleChar = latestSess?.roleCharacterId
-              ? get().characters.find((c) => c.id === latestSess.roleCharacterId)
-              : undefined;
-            const preset = latestSess?.personaPresetId
-              ? get().personaPresets.find((p) => p.id === latestSess.personaPresetId)
-              : undefined;
-            const voiceProfileId =
-              roleChar?.voiceProfileId ||
-              preset?.voiceProfileId ||
-              currentSettings.voice.activeVoiceProfileId;
-            const voiceProfile = voiceProfileId
-              ? get().voiceProfiles.find((vp) => vp.id === voiceProfileId)
-              : undefined;
-            // 绑定了音色档案时以档案为准；旧的自定义音色 ID 只在没有档案时兜底
-            const voiceOverride = voiceProfile
-              ? undefined
-              : roleChar?.voiceName || preset?.voiceName;
-            set({ speakingMessageId: finalMsg.id });
-            speakText({
-              text: content,
-              config: currentSettings.voice,
-              providers: get().providers,
-              profile: voiceProfile,
-              voiceOverride,
-              onEnd: () => {
-                if (get().speakingMessageId === finalMsg.id) {
-                  set({ speakingMessageId: null });
-                }
-              },
-              onError: (msg) => {
-                if (get().speakingMessageId === finalMsg.id) {
-                  set({ speakingMessageId: null });
-                }
-                get().showToast(msg, 'error');
-              },
-            });
+      const historyForApi = [...recentSlice, userMsg];
+      const startedAt = Date.now();
+
+      // 流式过程中每个 token 都写一次 IndexedDB 会产生数千次写事务（手机端明显卡顿）。
+      // 这里改成「最多每 400ms 落盘一次最新快照」，结束或中止时再写终值。
+      let persistTimer: ReturnType<typeof setTimeout> | null = null;
+      let latestSnapshot: { content: string; reasoning?: string } | null = null;
+      let latestContent = '';
+      let latestReasoning = '';
+      let streamSettled = false;
+
+      const cancelPendingPersist = () => {
+        if (persistTimer) {
+          clearTimeout(persistTimer);
+          persistTimer = null;
+        }
+        latestSnapshot = null;
+      };
+
+      const persistThrottled = (snapshot: { content: string; reasoning?: string }) => {
+        latestSnapshot = snapshot;
+        if (persistTimer) return;
+        persistTimer = setTimeout(() => {
+          persistTimer = null;
+          const snapshotToWrite = latestSnapshot;
+          latestSnapshot = null;
+          if (snapshotToWrite) {
+            db.messages.update(assistantMsg.id, snapshotToWrite).catch(() => {});
           }
+        }, 400);
+      };
+
+      const rawAbort = streamChat(
+        {
+          provider,
+          model: session.model || provider.selectedModel || provider.models[0],
+          systemPrompt,
+          history: historyForApi,
+          settings: get().settings,
         },
-        onError: async (err) => {
-          cancelPendingPersist();
-          const latest = await db.messages.get(assistantMsg.id);
-          if (latest && !latest.content && !latest.reasoning) {
-            await db.messages.delete(assistantMsg.id);
+        {
+          onDelta: ({ content, reasoning }) => {
+            if (streamSettled) return;
+            latestContent = content;
+            latestReasoning = reasoning;
             if (get().activeSessionId === targetSessionId) {
               set((state) => ({
-                messages: state.messages.filter((m) => m.id !== assistantMsg.id),
+                messages: state.messages.map((m) =>
+                  m.id === assistantMsg.id
+                    ? { ...m, content, reasoning: reasoning || undefined }
+                    : m
+                ),
               }));
             }
-          }
-          set({
-            isStreaming: false,
-            streamingSessionId: null,
-            streamingAbort: null,
-            streamingError: err.message,
-          });
-        },
-      }
-    );
+            persistThrottled({ content, reasoning: reasoning || undefined });
+          },
+          onComplete: async ({ content, reasoning }) => {
+            if (streamSettled) return;
+            streamSettled = true;
+            cancelPendingPersist();
+            latestContent = content;
+            latestReasoning = reasoning;
+            const duration = reasoning
+              ? Math.round(((Date.now() - startedAt) / 1000) * 10) / 10
+              : undefined;
+            const finalMsg: ChatMessage = {
+              ...assistantMsg,
+              content,
+              reasoning: reasoning || undefined,
+              thinkingDurationSec: duration,
+            };
+            await db.messages.put(finalMsg);
+            await db.sessions.update(targetSessionId!, { updatedAt: Date.now() });
+            const freshSessions = await db.sessions.orderBy('updatedAt').reverse().toArray();
+            if (get().activeSessionId === targetSessionId) {
+              set((state) => ({
+                messages: state.messages.map((m) => (m.id === assistantMsg.id ? finalMsg : m)),
+              }));
+            }
+            set({
+              isStreaming: false,
+              streamingSessionId: null,
+              streamingAbort: null,
+              sessions: freshSessions,
+            });
 
-    set({ streamingAbort: abort });
+            const currentSettings = get().settings;
+            if (
+              currentSettings.voice.ttsEnabled &&
+              currentSettings.voice.ttsAutoPlay &&
+              content.trim()
+            ) {
+              const latestSess = freshSessions.find((s) => s.id === targetSessionId);
+              const roleChar = latestSess?.roleCharacterId
+                ? get().characters.find((c) => c.id === latestSess.roleCharacterId)
+                : undefined;
+              const preset = latestSess?.personaPresetId
+                ? get().personaPresets.find((p) => p.id === latestSess.personaPresetId)
+                : undefined;
+              const voiceProfileId =
+                roleChar?.voiceProfileId ||
+                preset?.voiceProfileId ||
+                currentSettings.voice.activeVoiceProfileId;
+              const voiceProfile = voiceProfileId
+                ? get().voiceProfiles.find((vp) => vp.id === voiceProfileId)
+                : undefined;
+              // 绑定了音色档案时以档案为准；旧的自定义音色 ID 只在没有档案时兜底
+              const voiceOverride = voiceProfile
+                ? undefined
+                : roleChar?.voiceName || preset?.voiceName;
+              set({ speakingMessageId: finalMsg.id });
+              speakText({
+                text: content,
+                config: currentSettings.voice,
+                providers: get().providers,
+                profile: voiceProfile,
+                voiceOverride,
+                onEnd: () => {
+                  if (get().speakingMessageId === finalMsg.id) {
+                    set({ speakingMessageId: null });
+                  }
+                },
+                onError: (msg) => {
+                  if (get().speakingMessageId === finalMsg.id) {
+                    set({ speakingMessageId: null });
+                  }
+                  get().showToast(msg, 'error');
+                },
+              });
+            }
+          },
+          onError: async (err) => {
+            if (streamSettled) return;
+            streamSettled = true;
+            cancelPendingPersist();
+            if (latestContent.trim() || latestReasoning.trim()) {
+              await db.messages
+                .update(assistantMsg.id, {
+                  content: latestContent,
+                  reasoning: latestReasoning || undefined,
+                })
+                .catch(() => {});
+            } else {
+              await db.messages.delete(assistantMsg.id).catch(() => {});
+              if (get().activeSessionId === targetSessionId) {
+                set((state) => ({
+                  messages: state.messages.filter((m) => m.id !== assistantMsg.id),
+                }));
+              }
+            }
+            set({
+              isStreaming: false,
+              streamingSessionId: null,
+              streamingAbort: null,
+              streamingError: err.message,
+            });
+          },
+        }
+      );
+
+      const abortHandler = () => {
+        if (streamSettled) return;
+        streamSettled = true;
+        cancelPendingPersist();
+        rawAbort();
+        if (latestContent.trim() || latestReasoning.trim()) {
+          db.messages
+            .update(assistantMsg.id, {
+              content: latestContent,
+              reasoning: latestReasoning || undefined,
+            })
+            .catch(() => {});
+        } else {
+          db.messages.delete(assistantMsg.id).catch(() => {});
+          if (get().activeSessionId === targetSessionId) {
+            set((state) => ({
+              messages: state.messages.filter((m) => m.id !== assistantMsg.id),
+            }));
+          }
+        }
+      };
+
+      set({ streamingAbort: abortHandler });
+    } finally {
+      isSendingLock = false;
+    }
   },
 
   stopStreaming: () => {
@@ -686,38 +849,106 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   regenerateLastAssistant: async () => {
-    if (get().isStreaming) return;
+    if (get().isStreaming || isSendingLock) return;
     const msgs = [...get().messages];
     if (msgs.length === 0) return;
 
-    if (msgs[msgs.length - 1].role === 'assistant') {
-      const removed = msgs.pop()!;
-      await db.messages.delete(removed.id);
+    const activeSessId = get().activeSessionId;
+    const session = activeSessId ? get().sessions.find((s) => s.id === activeSessId) : undefined;
+    const provider = session
+      ? get().providers.find((p) => p.id === session.providerId) || get().providers[0]
+      : get().providers[0];
+    if (!provider) {
+      set({ streamingError: '未找到可用的模型厂商配置' });
+      return;
     }
-    const lastUser = [...msgs].reverse().find((m) => m.role === 'user');
-    if (!lastUser) return;
 
-    await db.messages.delete(lastUser.id);
-    set({ messages: msgs.filter((m) => m.id !== lastUser.id) });
+    const toDeleteIds: string[] = [];
+    const lastIdx = msgs.length - 1;
+    let firstDeletedIdx = lastIdx;
+    if (msgs[lastIdx].role === 'assistant') {
+      const removed = msgs.pop()!;
+      toDeleteIds.push(removed.id);
+    }
+    const lastUserIdx = msgs.map((m) => m.role).lastIndexOf('user');
+    if (lastUserIdx === -1) return;
+    const lastUser = msgs[lastUserIdx];
+    toDeleteIds.push(lastUser.id);
+    firstDeletedIdx = lastUserIdx;
+
+    if (get().speakingMessageId && toDeleteIds.includes(get().speakingMessageId!)) {
+      stopSpeaking();
+      set({ speakingMessageId: null });
+    }
+
+    await db.messages.bulkDelete(toDeleteIds);
+    const remainingMsgs = msgs.filter((m) => m.id !== lastUser.id);
+    if (session && session.summarizedCount && firstDeletedIdx < session.summarizedCount) {
+      const nextCount = Math.min(firstDeletedIdx, remainingMsgs.length);
+      await get().updateSession(session.id, {
+        summarizedCount: nextCount,
+        rollingSummary: nextCount === 0 ? undefined : session.rollingSummary,
+      });
+    }
+    set({ messages: remainingMsgs });
     await get().sendMessage(lastUser.content);
   },
 
   deleteMessage: async (messageId) => {
+    if (get().speakingMessageId === messageId) {
+      stopSpeaking();
+      set({ speakingMessageId: null });
+    }
+    const msgs = get().messages;
+    const idx = msgs.findIndex((m) => m.id === messageId);
+    const targetMsg = idx !== -1 ? msgs[idx] : undefined;
     await db.messages.delete(messageId);
+    if (targetMsg) {
+      const session = get().sessions.find((s) => s.id === targetMsg.sessionId);
+      if (session && session.summarizedCount && idx < session.summarizedCount) {
+        const nextCount = Math.max(0, session.summarizedCount - 1);
+        await get().updateSession(session.id, {
+          summarizedCount: nextCount,
+          rollingSummary: nextCount === 0 ? undefined : session.rollingSummary,
+        });
+      }
+    }
     set((state) => ({
       messages: state.messages.filter((m) => m.id !== messageId),
     }));
   },
 
   editAndResend: async (messageId, newContent) => {
-    if (get().isStreaming) return;
+    const trimmed = newContent.trim();
+    if (!trimmed || get().isStreaming || isSendingLock) return;
     const msgs = get().messages;
     const idx = msgs.findIndex((m) => m.id === messageId);
     if (idx === -1) return;
+
+    const targetMsg = msgs[idx];
+    const session = get().sessions.find((s) => s.id === targetMsg.sessionId);
+    const provider = session
+      ? get().providers.find((p) => p.id === session.providerId) || get().providers[0]
+      : get().providers[0];
+    if (!provider) {
+      set({ streamingError: '未找到可用的模型厂商配置' });
+      return;
+    }
+
     const toDelete = msgs.slice(idx).map((m) => m.id);
+    if (get().speakingMessageId && toDelete.includes(get().speakingMessageId!)) {
+      stopSpeaking();
+      set({ speakingMessageId: null });
+    }
     await db.messages.bulkDelete(toDelete);
+    if (session && session.summarizedCount && idx < session.summarizedCount) {
+      await get().updateSession(session.id, {
+        summarizedCount: idx,
+        rollingSummary: idx === 0 ? undefined : session.rollingSummary,
+      });
+    }
     set({ messages: msgs.slice(0, idx) });
-    await get().sendMessage(newContent);
+    await get().sendMessage(trimmed);
   },
 
   compressSessionMemory: async (sessionId, keepRecentCount = 6) => {
@@ -791,7 +1022,26 @@ export const useAppStore = create<AppState>((set, get) => ({
       get().activeWorldId === worldId ? worlds[0]?.id ?? null : get().activeWorldId;
     const worldData = await loadWorldChildren(nextWorldId);
     const sessions = await db.sessions.orderBy('updatedAt').reverse().toArray();
-    set({ worlds, activeWorldId: nextWorldId, sessions, ...worldData });
+    const draft = get().draftConfig;
+    const nextDraft =
+      draft.worldId === worldId
+        ? {
+            ...draft,
+            worldId: undefined,
+            enableWorldContext: false,
+            storyPointEventId: undefined,
+            ...(draft.chatMode === 'character_role'
+              ? { chatMode: 'assistant' as const, roleCharacterId: undefined }
+              : {}),
+          }
+        : draft;
+    set({
+      worlds,
+      activeWorldId: nextWorldId,
+      sessions,
+      draftConfig: nextDraft,
+      ...worldData,
+    });
   },
 
   appendWorldImportData: async ({
@@ -838,7 +1088,18 @@ export const useAppStore = create<AppState>((set, get) => ({
       loadWorldChildren(null),
       db.sessions.orderBy('updatedAt').reverse().toArray(),
     ]);
-    set({ ...data, sessions });
+    const draft = get().draftConfig;
+    const nextDraft =
+      draft.roleCharacterId === id
+        ? {
+            ...draft,
+            roleCharacterId: undefined,
+            ...(draft.chatMode === 'character_role'
+              ? { chatMode: 'assistant' as const }
+              : {}),
+          }
+        : draft;
+    set({ ...data, sessions, draftConfig: nextDraft });
   },
 
   upsertRelation: async (rel) => {
@@ -863,8 +1124,17 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   deleteTimelineEvent: async (id) => {
     await deleteTimelineEventCascade(id);
-    const data = await loadWorldChildren(null);
-    set(data);
+    const [data, sessions] = await Promise.all([
+      loadWorldChildren(null),
+      db.sessions.orderBy('updatedAt').reverse().toArray(),
+    ]);
+    const draft = get().draftConfig;
+    set({
+      ...data,
+      sessions,
+      draftConfig:
+        draft.storyPointEventId === id ? { ...draft, storyPointEventId: undefined } : draft,
+    });
   },
 
   updateSettings: async (patch) => {

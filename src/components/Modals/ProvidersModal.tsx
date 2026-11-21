@@ -16,18 +16,28 @@ import {
   XCircle,
 } from 'lucide-react';
 import { useAppStore } from '../../store/useAppStore';
-import type { ImageGenConfig, ProviderConfig, VoiceConfig } from '../../types';
+import type {
+  ImageGenConfig,
+  MediaProviderCredential,
+  ProviderConfig,
+  VoiceConfig,
+} from '../../types';
 import { fetchProviderModels, testProviderConnection } from '../../services/llm';
-import { IMAGE_GEN_PRESETS } from '../../services/imageGenService';
+import {
+  fetchImageGenModels,
+  IMAGE_GEN_PRESETS,
+  resolveMediaApiKey,
+} from '../../services/imageGenService';
+import { findSttPresetByBaseUrl, findTtsPresetByBaseUrl } from '../../services/voiceService';
 import { VoiceStudioTab } from './VoiceStudioTab';
-import { createId, openExternalUrl } from '../../utils/platform';
-
-type ProviderModalTab = 'llm' | 'image' | 'voice';
+import { createId, isImeComposing, openExternalUrl } from '../../utils/platform';
 
 export const ProvidersModal: React.FC = () => {
   const {
     activeModal,
     setActiveModal,
+    providersModalTab,
+    setProvidersModalTab,
     providers,
     settings,
     saveProvider,
@@ -37,13 +47,13 @@ export const ProvidersModal: React.FC = () => {
     showToast,
   } = useAppStore();
 
-  const [tab, setTab] = useState<ProviderModalTab>('llm');
   const [selectedId, setSelectedId] = useState<string>('deepseek');
   const [draft, setDraft] = useState<ProviderConfig | null>(null);
   const [showKey, setShowKey] = useState(false);
   const [newModelInput, setNewModelInput] = useState('');
   const [testing, setTesting] = useState(false);
   const [fetchingModels, setFetchingModels] = useState(false);
+  const [fetchingImgModels, setFetchingImgModels] = useState(false);
   const [statusMsg, setStatusMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
   const [draftImg, setDraftImg] = useState<ImageGenConfig>(settings.imageGen);
@@ -57,14 +67,30 @@ export const ProvidersModal: React.FC = () => {
     if (found) {
       setSelectedId(found.id);
       setDraft({ ...found, models: [...found.models] });
-      setStatusMsg(null);
     }
   }, [activeModal, selectedId, providers]);
 
   useEffect(() => {
+    setStatusMsg(null);
+  }, [activeModal, selectedId]);
+
+  useEffect(() => {
     if (activeModal === 'providers') {
-      setDraftImg({ ...settings.imageGen });
-      setDraftVoice({ ...settings.voice });
+      setDraftImg({
+        ...settings.imageGen,
+        providerConfigs: settings.imageGen.providerConfigs
+          ? { ...settings.imageGen.providerConfigs }
+          : {},
+      });
+      setDraftVoice({
+        ...settings.voice,
+        ttsProviderConfigs: settings.voice.ttsProviderConfigs
+          ? { ...settings.voice.ttsProviderConfigs }
+          : {},
+        sttProviderConfigs: settings.voice.sttProviderConfigs
+          ? { ...settings.voice.sttProviderConfigs }
+          : {},
+      });
     }
   }, [activeModal, settings.imageGen, settings.voice]);
 
@@ -162,32 +188,185 @@ export const ProvidersModal: React.FC = () => {
     });
   };
 
-  const handleSaveImageGen = async () => {
-    await updateSettings({
-      imageGen: {
-        ...draftImg,
-        baseUrl: draftImg.baseUrl.trim(),
-        apiKey: draftImg.apiKey.trim(),
-        model: draftImg.model.trim(),
-      },
+  const updateImgField = (patch: Partial<ImageGenConfig>) => {
+    setDraftImg((prev) => {
+      const pid = prev.presetId || 'zhipu';
+      const next = { ...prev, ...patch };
+      const existingCred = prev.providerConfigs?.[pid] || {};
+      return {
+        ...next,
+        providerConfigs: {
+          ...(prev.providerConfigs || {}),
+          [pid]: {
+            ...existingCred,
+            baseUrl: next.baseUrl,
+            apiKey: next.apiKey,
+            model: next.model,
+          },
+        },
+      };
     });
-    showToast('生图模型配置已保存', 'success');
   };
 
-  const handleSaveVoice = async () => {
-    await updateSettings({
-      voice: {
-        ...draftVoice,
-        ttsBaseUrl: draftVoice.ttsBaseUrl.trim(),
-        ttsApiKey: draftVoice.ttsApiKey.trim(),
-        ttsModel: draftVoice.ttsModel.trim(),
-        ttsVoice: draftVoice.ttsVoice.trim(),
-        sttBaseUrl: draftVoice.sttBaseUrl.trim(),
-        sttApiKey: draftVoice.sttApiKey.trim(),
-        sttModel: draftVoice.sttModel.trim(),
-      },
+  const switchImgPreset = (preset: (typeof IMAGE_GEN_PRESETS)[number]) => {
+    setDraftImg((prev) => {
+      const curId = prev.presetId || 'zhipu';
+      const nextConfigs: Record<string, MediaProviderCredential> = {
+        ...(prev.providerConfigs || {}),
+        [curId]: {
+          ...(prev.providerConfigs?.[curId] || {}),
+          baseUrl: prev.baseUrl,
+          apiKey: prev.apiKey,
+          model: prev.model,
+        },
+      };
+      const saved = nextConfigs[preset.id];
+      const nextBaseUrl = saved?.baseUrl ?? preset.baseUrl;
+      const nextApiKey = saved?.apiKey ?? '';
+      const nextModel = saved?.model ?? preset.defaultModel;
+      return {
+        ...prev,
+        presetId: preset.id,
+        baseUrl: nextBaseUrl,
+        apiKey: nextApiKey,
+        model: nextModel,
+        providerConfigs: {
+          ...nextConfigs,
+          [preset.id]: {
+            ...(saved || {}),
+            baseUrl: nextBaseUrl,
+            apiKey: nextApiKey,
+            model: nextModel,
+          },
+        },
+      };
     });
-    showToast('语音 TTS / STT 配置已保存', 'success');
+  };
+
+  const handleRefreshImgModels = async () => {
+    setFetchingImgModels(true);
+    try {
+      const pid = draftImg.presetId || 'zhipu';
+      const list = await fetchImageGenModels({
+        providerId: pid,
+        baseUrl: draftImg.baseUrl,
+        apiKey: draftImg.apiKey,
+        providerConfigs: draftImg.providerConfigs,
+        providers,
+      });
+      const currentModel = draftImg.model.trim();
+      const nextModel = list.includes(currentModel) ? currentModel : list[0] || currentModel;
+      setDraftImg((prev) => {
+        const curCred = prev.providerConfigs?.[pid] || {};
+        return {
+          ...prev,
+          model: nextModel,
+          providerConfigs: {
+            ...(prev.providerConfigs || {}),
+            [pid]: {
+              ...curCred,
+              baseUrl: prev.baseUrl,
+              apiKey: prev.apiKey,
+              model: nextModel,
+              models: list,
+            },
+          },
+        };
+      });
+      showToast(`已刷新 ${list.length} 个可用生图模型`, 'success');
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : '拉取生图模型失败', 'error');
+    } finally {
+      setFetchingImgModels(false);
+    }
+  };
+
+  const handleSaveImageGen = async () => {
+    const pid = draftImg.presetId || 'zhipu';
+    const nextBaseUrl = draftImg.baseUrl.trim();
+    const nextApiKey = draftImg.apiKey.trim();
+    const nextModel = draftImg.model.trim();
+    const nextConfigs: Record<string, MediaProviderCredential> = {
+      ...(draftImg.providerConfigs || {}),
+      [pid]: {
+        ...(draftImg.providerConfigs?.[pid] || {}),
+        baseUrl: nextBaseUrl,
+        apiKey: nextApiKey,
+        model: nextModel,
+      },
+    };
+    const nextImg: ImageGenConfig = {
+      ...draftImg,
+      baseUrl: nextBaseUrl,
+      apiKey: nextApiKey,
+      model: nextModel,
+      providerConfigs: nextConfigs,
+    };
+    setDraftImg(nextImg);
+    await updateSettings({ imageGen: nextImg });
+    showToast('生图模型配置已保存（各厂商 Key 已独立持久化）', 'success');
+  };
+
+  const handleSaveVoice = async (options?: { keepActiveProfile?: boolean }) => {
+    const ttsId =
+      draftVoice.ttsEngine === 'native'
+        ? 'native'
+        : draftVoice.ttsProviderId && draftVoice.ttsProviderId !== 'native'
+          ? draftVoice.ttsProviderId
+          : findTtsPresetByBaseUrl(draftVoice.ttsBaseUrl)?.id || 'custom_tts';
+    const sttId =
+      draftVoice.sttEngine === 'native'
+        ? 'native'
+        : draftVoice.sttProviderId && draftVoice.sttProviderId !== 'native'
+          ? draftVoice.sttProviderId
+          : findSttPresetByBaseUrl(draftVoice.sttBaseUrl)?.id || 'custom_stt';
+
+    const nextTtsConfigs: Record<string, MediaProviderCredential> = {
+      ...(draftVoice.ttsProviderConfigs || {}),
+    };
+    if (ttsId !== 'native') {
+      nextTtsConfigs[ttsId] = {
+        ...(nextTtsConfigs[ttsId] || {}),
+        baseUrl: draftVoice.ttsBaseUrl.trim(),
+        apiKey: draftVoice.ttsApiKey.trim(),
+        model: draftVoice.ttsModel.trim(),
+        defaultVoice: draftVoice.ttsVoice.trim(),
+      };
+    }
+
+    const nextSttConfigs: Record<string, MediaProviderCredential> = {
+      ...(draftVoice.sttProviderConfigs || {}),
+    };
+    if (sttId !== 'native') {
+      nextSttConfigs[sttId] = {
+        ...(nextSttConfigs[sttId] || {}),
+        baseUrl: draftVoice.sttBaseUrl.trim(),
+        apiKey: draftVoice.sttApiKey.trim(),
+        model: draftVoice.sttModel.trim(),
+      };
+    }
+
+    const nextVoice: VoiceConfig = {
+      ...draftVoice,
+      ttsProviderId: ttsId,
+      sttProviderId: sttId,
+      ttsBaseUrl: draftVoice.ttsBaseUrl.trim(),
+      ttsApiKey: draftVoice.ttsApiKey.trim(),
+      ttsModel: draftVoice.ttsModel.trim(),
+      ttsVoice: draftVoice.ttsVoice.trim(),
+      ttsProviderConfigs: nextTtsConfigs,
+      sttBaseUrl: draftVoice.sttBaseUrl.trim(),
+      sttApiKey: draftVoice.sttApiKey.trim(),
+      sttModel: draftVoice.sttModel.trim(),
+      sttProviderConfigs: nextSttConfigs,
+      activeVoiceProfileId:
+        options?.keepActiveProfile === false ? undefined : draftVoice.activeVoiceProfileId,
+    };
+    setDraftVoice(nextVoice);
+    await updateSettings({ voice: nextVoice });
+    if (options?.keepActiveProfile !== true) {
+      showToast('语音基础配置已保存', 'success');
+    }
   };
 
   return (
@@ -210,9 +389,11 @@ export const ProvidersModal: React.FC = () => {
             <div className="flex flex-wrap items-center gap-1 p-1 rounded-xl bg-muted border border-line">
               <button
                 type="button"
-                onClick={() => setTab('llm')}
+                onClick={() => setProvidersModalTab('llm')}
                 className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[12px] font-medium whitespace-nowrap cursor-pointer ${
-                  tab === 'llm' ? 'bg-card text-accent shadow-xs' : 'text-secondary hover:text-ink'
+                  providersModalTab === 'llm'
+                    ? 'bg-card text-accent shadow-xs'
+                    : 'text-secondary hover:text-ink'
                 }`}
               >
                 <KeyRound className="w-3.5 h-3.5" />
@@ -220,9 +401,11 @@ export const ProvidersModal: React.FC = () => {
               </button>
               <button
                 type="button"
-                onClick={() => setTab('image')}
+                onClick={() => setProvidersModalTab('image')}
                 className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[12px] font-medium whitespace-nowrap cursor-pointer ${
-                  tab === 'image' ? 'bg-card text-accent shadow-xs' : 'text-secondary hover:text-ink'
+                  providersModalTab === 'image'
+                    ? 'bg-card text-accent shadow-xs'
+                    : 'text-secondary hover:text-ink'
                 }`}
               >
                 <ImageIcon className="w-3.5 h-3.5" />
@@ -230,13 +413,15 @@ export const ProvidersModal: React.FC = () => {
               </button>
               <button
                 type="button"
-                onClick={() => setTab('voice')}
+                onClick={() => setProvidersModalTab('voice')}
                 className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[12px] font-medium whitespace-nowrap cursor-pointer ${
-                  tab === 'voice' ? 'bg-card text-accent shadow-xs' : 'text-secondary hover:text-ink'
+                  providersModalTab === 'voice'
+                    ? 'bg-card text-accent shadow-xs'
+                    : 'text-secondary hover:text-ink'
                 }`}
               >
                 <Volume2 className="w-3.5 h-3.5" />
-                <span>语音 (TTS/STT)</span>
+                <span>语音与音色</span>
               </button>
             </div>
             <button
@@ -249,7 +434,7 @@ export const ProvidersModal: React.FC = () => {
         </div>
 
         {/* TAB 1: Text LLM Providers */}
-        {tab === 'llm' && (
+        {providersModalTab === 'llm' && (
           <>
             <div className="px-5 py-2.5 bg-accent-soft border-b border-line flex flex-wrap items-center justify-between gap-2 text-[12px] shrink-0">
               <div className="flex items-center gap-2 text-ink">
@@ -461,7 +646,9 @@ export const ProvidersModal: React.FC = () => {
                     <input
                       value={newModelInput}
                       onChange={(e) => setNewModelInput(e.target.value)}
-                      onKeyDown={(e) => e.key === 'Enter' && handleAddModel()}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && !isImeComposing(e)) handleAddModel();
+                      }}
                       placeholder="手动添加模型 ID，例如 deepseek-chat"
                       className="flex-1 px-3 py-2 rounded-xl bg-canvas border border-line text-ink outline-none font-mono text-[12.5px] focus:border-accent"
                     />
@@ -526,35 +713,47 @@ export const ProvidersModal: React.FC = () => {
         )}
 
         {/* TAB 2: Image Generation Models */}
-        {tab === 'image' && (
+        {providersModalTab === 'image' && (
           <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-4 text-[13px]">
             <div className="p-3.5 rounded-xl bg-accent-soft border border-accent/25 text-[12px] text-ink">
               支持所有兼容 OpenAI <code className="font-mono">/v1/images/generations</code>{' '}
-              协议的生图服务。生成后的角色图会压缩并直接存放在本机 IndexedDB（不依赖外链长期有效）。
+              协议的生图服务。各厂商 API Key 独立保存、切换互不覆盖；生成后的角色图会压缩并直接存放在本机。
             </div>
 
             <div className="space-y-2">
-              <div className="font-medium text-secondary">选择生图厂商预设</div>
+              <div className="font-medium text-secondary">选择生图厂商（切换不丢失其他厂商 Key）</div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                 {IMAGE_GEN_PRESETS.map((preset) => {
                   const active = draftImg.presetId === preset.id;
+                  const cred = draftImg.providerConfigs?.[preset.id];
+                  const hasCred = Boolean(
+                    cred?.apiKey?.trim() ||
+                      resolveMediaApiKey({
+                        providerId: preset.id,
+                        baseUrl: cred?.baseUrl || preset.baseUrl,
+                        explicitKey: cred?.apiKey || '',
+                        providerConfigs: draftImg.providerConfigs,
+                        providers,
+                      })
+                  );
                   return (
                     <button
                       key={preset.id}
                       type="button"
-                      onClick={() =>
-                        setDraftImg({
-                          ...draftImg,
-                          presetId: preset.id,
-                          baseUrl: preset.baseUrl,
-                          model: preset.defaultModel,
-                        })
-                      }
+                      onClick={() => switchImgPreset(preset)}
                       className={`p-3 rounded-xl border text-left cursor-pointer transition ${
                         active ? 'border-accent bg-accent-soft' : 'border-line hover:bg-hover'
                       }`}
                     >
-                      <div className="font-semibold text-ink">{preset.name}</div>
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-semibold text-ink">{preset.name}</span>
+                        <span
+                          className={`w-2 h-2 rounded-full shrink-0 ${
+                            hasCred ? 'bg-emerald-500' : 'bg-line'
+                          }`}
+                          title={hasCred ? '已配置密钥或可复用同域 Key' : '未配置密钥'}
+                        />
+                      </div>
                       <div className="text-[11.5px] text-dim mt-1">{preset.description}</div>
                     </button>
                   );
@@ -564,12 +763,20 @@ export const ProvidersModal: React.FC = () => {
 
             <div className="flex flex-wrap items-center justify-between gap-2">
               <span className="text-[12px] text-secondary">
-                若你在「文本模型」中已填写同厂商的 Key，下方 API Key 可留空自动复用。
+                {resolveMediaApiKey({
+                  providerId: draftImg.presetId,
+                  baseUrl: draftImg.baseUrl,
+                  explicitKey: '',
+                  providerConfigs: draftImg.providerConfigs,
+                  providers,
+                }) && !draftImg.apiKey.trim()
+                  ? '已检测到「文本模型」中的同域名 Key，下方留空即可自动复用。'
+                  : '各家生图厂商密钥独立存储在对应卡片中；留空时会自动检查同域名文本 Key。'}
               </span>
               {activeImgPreset.consoleUrl && (
                 <button
                   type="button"
-                  onClick={() => openExternalUrl(activeImgPreset.consoleUrl)}
+                  onClick={() => openExternalUrl(activeImgPreset.consoleUrl).catch(() => {})}
                   className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-accent text-white text-[12px] font-medium cursor-pointer"
                 >
                   <span>去官网拿 Key</span>
@@ -583,19 +790,19 @@ export const ProvidersModal: React.FC = () => {
                 <label className="block mb-1.5 font-medium text-secondary">生图 Base URL</label>
                 <input
                   value={draftImg.baseUrl}
-                  onChange={(e) => setDraftImg({ ...draftImg, baseUrl: e.target.value })}
+                  onChange={(e) => updateImgField({ baseUrl: e.target.value })}
                   className="w-full px-3 py-2 rounded-xl bg-canvas border border-line text-ink font-mono text-[12.5px] outline-none focus:border-accent"
                 />
               </div>
               <div>
                 <label className="block mb-1.5 font-medium text-secondary">
-                  API Key（留空则自动复用同域名文本 Key）
+                  API Key（当前厂商独立保存，留空可复用同域 Key）
                 </label>
                 <div className="flex items-center rounded-xl bg-canvas border border-line px-3 focus-within:border-accent">
                   <input
                     type={showImgKey ? 'text' : 'password'}
                     value={draftImg.apiKey}
-                    onChange={(e) => setDraftImg({ ...draftImg, apiKey: e.target.value })}
+                    onChange={(e) => updateImgField({ apiKey: e.target.value })}
                     placeholder="sk-... 或留空自动复用"
                     className="flex-1 py-2 bg-transparent text-ink font-mono text-[12.5px] outline-none"
                   />
@@ -612,21 +819,41 @@ export const ProvidersModal: React.FC = () => {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label className="block mb-1.5 font-medium text-secondary">生图模型 ID</label>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="font-medium text-secondary">生图模型 ID</label>
+                  <button
+                    type="button"
+                    onClick={handleRefreshImgModels}
+                    disabled={fetchingImgModels}
+                    className="flex items-center gap-1 text-[12px] text-accent hover:underline cursor-pointer disabled:opacity-50"
+                  >
+                    {fetchingImgModels ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <RefreshCw className="w-3.5 h-3.5" />
+                    )}
+                    <span>刷新可用模型</span>
+                  </button>
+                </div>
                 <input
                   value={draftImg.model}
-                  onChange={(e) => setDraftImg({ ...draftImg, model: e.target.value })}
+                  onChange={(e) => updateImgField({ model: e.target.value })}
                   className="w-full px-3 py-2 rounded-xl bg-canvas border border-line text-ink font-mono text-[12.5px] outline-none focus:border-accent"
                 />
                 <div className="flex flex-wrap gap-1.5 mt-2">
-                  {activeImgPreset.models.map((m) => (
+                  {Array.from(
+                    new Set([
+                      ...(draftImg.providerConfigs?.[draftImg.presetId]?.models || []),
+                      ...activeImgPreset.models,
+                    ])
+                  ).map((m) => (
                     <button
                       key={m}
                       type="button"
-                      onClick={() => setDraftImg({ ...draftImg, model: m })}
+                      onClick={() => updateImgField({ model: m })}
                       className={`px-2 py-0.5 rounded-lg border text-[11px] font-mono cursor-pointer ${
                         draftImg.model === m
-                          ? 'border-accent bg-accent-soft text-accent'
+                          ? 'border-accent bg-accent-soft text-accent font-medium'
                           : 'border-line text-dim hover:bg-hover'
                       }`}
                     >
@@ -674,7 +901,7 @@ export const ProvidersModal: React.FC = () => {
         )}
 
         {/* TAB 3: Voice Tuning & Cloning Studio */}
-        {tab === 'voice' && (
+        {providersModalTab === 'voice' && (
           <VoiceStudioTab
             draftVoice={draftVoice}
             setDraftVoice={setDraftVoice}

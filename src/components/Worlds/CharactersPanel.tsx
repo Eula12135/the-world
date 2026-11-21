@@ -1,24 +1,45 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowLeft,
+  ChevronDown,
+  ChevronRight,
   ImagePlus,
   Loader2,
   MessageSquare,
   Plus,
   Search,
   Sparkles,
+  Square,
   Trash2,
   Users,
+  Volume2,
   X,
 } from 'lucide-react';
 import { useAppStore } from '../../store/useAppStore';
-import type { Character } from '../../types';
+import type { Character, VoiceProfile } from '../../types';
 import {
   buildCharacterImagePrompt,
   compressImageDataToDataUrl,
   generateImage,
 } from '../../services/imageGenService';
+import {
+  findTtsPresetByBaseUrl,
+  speakText,
+  stopSpeaking,
+  TTS_PRESETS,
+} from '../../services/voiceService';
 import { createId } from '../../utils/platform';
+
+function formatVoiceProfileOption(vp: VoiceProfile): string {
+  const provider =
+    vp.engine === 'native'
+      ? '系统原生'
+      : (
+          TTS_PRESETS.find((p) => p.id === vp.providerId) ||
+          (vp.baseUrl ? findTtsPresetByBaseUrl(vp.baseUrl) : undefined)
+        )?.name.split('（')[0].trim() || 'API';
+  return `${vp.name}（${vp.isCloned ? `${provider} · 克隆` : provider}）`;
+}
 
 const AVATAR_COLORS = ['#4d6bfe', '#10b981', '#f59e0b', '#ec4899', '#8b5cf6', '#06b6d4', '#ef4444'];
 
@@ -32,7 +53,9 @@ export const CharactersPanel: React.FC<{ worldId: string }> = ({ worldId }) => {
     upsertCharacter,
     deleteCharacter,
     startNewDraft,
-    setActiveModal,
+    openProvidersModal,
+    lastCreatedVoiceForTarget,
+    clearLastCreatedVoiceForTarget,
     requestConfirm,
     showToast,
   } = useAppStore();
@@ -43,7 +66,25 @@ export const CharactersPanel: React.FC<{ worldId: string }> = ({ worldId }) => {
   const [imgPrompt, setImgPrompt] = useState('');
   const [generatingImg, setGeneratingImg] = useState(false);
   const [imgError, setImgError] = useState<string | null>(null);
+  const [showCustomVoiceInput, setShowCustomVoiceInput] = useState(false);
+  const [previewingVoice, setPreviewingVoice] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!editing || !lastCreatedVoiceForTarget) return;
+    if (lastCreatedVoiceForTarget.targetKey === `character:${editing.id}`) {
+      setEditing((prev) =>
+        prev ? { ...prev, voiceProfileId: lastCreatedVoiceForTarget.profileId } : prev
+      );
+      clearLastCreatedVoiceForTarget();
+    }
+  }, [lastCreatedVoiceForTarget, editing?.id, clearLastCreatedVoiceForTarget]);
+
+  useEffect(() => {
+    return () => {
+      stopSpeaking();
+    };
+  }, []);
 
   const boundWorld = useMemo(
     () => worlds.find((w) => w.id === worldId),
@@ -308,7 +349,7 @@ export const CharactersPanel: React.FC<{ worldId: string }> = ({ worldId }) => {
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <button
                       type="button"
-                      onClick={() => setActiveModal('providers')}
+                      onClick={() => openProvidersModal('image')}
                       className="text-[12px] text-dim hover:text-accent underline cursor-pointer"
                     >
                       配置生图模型 / API Key
@@ -335,7 +376,7 @@ export const CharactersPanel: React.FC<{ worldId: string }> = ({ worldId }) => {
                   <span>{imgError}</span>
                   <button
                     type="button"
-                    onClick={() => setActiveModal('providers')}
+                    onClick={() => openProvidersModal('image')}
                     className="underline font-medium shrink-0 cursor-pointer"
                   >
                     前往配置生图 Key
@@ -384,36 +425,118 @@ export const CharactersPanel: React.FC<{ worldId: string }> = ({ worldId }) => {
                 </div>
               </div>
               <div>
-                <div className="flex items-center justify-between mb-1.5">
-                  <label className="font-medium text-secondary">绑定音色档案（可选）</label>
+                <div className="flex flex-wrap items-center justify-between gap-2 mb-1.5">
+                  <label className="font-medium text-secondary">绑定角色声音（可选）</label>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        openProvidersModal('voice', {
+                          voiceSubTab: 'library',
+                          bindTarget: {
+                            kind: 'character',
+                            characterId: editing.id,
+                            characterName: editing.name.trim() || '新角色',
+                          },
+                        })
+                      }
+                      className="text-[11.5px] text-secondary hover:text-accent hover:underline cursor-pointer"
+                    >
+                      管理声音库
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        openProvidersModal('voice', {
+                          voiceSubTab: 'create',
+                          bindTarget: {
+                            kind: 'character',
+                            characterId: editing.id,
+                            characterName: editing.name.trim() || '新角色',
+                          },
+                        })
+                      }
+                      className="flex items-center gap-0.5 text-[11.5px] text-accent font-medium hover:underline cursor-pointer"
+                    >
+                      <Plus className="w-3 h-3" />
+                      <span>新建声音</span>
+                    </button>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <select
+                    value={editing.voiceProfileId || ''}
+                    onChange={(e) =>
+                      setEditing({ ...editing, voiceProfileId: e.target.value || undefined })
+                    }
+                    className="flex-1 min-w-0 px-3 py-2 rounded-xl bg-canvas border border-line text-[13px] text-ink outline-none focus:border-accent"
+                  >
+                    <option value="">跟随全局默认声音</option>
+                    {voiceProfiles.map((vp) => (
+                      <option key={vp.id} value={vp.id}>
+                        {formatVoiceProfileOption(vp)}
+                      </option>
+                    ))}
+                  </select>
                   <button
                     type="button"
-                    onClick={() => setActiveModal('providers')}
-                    className="text-[11.5px] text-accent hover:underline cursor-pointer"
+                    onClick={async () => {
+                      if (previewingVoice) {
+                        stopSpeaking();
+                        setPreviewingVoice(false);
+                        return;
+                      }
+                      const profile = editing.voiceProfileId
+                        ? voiceProfiles.find((vp) => vp.id === editing.voiceProfileId)
+                        : undefined;
+                      setPreviewingVoice(true);
+                      await speakText({
+                        text: `你好，我是${editing.name.trim() || '角色'}。`,
+                        config: settings.voice,
+                        providers,
+                        profile,
+                        voiceOverride: profile ? undefined : editing.voiceName?.trim() || undefined,
+                        onEnd: () => setPreviewingVoice(false),
+                        onError: (msg) => {
+                          setPreviewingVoice(false);
+                          showToast(msg, 'error');
+                        },
+                      });
+                    }}
+                    className="flex items-center gap-1 px-2.5 py-2 rounded-xl border border-line bg-canvas text-[12px] text-ink hover:border-accent cursor-pointer shrink-0"
+                    title="试听当前选中的角色声音"
                   >
-                    去语音工坊调试/克隆音色
+                    {previewingVoice ? (
+                      <Square className="w-3.5 h-3.5 text-accent" />
+                    ) : (
+                      <Volume2 className="w-3.5 h-3.5 text-accent" />
+                    )}
+                    <span>{previewingVoice ? '停止' : '试听'}</span>
                   </button>
                 </div>
-                <select
-                  value={editing.voiceProfileId || ''}
-                  onChange={(e) =>
-                    setEditing({ ...editing, voiceProfileId: e.target.value || undefined })
-                  }
-                  className="w-full px-3.5 py-2 rounded-xl bg-canvas border border-line text-[13px] text-ink outline-none focus:border-accent"
-                >
-                  <option value="">跟随全局默认语音设置</option>
-                  {voiceProfiles.map((vp) => (
-                    <option key={vp.id} value={vp.id}>
-                      {vp.name}（{vp.isCloned ? '克隆' : vp.engine === 'native' ? '原生' : 'API'}）
-                    </option>
-                  ))}
-                </select>
-                <input
-                  value={editing.voiceName || ''}
-                  onChange={(e) => setEditing({ ...editing, voiceName: e.target.value })}
-                  placeholder="或直接填自定义 API 音色 ID（优先级高于默认）"
-                  className="w-full mt-2 px-3 py-1.5 rounded-xl bg-canvas border border-line text-[12px] font-mono text-ink outline-none focus:border-accent"
-                />
+
+                <div className="mt-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setShowCustomVoiceInput((v) => !v)}
+                    className="inline-flex items-center gap-1 text-[11px] text-dim hover:text-secondary cursor-pointer"
+                  >
+                    {showCustomVoiceInput || editing.voiceName ? (
+                      <ChevronDown className="w-3 h-3" />
+                    ) : (
+                      <ChevronRight className="w-3 h-3" />
+                    )}
+                    <span>高级：直接填写外部音色 ID（仅未选声音库档案时生效）</span>
+                  </button>
+                  {(showCustomVoiceInput || Boolean(editing.voiceName)) && (
+                    <input
+                      value={editing.voiceName || ''}
+                      onChange={(e) => setEditing({ ...editing, voiceName: e.target.value })}
+                      placeholder="例如 FunAudioLLM/CosyVoice2-0.5B:anna"
+                      className="w-full mt-1.5 px-3 py-1.5 rounded-xl bg-canvas border border-line text-[12px] font-mono text-ink outline-none focus:border-accent"
+                    />
+                  )}
+                </div>
               </div>
             </div>
 

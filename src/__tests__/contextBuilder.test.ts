@@ -189,7 +189,7 @@ describe('buildSessionSystemPrompt (progressive disclosure + temporal + rolling 
       events,
     });
     expect(atEv1.prompt).toContain('挚友');
-    expect(atEv1.prompt).not.toContain('决裂敌裂');
+    expect(atEv1.prompt).not.toContain('决裂敌对');
     expect(atEv1.prompt).not.toContain('反应堆事件');
 
     const atEv2 = buildSessionSystemPrompt({
@@ -339,5 +339,70 @@ describe('buildSessionSystemPrompt (progressive disclosure + temporal + rolling 
     expect(roleRes.prompt).toContain('对 苏岚：疏离敌对');
     expect(roleRes.prompt).toContain('此时你正在修理导航仪');
     expect(roleRes.prompt).not.toContain('清晰、理性且富有洞察力的 AI 助手');
+  });
+
+  it('omits character relations when includeCharacters is false and handles stale selectedSections in full mode', () => {
+    const characters: Character[] = [
+      {
+        id: 'c1',
+        worldId: 'w1',
+        name: '林澈',
+        identity: '船长',
+        personality: '',
+        status: '',
+        relationsNote: '',
+        notes: '',
+        avatarColor: '#4d6bfe',
+        updatedAt: 1,
+      },
+      {
+        id: 'c2',
+        worldId: 'w1',
+        name: '苏岚',
+        identity: '轮机长',
+        personality: '',
+        status: '',
+        relationsNote: '',
+        notes: '',
+        avatarColor: '#10b981',
+        updatedAt: 1,
+      },
+    ];
+    const relations: CharacterRelation[] = [
+      {
+        id: 'r1',
+        worldId: 'w1',
+        sourceId: 'c1',
+        targetId: 'c2',
+        directed: false,
+        phases: [{ id: 'p0', type: 'friend', label: '挚友', strength: 2, description: '' }],
+        updatedAt: 1,
+      },
+    ];
+
+    const noCharsRes = buildSessionSystemPrompt({
+      settings: DEFAULT_SETTINGS,
+      session: { enableWorldContext: true },
+      world: { ...baseWorld, includeCharacters: false },
+      characters,
+      relations,
+      events: [],
+    });
+    expect(noCharsRes.prompt).not.toContain('当前时间点人物关系网');
+
+    const staleSelectedRes = buildSessionSystemPrompt({
+      settings: DEFAULT_SETTINGS,
+      session: { enableWorldContext: true },
+      world: {
+        ...baseWorld,
+        contextMode: 'full',
+        selectedSections: ['已删除的旧章节名'],
+      },
+      characters: [],
+      relations: [],
+      events: [],
+    });
+    expect(staleSelectedRes.prompt).toContain('一、世界概述');
+    expect(staleSelectedRes.prompt).toContain('五、禁忌规则');
   });
 });

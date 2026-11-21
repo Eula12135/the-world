@@ -32,6 +32,14 @@ export interface PersonaPreset {
   updatedAt: number;
 }
 
+export interface MediaProviderCredential {
+  baseUrl: string;
+  apiKey: string;
+  model: string;
+  models?: string[];
+  defaultVoice?: string;
+}
+
 export interface ImageGenConfig {
   enabled: boolean;
   presetId: string;
@@ -40,6 +48,7 @@ export interface ImageGenConfig {
   model: string;
   size: string;
   styleHint: string;
+  providerConfigs?: Record<string, MediaProviderCredential>;
 }
 
 export type TtsEngine = 'native' | 'openai_api';
@@ -59,17 +68,22 @@ export interface VoiceConfig {
   ttsApiKey: string;
   ttsModel: string;
   ttsVoice: string;
+  ttsProviderId?: string;
+  ttsProviderConfigs?: Record<string, MediaProviderCredential>;
   activeVoiceProfileId?: string;
   sttEngine: SttEngine;
   sttBaseUrl: string;
   sttApiKey: string;
   sttModel: string;
   sttLanguage: string;
+  sttProviderId?: string;
+  sttProviderConfigs?: Record<string, MediaProviderCredential>;
 }
 
 export interface VoiceProfile {
   id: string;
   name: string;
+  providerId?: string;
   engine: TtsEngine;
   baseUrl?: string;
   model?: string;
@@ -267,9 +281,18 @@ declare global {
     TheWorldAndroid?: {
       setTheme: (isDark: boolean) => void;
       speak?: (text: string, rate: number, pitch?: number) => void;
+      speakWithId?: (
+        text: string,
+        rate: number,
+        pitch: number,
+        volume: number,
+        utteranceId: string
+      ) => void;
       stopSpeaking?: () => void;
       startNativeStt?: (lang: string) => void;
       downloadAndInstallApk?: (apkUrl: string) => void;
+      exportTextFile?: (filename: string, content: string, mimeType: string) => void;
+      uploadMultipart?: (reqId: string, jsonSpec: string) => void;
     };
   }
 }

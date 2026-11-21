@@ -7,15 +7,16 @@
 
 ## 0. 先理解更新机制（很重要）
 
-App 内的「检查更新」不是从商店拉的，而是直接读 GitHub Releases：
+App 内的「检查更新」支持三种来源，多个源可用空格 / 逗号 / 换行分隔，按顺序回退：
 
 ```
-GET https://api.github.com/repos/Eula12135/the-world/releases/latest
+https://gitee.com/qiutonger/the-world/raw/main/latest.json Eula12135/the-world
 ```
 
-- 这个仓库地址是在**构建时**通过 `VITE_UPDATE_REPO` 环境变量烘进包里的
+- 该地址是在**构建时**通过 `VITE_UPDATE_REPO` 环境变量烘进包里的
   （`vite.config.ts` → `import.meta.env.VITE_UPDATE_REPO` → `updateChecker.ts` 的 `DEFAULT_UPDATE_SOURCE`）
-- 桌面端挑选 `*setup*.exe`，Android 端挑选 `*.apk`
+- 优先使用 `latest.json`（国内直连 Gitee Raw 读取版本号与说明；Windows 安装包走 Gitee，Android APK 走 GitHub Releases 以保证 `.apk` MIME 正确）
+- 当作为仓库 API 兜底时，桌面端挑选 `*setup*.exe`，Android 端挑选 `*.apk`
 - 版本号来自 `package.json` 的 `version`，构建时注入成 `__APP_VERSION__`（**唯一来源，不要在代码里硬编码**）
 
 > ⚠️ **每次构建都必须带上 `VITE_UPDATE_REPO`**。
@@ -65,15 +66,16 @@ npm test
 
 ```powershell
 # 桌面端（Windows 安装包 + 免安装单文件）
-$env:VITE_UPDATE_REPO="Eula12135/the-world"
+$env:VITE_UPDATE_REPO="https://gitee.com/qiutonger/the-world/raw/main/latest.json Eula12135/the-world"
 npm run dist:win
 # 产物：release/The World Setup <version>.exe  /  release/The World <version>.exe
 
-# Android（debug 签名，可直接 adb install -r 覆盖升级）
-$env:VITE_UPDATE_REPO="Eula12135/the-world"
+# Android（正式发布签名，需本机存在 android/keystore.properties）
+$env:VITE_UPDATE_REPO="https://gitee.com/qiutonger/the-world/raw/main/latest.json Eula12135/the-world"
 npm run android:sync
-cd android; .\gradlew.bat assembleDebug; cd ..
-# 产物：android/app/build/outputs/apk/debug/app-debug.apk
+cd android; .\gradlew.bat assembleRelease; cd ..
+# 产物：android/app/build/outputs/apk/release/app-release.apk
+# 调试包（debug 签名，用于本地 adb install -r 测试）：.\gradlew.bat assembleDebug
 ```
 
 macOS / Linux 只能在对应平台上构建：

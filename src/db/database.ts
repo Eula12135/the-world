@@ -6,6 +6,7 @@ import type {
   ChatMessage,
   ChatSession,
   ImageGenConfig,
+  MediaProviderCredential,
   PersonaPreset,
   ProviderConfig,
   TimelineEvent,
@@ -24,6 +25,7 @@ export const DEFAULT_IMAGE_GEN_CONFIG: ImageGenConfig = {
   model: 'cogview-3-flash',
   size: '1024x1024',
   styleHint: '',
+  providerConfigs: {},
 };
 
 export const DEFAULT_VOICE_CONFIG: VoiceConfig = {
@@ -39,12 +41,16 @@ export const DEFAULT_VOICE_CONFIG: VoiceConfig = {
   ttsBaseUrl: 'https://api.siliconflow.cn/v1',
   ttsApiKey: '',
   ttsModel: 'FunAudioLLM/CosyVoice2-0.5B',
-  ttsVoice: 'FunAudioLLM/CosyVoice2-0.5B:alex',
+  ttsVoice: 'FunAudioLLM/CosyVoice2-0.5B:anna',
+  ttsProviderId: 'native',
+  ttsProviderConfigs: {},
   sttEngine: 'native',
   sttBaseUrl: 'https://api.siliconflow.cn/v1',
   sttApiKey: '',
   sttModel: 'FunAudioLLM/SenseVoiceSmall',
   sttLanguage: 'zh',
+  sttProviderId: 'native',
+  sttProviderConfigs: {},
 };
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -291,23 +297,110 @@ export class TheWorldDatabase extends Dexie {
 
 export const db = new TheWorldDatabase();
 
+function cloneProviderConfigsMap(
+  rawMap?: Record<string, MediaProviderCredential>
+): Record<string, MediaProviderCredential> {
+  const out: Record<string, MediaProviderCredential> = {};
+  if (!rawMap || typeof rawMap !== 'object') return out;
+  for (const [id, entry] of Object.entries(rawMap)) {
+    if (!entry || typeof entry !== 'object') continue;
+    out[id] = {
+      baseUrl: typeof entry.baseUrl === 'string' ? entry.baseUrl : '',
+      apiKey: typeof entry.apiKey === 'string' ? entry.apiKey : '',
+      model: typeof entry.model === 'string' ? entry.model : '',
+      models: Array.isArray(entry.models)
+        ? entry.models.filter((m): m is string => typeof m === 'string' && m.length > 0)
+        : undefined,
+      defaultVoice: typeof entry.defaultVoice === 'string' ? entry.defaultVoice : undefined,
+    };
+  }
+  return out;
+}
+
+export function inferTtsProviderIdFromBaseUrl(baseUrl: string, engine?: string): string {
+  if (engine === 'native') return 'native';
+  const b = (baseUrl || '').trim().toLowerCase();
+  if (/api\.breeze\.blue|breezeblue\.ai/.test(b)) return 'breeze';
+  if (b.includes('siliconflow')) return 'siliconflow_tts';
+  if (b.includes('fish.audio')) return 'fish_audio';
+  if (b.includes('minimaxi')) return 'minimax_tts';
+  if (b.includes('elevenlabs')) return 'elevenlabs_tts';
+  if (b.includes('dashscope')) return 'dashscope_tts';
+  if (b.includes('api.openai.com')) return 'openai_tts';
+  return 'custom_tts';
+}
+
+export function inferSttProviderIdFromBaseUrl(baseUrl: string, engine?: string): string {
+  if (engine === 'native') return 'native';
+  const b = (baseUrl || '').trim().toLowerCase();
+  if (b.includes('siliconflow')) return 'siliconflow_stt';
+  if (b.includes('groq.com')) return 'groq_stt';
+  if (b.includes('api.openai.com')) return 'openai_stt';
+  return 'custom_stt';
+}
+
 export function normalizeSettings(raw?: Partial<AppSettings> | null): AppSettings {
+  const mergedImageGen: ImageGenConfig = {
+    ...DEFAULT_IMAGE_GEN_CONFIG,
+    ...(raw?.imageGen || {}),
+  };
+  const imgPresetId = mergedImageGen.presetId || DEFAULT_IMAGE_GEN_CONFIG.presetId;
+  const imgConfigs = cloneProviderConfigsMap(raw?.imageGen?.providerConfigs);
+  if (
+    !imgConfigs[imgPresetId] &&
+    (mergedImageGen.apiKey || mergedImageGen.baseUrl || mergedImageGen.model)
+  ) {
+    imgConfigs[imgPresetId] = {
+      baseUrl: mergedImageGen.baseUrl,
+      apiKey: mergedImageGen.apiKey,
+      model: mergedImageGen.model,
+    };
+  }
+  mergedImageGen.providerConfigs = imgConfigs;
+
+  const mergedVoice: VoiceConfig = {
+    ...DEFAULT_VOICE_CONFIG,
+    ...(raw?.voice || {}),
+  };
+  const ttsProviderId =
+    raw?.voice?.ttsProviderId ||
+    inferTtsProviderIdFromBaseUrl(mergedVoice.ttsBaseUrl, mergedVoice.ttsEngine);
+  const ttsConfigs = cloneProviderConfigsMap(raw?.voice?.ttsProviderConfigs);
+  if (mergedVoice.ttsEngine === 'openai_api' && !ttsConfigs[ttsProviderId]) {
+    ttsConfigs[ttsProviderId] = {
+      baseUrl: mergedVoice.ttsBaseUrl,
+      apiKey: mergedVoice.ttsApiKey,
+      model: mergedVoice.ttsModel,
+      defaultVoice: mergedVoice.ttsVoice,
+    };
+  }
+  mergedVoice.ttsProviderId = ttsProviderId;
+  mergedVoice.ttsProviderConfigs = ttsConfigs;
+
+  const sttProviderId =
+    raw?.voice?.sttProviderId ||
+    inferSttProviderIdFromBaseUrl(mergedVoice.sttBaseUrl, mergedVoice.sttEngine);
+  const sttConfigs = cloneProviderConfigsMap(raw?.voice?.sttProviderConfigs);
+  if (mergedVoice.sttEngine === 'openai_api' && !sttConfigs[sttProviderId]) {
+    sttConfigs[sttProviderId] = {
+      baseUrl: mergedVoice.sttBaseUrl,
+      apiKey: mergedVoice.sttApiKey,
+      model: mergedVoice.sttModel,
+    };
+  }
+  mergedVoice.sttProviderId = sttProviderId;
+  mergedVoice.sttProviderConfigs = sttConfigs;
+
   return {
     ...DEFAULT_SETTINGS,
     ...(raw || {}),
     id: 'global',
-    imageGen: {
-      ...DEFAULT_IMAGE_GEN_CONFIG,
-      ...(raw?.imageGen || {}),
-    },
-    voice: {
-      ...DEFAULT_VOICE_CONFIG,
-      ...(raw?.voice || {}),
-    },
+    imageGen: mergedImageGen,
+    voice: mergedVoice,
   };
 }
 
-async function encryptKeyIfDesktop(plain: string): Promise<string> {
+export async function encryptKeyIfDesktop(plain: string): Promise<string> {
   if (!plain || plain.startsWith('enc:')) return plain;
   if (typeof window !== 'undefined' && window.theWorldDesktop?.encryptSecret) {
     try {
@@ -319,7 +412,7 @@ async function encryptKeyIfDesktop(plain: string): Promise<string> {
   return plain;
 }
 
-async function decryptKeyIfDesktop(stored: string): Promise<string> {
+export async function decryptKeyIfDesktop(stored: string): Promise<string> {
   if (!stored || !stored.startsWith('enc:')) return stored;
   if (typeof window !== 'undefined' && window.theWorldDesktop?.decryptSecret) {
     try {
@@ -331,9 +424,28 @@ async function decryptKeyIfDesktop(stored: string): Promise<string> {
   return '';
 }
 
-export async function saveProviderEncrypted(provider: ProviderConfig): Promise<void> {
+async function transformProviderConfigsKeys(
+  configs: Record<string, MediaProviderCredential> | undefined,
+  fn: (val: string) => Promise<string>
+): Promise<Record<string, MediaProviderCredential>> {
+  const out: Record<string, MediaProviderCredential> = {};
+  if (!configs) return out;
+  const entries = await Promise.all(
+    Object.entries(configs).map(async ([k, v]) => [k, { ...v, apiKey: await fn(v.apiKey) }] as const)
+  );
+  for (const [k, v] of entries) {
+    out[k] = v;
+  }
+  return out;
+}
+
+export async function prepareProviderForStorage(provider: ProviderConfig): Promise<ProviderConfig> {
   const encryptedKey = await encryptKeyIfDesktop(provider.apiKey);
-  await db.providers.put({ ...provider, apiKey: encryptedKey });
+  return { ...provider, apiKey: encryptedKey };
+}
+
+export async function saveProviderEncrypted(provider: ProviderConfig): Promise<void> {
+  await db.providers.put(await prepareProviderForStorage(provider));
 }
 
 export async function loadProvidersDecrypted(): Promise<ProviderConfig[]> {
@@ -346,32 +458,54 @@ export async function loadProvidersDecrypted(): Promise<ProviderConfig[]> {
   );
 }
 
-export async function saveSettingsEncrypted(settings: AppSettings): Promise<void> {
+export async function prepareSettingsForStorage(settings: AppSettings): Promise<AppSettings> {
   const normalized = normalizeSettings(settings);
-  const [imgKey, ttsKey, sttKey] = await Promise.all([
+  const [imgKey, ttsKey, sttKey, imgMap, ttsMap, sttMap] = await Promise.all([
     encryptKeyIfDesktop(normalized.imageGen.apiKey),
     encryptKeyIfDesktop(normalized.voice.ttsApiKey),
     encryptKeyIfDesktop(normalized.voice.sttApiKey),
+    transformProviderConfigsKeys(normalized.imageGen.providerConfigs, encryptKeyIfDesktop),
+    transformProviderConfigsKeys(normalized.voice.ttsProviderConfigs, encryptKeyIfDesktop),
+    transformProviderConfigsKeys(normalized.voice.sttProviderConfigs, encryptKeyIfDesktop),
   ]);
-  await db.settings.put({
+  return {
     ...normalized,
-    imageGen: { ...normalized.imageGen, apiKey: imgKey },
-    voice: { ...normalized.voice, ttsApiKey: ttsKey, sttApiKey: sttKey },
-  });
+    imageGen: { ...normalized.imageGen, apiKey: imgKey, providerConfigs: imgMap },
+    voice: {
+      ...normalized.voice,
+      ttsApiKey: ttsKey,
+      sttApiKey: sttKey,
+      ttsProviderConfigs: ttsMap,
+      sttProviderConfigs: sttMap,
+    },
+  };
+}
+
+export async function saveSettingsEncrypted(settings: AppSettings): Promise<void> {
+  await db.settings.put(await prepareSettingsForStorage(settings));
 }
 
 export async function loadSettingsDecrypted(): Promise<AppSettings> {
   const stored = await db.settings.get('global');
   const normalized = normalizeSettings(stored);
-  const [imgKey, ttsKey, sttKey] = await Promise.all([
+  const [imgKey, ttsKey, sttKey, imgMap, ttsMap, sttMap] = await Promise.all([
     decryptKeyIfDesktop(normalized.imageGen.apiKey),
     decryptKeyIfDesktop(normalized.voice.ttsApiKey),
     decryptKeyIfDesktop(normalized.voice.sttApiKey),
+    transformProviderConfigsKeys(normalized.imageGen.providerConfigs, decryptKeyIfDesktop),
+    transformProviderConfigsKeys(normalized.voice.ttsProviderConfigs, decryptKeyIfDesktop),
+    transformProviderConfigsKeys(normalized.voice.sttProviderConfigs, decryptKeyIfDesktop),
   ]);
   return {
     ...normalized,
-    imageGen: { ...normalized.imageGen, apiKey: imgKey },
-    voice: { ...normalized.voice, ttsApiKey: ttsKey, sttApiKey: sttKey },
+    imageGen: { ...normalized.imageGen, apiKey: imgKey, providerConfigs: imgMap },
+    voice: {
+      ...normalized.voice,
+      ttsApiKey: ttsKey,
+      sttApiKey: sttKey,
+      ttsProviderConfigs: ttsMap,
+      sttProviderConfigs: sttMap,
+    },
   };
 }
 

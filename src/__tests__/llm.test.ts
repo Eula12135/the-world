@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   createSseLineProcessor,
   fetchProviderModels,
+  isOpenAIReasoningModel,
   normalizeAnthropicMessages,
   splitInlineThinkTags,
   streamChat,
@@ -164,5 +165,72 @@ describe('llm service helpers & streaming', () => {
     const testRes = await testProviderConnection(sampleOpenAIProvider);
     expect(testRes.ok).toBe(true);
     expect(testRes.message).toContain('连接成功');
+  });
+
+  it('uses max_completion_tokens without temperature/top_p for OpenAI reasoning models and filters empty assistant placeholders', async () => {
+    expect(isOpenAIReasoningModel('o3-mini')).toBe(true);
+    expect(isOpenAIReasoningModel('o4-mini')).toBe(true);
+    expect(isOpenAIReasoningModel('deepseek-chat')).toBe(false);
+
+    const encoder = new TextEncoder();
+    const stream = new ReadableStream({
+      start(controller) {
+        controller.enqueue(encoder.encode('data: {"choices":[{"delta":{"content":"OK"}}]}\n\n'));
+        controller.enqueue(encoder.encode('data: [DONE]\n\n'));
+        controller.close();
+      },
+    });
+    const fetchMock = vi.fn().mockResolvedValue(new Response(stream, { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await new Promise<{ content: string; reasoning: string }>((resolve, reject) => {
+      streamChat(
+        {
+          provider: {
+            ...sampleOpenAIProvider,
+            id: 'openai',
+            baseUrl: 'https://api.openai.com/v1',
+          },
+          model: 'o3-mini',
+          systemPrompt: 'sys',
+          history: [
+            { id: '1', sessionId: 's1', role: 'user', content: 'hi', createdAt: 1 },
+            { id: '2', sessionId: 's1', role: 'assistant', content: '', createdAt: 2 },
+            { id: '3', sessionId: 's1', role: 'user', content: 'next', createdAt: 3 },
+          ],
+          settings: DEFAULT_SETTINGS,
+        },
+        {
+          onDelta: () => {},
+          onComplete: resolve,
+          onError: reject,
+        }
+      );
+    });
+
+    const sentBody = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body));
+    expect(sentBody.max_completion_tokens).toBe(DEFAULT_SETTINGS.maxTokens);
+    expect(sentBody.max_tokens).toBeUndefined();
+    expect(sentBody.temperature).toBeUndefined();
+    expect(sentBody.top_p).toBeUndefined();
+    expect(sentBody.messages).toHaveLength(3);
+  });
+
+  it('invokes onError and skips onComplete when SSE stream yields an error object', () => {
+    const onError = vi.fn();
+    const onComplete = vi.fn();
+    const proc = createSseLineProcessor('openai', {
+      onDelta: () => {},
+      onComplete,
+      onError,
+    });
+
+    proc.feed('data: {"error":{"message":"rate limit exceeded"}}\n\n');
+    proc.finish();
+
+    expect(proc.hasFailed()).toBe(true);
+    expect(onError).toHaveBeenCalledTimes(1);
+    expect(onError.mock.calls[0][0].message).toContain('rate limit exceeded');
+    expect(onComplete).not.toHaveBeenCalled();
   });
 });

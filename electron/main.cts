@@ -1,9 +1,12 @@
 import { app, BrowserWindow, ipcMain, safeStorage, shell } from 'electron';
 import * as fs from 'fs';
 import * as path from 'path';
+import { fileURLToPath } from 'url';
 
 let mainWindow: BrowserWindow | null = null;
-const activeStreams = new Map<string, AbortController>();
+const activeStreams = new Map<string, { controller: AbortController; senderId: number }>();
+
+const DIST_DIR = path.resolve(__dirname, '..', 'dist');
 
 function isAllowedExternalUrl(rawUrl: string): boolean {
   try {
@@ -11,6 +14,62 @@ function isAllowedExternalUrl(rawUrl: string): boolean {
     return parsed.protocol === 'https:' || parsed.protocol === 'http:';
   } catch {
     return false;
+  }
+}
+
+function getTrustedDevOrigins(): Set<string> {
+  const origins = new Set<string>();
+  if (process.env.VITE_DEV_SERVER_URL || !app.isPackaged) {
+    origins.add('http://localhost:5173');
+    origins.add('http://127.0.0.1:5173');
+    if (process.env.VITE_DEV_SERVER_URL) {
+      try {
+        origins.add(new URL(process.env.VITE_DEV_SERVER_URL).origin);
+      } catch {
+        // Ignore invalid dev server URL
+      }
+    }
+  }
+  return origins;
+}
+
+function isTrustedAppUrl(rawUrl: string): boolean {
+  if (!rawUrl) return false;
+  try {
+    const parsed = new URL(rawUrl);
+    if (parsed.protocol === 'file:') {
+      const resolved = path.resolve(fileURLToPath(parsed));
+      const base = process.platform === 'win32' ? DIST_DIR.toLowerCase() : DIST_DIR;
+      const target = process.platform === 'win32' ? resolved.toLowerCase() : resolved;
+      const rel = path.relative(base, target);
+      return rel === '' || (!rel.startsWith('..') && !path.isAbsolute(rel));
+    }
+    if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
+      return getTrustedDevOrigins().has(parsed.origin);
+    }
+    return false;
+  } catch {
+    return false;
+  }
+}
+
+function isTrustedIpcEvent(event: Electron.IpcMainInvokeEvent): boolean {
+  const frameUrl = event.senderFrame?.url || event.sender?.getURL() || '';
+  return isTrustedAppUrl(frameUrl);
+}
+
+function abortStreamsForSender(senderId: number): void {
+  for (const [reqId, entry] of activeStreams.entries()) {
+    if (entry.senderId === senderId) {
+      entry.controller.abort();
+      activeStreams.delete(reqId);
+    }
+  }
+}
+
+function safeSend(sender: Electron.WebContents, channel: string, payload: unknown): void {
+  if (!sender.isDestroyed()) {
+    sender.send(channel, payload);
   }
 }
 
@@ -33,6 +92,8 @@ function createWindow(): void {
     },
   });
 
+  const senderId = mainWindow.webContents.id;
+
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     if (isAllowedExternalUrl(url)) {
       shell.openExternal(url).catch(() => {});
@@ -40,16 +101,32 @@ function createWindow(): void {
     return { action: 'deny' };
   });
 
+  mainWindow.webContents.on('will-navigate', (event, url) => {
+    if (!isTrustedAppUrl(url)) {
+      event.preventDefault();
+      if (isAllowedExternalUrl(url)) {
+        shell.openExternal(url).catch(() => {});
+      }
+    }
+  });
+
+  mainWindow.webContents.on('did-start-navigation', (_event, _url, isInPlace, isMainFrame) => {
+    if (isMainFrame && !isInPlace) {
+      abortStreamsForSender(senderId);
+    }
+  });
+
   if (process.env.VITE_DEV_SERVER_URL || !app.isPackaged) {
     const devUrl = process.env.VITE_DEV_SERVER_URL || 'http://localhost:5173';
     mainWindow.loadURL(devUrl).catch(() => {
-      mainWindow?.loadFile(path.join(__dirname, '..', 'dist', 'index.html')).catch(() => {});
+      mainWindow?.loadFile(path.join(DIST_DIR, 'index.html')).catch(() => {});
     });
   } else {
-    mainWindow.loadFile(path.join(__dirname, '..', 'dist', 'index.html')).catch(() => {});
+    mainWindow.loadFile(path.join(DIST_DIR, 'index.html')).catch(() => {});
   }
 
   mainWindow.on('closed', () => {
+    abortStreamsForSender(senderId);
     mainWindow = null;
   });
 }
@@ -65,8 +142,8 @@ app.whenReady().then(() => {
 });
 
 app.on('window-all-closed', () => {
-  for (const ctrl of activeStreams.values()) {
-    ctrl.abort();
+  for (const entry of activeStreams.values()) {
+    entry.controller.abort();
   }
   activeStreams.clear();
   if (process.platform !== 'darwin') {
@@ -74,17 +151,22 @@ app.on('window-all-closed', () => {
   }
 });
 
-ipcMain.handle('app:openExternal', async (_event, url: string) => {
+ipcMain.handle('app:openExternal', async (event, url: string) => {
+  if (!isTrustedIpcEvent(event)) return false;
   if (!isAllowedExternalUrl(url)) return false;
   await shell.openExternal(url);
   return true;
 });
 
-ipcMain.handle('crypto:isAvailable', async () => {
+ipcMain.handle('crypto:isAvailable', async (event) => {
+  if (!isTrustedIpcEvent(event)) return false;
   return safeStorage.isEncryptionAvailable();
 });
 
-ipcMain.handle('crypto:encrypt', async (_event, plain: string) => {
+ipcMain.handle('crypto:encrypt', async (event, plain: string) => {
+  if (!isTrustedIpcEvent(event)) {
+    throw new Error('Forbidden IPC origin');
+  }
   if (!plain || !safeStorage.isEncryptionAvailable()) {
     return plain;
   }
@@ -92,7 +174,10 @@ ipcMain.handle('crypto:encrypt', async (_event, plain: string) => {
   return `enc:${buf.toString('base64')}`;
 });
 
-ipcMain.handle('crypto:decrypt', async (_event, stored: string) => {
+ipcMain.handle('crypto:decrypt', async (event, stored: string) => {
+  if (!isTrustedIpcEvent(event)) {
+    throw new Error('Forbidden IPC origin');
+  }
   if (!stored || !stored.startsWith('enc:')) {
     return stored;
   }
@@ -110,28 +195,49 @@ ipcMain.handle('crypto:decrypt', async (_event, stored: string) => {
 ipcMain.handle(
   'llm:fetchJson',
   async (
-    _event,
+    event,
     params: { url: string; method?: string; headers?: Record<string, string>; body?: string }
   ) => {
+    if (!isTrustedIpcEvent(event)) {
+      return { ok: false, status: 403, text: 'Forbidden IPC origin' };
+    }
     if (!isAllowedExternalUrl(params.url)) {
       return { ok: false, status: 400, text: 'Unsupported URL protocol' };
     }
-    const resp = await fetch(params.url, {
-      method: params.method || 'GET',
-      headers: params.headers,
-      body: params.body,
-    });
-    const text = await resp.text();
-    return { ok: resp.ok, status: resp.status, text };
+    try {
+      const resp = await fetch(params.url, {
+        method: params.method || 'GET',
+        headers: params.headers,
+        body: params.body,
+        signal: AbortSignal.timeout(60_000),
+      });
+      const text = await resp.text();
+      return { ok: resp.ok, status: resp.status, text };
+    } catch (err) {
+      return {
+        ok: false,
+        status: 0,
+        text: err instanceof Error ? err.message : 'Network request failed',
+      };
+    }
   }
 );
 
 ipcMain.handle(
   'llm:fetchBinary',
   async (
-    _event,
+    event,
     params: { url: string; method?: string; headers?: Record<string, string>; body?: string }
   ) => {
+    if (!isTrustedIpcEvent(event)) {
+      return {
+        ok: false,
+        status: 403,
+        contentType: '',
+        base64: '',
+        errorText: 'Forbidden IPC origin',
+      };
+    }
     if (!isAllowedExternalUrl(params.url)) {
       return {
         ok: false,
@@ -146,6 +252,7 @@ ipcMain.handle(
         method: params.method || 'GET',
         headers: params.headers,
         body: params.body,
+        signal: AbortSignal.timeout(120_000),
       });
       const contentType = resp.headers.get('content-type') || '';
       const arr = await resp.arrayBuffer();
@@ -181,7 +288,7 @@ ipcMain.handle(
 ipcMain.handle(
   'llm:uploadMultipart',
   async (
-    _event,
+    event,
     params: {
       url: string;
       headers?: Record<string, string>;
@@ -192,6 +299,9 @@ ipcMain.handle(
       fileBase64: string;
     }
   ) => {
+    if (!isTrustedIpcEvent(event)) {
+      return { ok: false, status: 403, text: 'Forbidden IPC origin' };
+    }
     if (!isAllowedExternalUrl(params.url)) {
       return { ok: false, status: 400, text: 'Unsupported URL protocol' };
     }
@@ -215,6 +325,7 @@ ipcMain.handle(
         method: 'POST',
         headers: cleanHeaders,
         body: form,
+        signal: AbortSignal.timeout(120_000),
       });
       const text = await resp.text();
       return { ok: resp.ok, status: resp.status, text };
@@ -234,14 +345,17 @@ ipcMain.handle(
     event,
     params: { reqId: string; url: string; headers: Record<string, string>; body: string }
   ) => {
+    if (!isTrustedIpcEvent(event)) {
+      throw new Error('Forbidden IPC origin');
+    }
     const channel = `llm:streamChunk:${params.reqId}`;
     if (!isAllowedExternalUrl(params.url)) {
-      event.sender.send(channel, { type: 'error', status: 400, message: '不支持的 URL 协议' });
+      safeSend(event.sender, channel, { type: 'error', status: 400, message: '不支持的 URL 协议' });
       return;
     }
 
     const controller = new AbortController();
-    activeStreams.set(params.reqId, controller);
+    activeStreams.set(params.reqId, { controller, senderId: event.sender.id });
 
     try {
       const resp = await fetch(params.url, {
@@ -261,12 +375,12 @@ ipcMain.handle(
         } catch {
           if (text) message = `${message}: ${text.slice(0, 180)}`;
         }
-        event.sender.send(channel, { type: 'error', status: resp.status, message });
+        safeSend(event.sender, channel, { type: 'error', status: resp.status, message });
         return;
       }
 
       if (!resp.body) {
-        event.sender.send(channel, { type: 'error', status: 500, message: '响应流为空' });
+        safeSend(event.sender, channel, { type: 'error', status: 500, message: '响应流为空' });
         return;
       }
 
@@ -276,16 +390,20 @@ ipcMain.handle(
         const { done, value } = await reader.read();
         if (done) break;
         if (value) {
-          event.sender.send(channel, {
-            type: 'chunk',
-            data: decoder.decode(value, { stream: true }),
-          });
+          const decoded = decoder.decode(value, { stream: true });
+          if (decoded) {
+            safeSend(event.sender, channel, { type: 'chunk', data: decoded });
+          }
         }
       }
-      event.sender.send(channel, { type: 'done' });
+      const tail = decoder.decode();
+      if (tail) {
+        safeSend(event.sender, channel, { type: 'chunk', data: tail });
+      }
+      safeSend(event.sender, channel, { type: 'done' });
     } catch (err) {
       if (!(err instanceof Error && err.name === 'AbortError')) {
-        event.sender.send(channel, {
+        safeSend(event.sender, channel, {
           type: 'error',
           status: 0,
           message: err instanceof Error ? err.message : '网络请求失败',
@@ -297,10 +415,13 @@ ipcMain.handle(
   }
 );
 
-ipcMain.handle('llm:streamAbort', async (_event, reqId: string) => {
-  const ctrl = activeStreams.get(reqId);
-  if (ctrl) {
-    ctrl.abort();
+ipcMain.handle('llm:streamAbort', async (event, reqId: string) => {
+  if (!isTrustedIpcEvent(event)) {
+    throw new Error('Forbidden IPC origin');
+  }
+  const entry = activeStreams.get(reqId);
+  if (entry && entry.senderId === event.sender.id) {
+    entry.controller.abort();
     activeStreams.delete(reqId);
   }
 });

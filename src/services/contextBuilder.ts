@@ -233,10 +233,11 @@ export function buildSessionSystemPrompt(params: {
 
   if (contextMode === 'full' || allSections.length === 0) {
     const selectedSet = new Set(world.selectedSections || []);
-    const usePartial = selectedSet.size > 0 && allSections.length > 0;
-    activeSections = usePartial
+    const matched = selectedSet.size > 0
       ? allSections.filter((s) => selectedSet.has(s.heading))
-      : allSections;
+      : [];
+    const usePartial = matched.length > 0 && allSections.length > 0;
+    activeSections = usePartial ? matched : allSections;
     omittedSections = usePartial
       ? allSections.filter((s) => !selectedSet.has(s.heading))
       : [];
@@ -345,7 +346,7 @@ export function buildSessionSystemPrompt(params: {
 
   // Temporal Character Relations
   let includedRelations = 0;
-  if (relations.length > 0) {
+  if (world.includeCharacters && relations.length > 0) {
     const activeCharIds = new Set(activeChars.map((c) => c.id));
     const lines: string[] = [];
     for (const rel of relations) {

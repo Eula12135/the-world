@@ -1,4 +1,5 @@
 import React from 'react';
+import { useShallow } from 'zustand/react/shallow';
 import { BookOpen, Menu, PanelLeftOpen, Plus, Upload } from 'lucide-react';
 import { useAppStore } from '../../store/useAppStore';
 import { ModelPicker } from '../Common/ModelPicker';
@@ -16,7 +17,21 @@ export const TopBar: React.FC = () => {
     updateSession,
     startNewDraft,
     setActiveModal,
-  } = useAppStore();
+  } = useAppStore(
+    useShallow((s) => ({
+      sidebarOpen: s.sidebarOpen,
+      setSidebarOpen: s.setSidebarOpen,
+      activeView: s.activeView,
+      setActiveView: s.setActiveView,
+      sessions: s.sessions,
+      activeSessionId: s.activeSessionId,
+      draftConfig: s.draftConfig,
+      updateDraftConfig: s.updateDraftConfig,
+      updateSession: s.updateSession,
+      startNewDraft: s.startNewDraft,
+      setActiveModal: s.setActiveModal,
+    }))
+  );
 
   const session = sessions.find((s) => s.id === activeSessionId) ?? null;
   const currentProviderId = session ? session.providerId : draftConfig.providerId;

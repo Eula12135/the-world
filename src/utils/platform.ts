@@ -1,4 +1,5 @@
 import { Capacitor } from '@capacitor/core';
+import type { ProviderConfig } from '../types';
 
 export function isElectron(): boolean {
   return typeof window !== 'undefined' && Boolean(window.theWorldDesktop?.isDesktop);
@@ -19,6 +20,22 @@ export function isSafeHttpUrl(url: string): boolean {
   } catch {
     return false;
   }
+}
+
+export function isProviderReady(p: Pick<ProviderConfig, 'enabled' | 'requiresKey' | 'apiKey'>): boolean {
+  return Boolean(p.enabled && (!p.requiresKey || p.apiKey.trim().length > 0));
+}
+
+export function isImeComposing(e: { nativeEvent?: { isComposing?: boolean }; keyCode?: number }): boolean {
+  return Boolean(e.nativeEvent?.isComposing || e.keyCode === 229);
+}
+
+export function sanitizeFilename(name: string, fallback = 'export'): string {
+  const cleaned = String(name || '')
+    .replace(/[/\\:*?"<>|\r\n\t]+/g, '_')
+    .replace(/^\.+/, '')
+    .trim();
+  return cleaned || fallback;
 }
 
 const LOOPBACK_HOSTS = new Set(['localhost', '127.0.0.1', '0.0.0.0', '[::1]', '::1']);
@@ -54,16 +71,42 @@ export function downloadTextFile(
   filename: string,
   content: string,
   mimeType = 'text/plain;charset=utf-8'
-): void {
+): Promise<boolean> {
+  const safeName = sanitizeFilename(filename);
+  if (typeof window !== 'undefined' && window.TheWorldAndroid?.exportTextFile) {
+    return new Promise((resolve) => {
+      let settled = false;
+      const done = (ok: boolean) => {
+        if (settled) return;
+        settled = true;
+        window.removeEventListener('theworld-export', onExport);
+        window.clearTimeout(timer);
+        resolve(ok);
+      };
+      const onExport = (ev: Event) => {
+        const detail = (ev as CustomEvent<{ ok?: boolean }>).detail;
+        done(Boolean(detail?.ok));
+      };
+      const timer = window.setTimeout(() => done(false), 60_000);
+      window.addEventListener('theworld-export', onExport);
+      try {
+        window.TheWorldAndroid!.exportTextFile!(safeName, content, mimeType);
+      } catch {
+        done(false);
+      }
+    });
+  }
+
   const blob = new Blob([content], { type: mimeType });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = filename;
+  a.download = safeName;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
   setTimeout(() => URL.revokeObjectURL(url), 1000);
+  return Promise.resolve(true);
 }
 
 export function createId(prefix = 'id'): string {

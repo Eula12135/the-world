@@ -107,5 +107,31 @@ describe('temporalGraph', () => {
     const ordered = sortEventsChronologically(events);
     // 锚点被删除后不得回退成「返回全部事件」，否则会把后续剧情泄露给模型
     expect(getEventsUpToPoint(ordered, 'ev-deleted')).toEqual([]);
+
+    const relAtDeletedAnchor = resolveRelationAtPoint(relation, ordered, 'ev-deleted');
+    expect(relAtDeletedAnchor.activePhase?.label).toBe('好友');
+
+    const relationWithDanglingPhase: CharacterRelation = {
+      ...relation,
+      phases: [
+        ...relation.phases,
+        {
+          id: 'p-dangling',
+          fromEventId: 'missing-event',
+          type: 'secret',
+          label: '隐藏叛徒',
+          strength: 3,
+          description: '不应提前暴露',
+        },
+      ],
+    };
+    const atInitWithDangling = resolveRelationAtPoint(
+      relationWithDanglingPhase,
+      ordered,
+      INITIAL_STORY_POINT
+    );
+    expect(atInitWithDangling.activePhase?.label).toBe('好友');
+    const atEv1WithDangling = resolveRelationAtPoint(relationWithDanglingPhase, ordered, 'ev1');
+    expect(atEv1WithDangling.activePhase?.label).toBe('好友');
   });
 });

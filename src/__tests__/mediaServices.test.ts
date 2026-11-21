@@ -1,14 +1,23 @@
 import { describe, expect, it, vi } from 'vitest';
-import { buildCharacterImagePrompt, resolveReusableApiKey } from '../services/imageGenService';
+import {
+  buildCharacterImagePrompt,
+  fetchImageGenModels,
+  resolveMediaApiKey,
+  resolveReusableApiKey,
+} from '../services/imageGenService';
 import {
   buildBreezeTtsPayload,
   buildTtsSpeechPayload,
   designBreezeVoice,
+  fetchSttModels,
+  fetchTtsModels,
   formatTtsHttpError,
   isBreezeCloudBase,
   listBreezeVoices,
   normalizeBreezeBaseUrl,
+  pickMatchingBuiltinVoiceForGender,
   resolveEffectiveVoiceConfig,
+  rewriteSiliconFlowVoiceForModel,
   sanitizeCloneCustomName,
   saveBreezeVoiceDesign,
   splitSpeechChunks,
@@ -375,6 +384,117 @@ describe('imageGenService & voiceService helpers', () => {
       });
       expect(res.uri).toBe('speech:linche:abc:xyz');
       expect(mockFetch).toHaveBeenCalledTimes(1);
+    } finally {
+      globalThis.fetch = origFetch;
+    }
+  });
+
+  it('isolates per-provider credentials, fixes female SiliconFlow voice matching, and refreshes media models', async () => {
+    const providerConfigs = {
+      breeze: {
+        baseUrl: 'https://api.breeze.blue',
+        apiKey: 'brz_isolated_key',
+        model: 'breeze-tts-2',
+      },
+      siliconflow_tts: {
+        baseUrl: 'https://api.siliconflow.cn/v1',
+        apiKey: 'sf_isolated_key',
+        model: 'FunAudioLLM/CosyVoice2-0.5B',
+      },
+    };
+
+    expect(
+      resolveMediaApiKey({
+        providerId: 'breeze',
+        baseUrl: 'https://api.breeze.blue',
+        explicitKey: '',
+        providerConfigs,
+        providers: [],
+      })
+    ).toBe('brz_isolated_key');
+    expect(
+      resolveMediaApiKey({
+        providerId: 'openai_tts',
+        baseUrl: 'https://api.openai.com/v1',
+        explicitKey: '',
+        providerConfigs,
+        providers: [],
+      })
+    ).toBe('');
+
+    expect(
+      rewriteSiliconFlowVoiceForModel(
+        'FunAudioLLM/CosyVoice2-0.5B:anna',
+        'IndexTeam/IndexTTS-2'
+      )
+    ).toBe('IndexTeam/IndexTTS-2:anna');
+    expect(
+      rewriteSiliconFlowVoiceForModel('speech:custom:123', 'IndexTeam/IndexTTS-2')
+    ).toBe('speech:custom:123');
+
+    const femaleVoice = pickMatchingBuiltinVoiceForGender(
+      'siliconflow_tts',
+      'FunAudioLLM/CosyVoice2-0.5B',
+      'female'
+    );
+    expect(femaleVoice).toBe('FunAudioLLM/CosyVoice2-0.5B:anna');
+
+    const origFetch = globalThis.fetch;
+    globalThis.fetch = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            data: [{ id: 'Kwai-Kolors/Kolors' }, { id: 'black-forest-labs/FLUX.1-dev' }],
+          }),
+          { status: 200 }
+        )
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            data: [
+              { id: 'FunAudioLLM/CosyVoice2-0.5B' },
+              { id: 'FunAudioLLM/SenseVoiceSmall' },
+              { id: 'IndexTeam/IndexTTS-2' },
+            ],
+          }),
+          { status: 200 }
+        )
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            data: [{ id: 'whisper-large-v3-turbo' }, { id: 'llama-3.3-70b-versatile' }],
+          }),
+          { status: 200 }
+        )
+      );
+
+    try {
+      const imgModels = await fetchImageGenModels({
+        providerId: 'siliconflow',
+        baseUrl: 'https://api.siliconflow.cn/v1',
+        apiKey: 'sf_img_key',
+        providers: [],
+      });
+      expect(imgModels).toEqual(['black-forest-labs/FLUX.1-dev', 'Kwai-Kolors/Kolors']);
+
+      const ttsModels = await fetchTtsModels({
+        providerId: 'siliconflow_tts',
+        baseUrl: 'https://api.siliconflow.cn/v1',
+        apiKey: 'sf_tts_key',
+        providers: [],
+      });
+      expect(ttsModels).toEqual(['FunAudioLLM/CosyVoice2-0.5B', 'IndexTeam/IndexTTS-2']);
+
+      const sttModels = await fetchSttModels({
+        providerId: 'groq_stt',
+        baseUrl: 'https://api.groq.com/openai/v1',
+        apiKey: 'groq_key',
+        providers: [],
+      });
+      expect(sttModels).toEqual(['whisper-large-v3-turbo']);
     } finally {
       globalThis.fetch = origFetch;
     }

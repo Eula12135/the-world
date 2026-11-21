@@ -8,10 +8,11 @@ import type {
   TimelineEvent,
 } from '../types';
 import { WORLD_GENRES } from '../data/worldTemplates';
-import { crossPlatformFetchJson } from './llm';
-import { createId } from '../utils/platform';
+import { createId, detectUnreachableLocalhost } from '../utils/platform';
+import { crossPlatformFetchJson, safeJsonParse } from './llm';
 
 const MAX_WORLD_IMPORT_BYTES = 20 * 1024 * 1024;
+const MAX_DOCX_DOCUMENT_XML_BYTES = 50 * 1024 * 1024;
 const EXTRACTION_SNIPPET_LIMIT = 42000;
 
 export function decodeTextBytes(bytes: Uint8Array): { text: string; encoding: string } {
@@ -76,7 +77,15 @@ export async function readWorldSourceFile(
 }
 
 export function extractTextFromDocx(bytes: Uint8Array): string {
-  const entries = unzipSync(bytes);
+  const entries = unzipSync(bytes, {
+    filter: (file) => {
+      if (file.name !== 'word/document.xml') return false;
+      if ((file.originalSize || 0) > MAX_DOCX_DOCUMENT_XML_BYTES) {
+        throw new Error('Word 正文 XML 体积超过 50MB 安全上限');
+      }
+      return true;
+    },
+  });
   const docXmlBytes = entries['word/document.xml'];
   if (!docXmlBytes) {
     throw new Error('不是有效的 .docx 文件（缺少 word/document.xml）');
@@ -104,9 +113,7 @@ export function extractTextFromDocx(bytes: Uint8Array): string {
     const line = textParts.join('').trim();
     if (!line) continue;
 
-    if (/^Heading1|^Title|1$/.test(styleVal) && styleVal.toLowerCase().includes('head')) {
-      lines.push(`## ${line}`);
-    } else if (/Heading2|Heading3/i.test(styleVal)) {
+    if (/^(?:Heading\s*[1-3]|Title|[1-3])$/i.test(styleVal.trim())) {
       lines.push(`## ${line}`);
     } else {
       lines.push(line);
@@ -255,11 +262,35 @@ function repairTruncatedJson(input: string): string {
     s += '"';
   }
 
+  // Determine container stack before cleanup so array string elements are not stripped as keys
+  const preStack: string[] = [];
+  let pInStr = false;
+  let pEsc = false;
+  for (let i = 0; i < s.length; i++) {
+    const ch = s[i];
+    if (pEsc) {
+      pEsc = false;
+      continue;
+    }
+    if (pInStr) {
+      if (ch === '\\') pEsc = true;
+      else if (ch === '"') pInStr = false;
+    } else if (ch === '"') {
+      pInStr = true;
+    } else if (ch === '{') {
+      preStack.push('}');
+    } else if (ch === '[') {
+      preStack.push(']');
+    } else if ((ch === '}' || ch === ']') && preStack.length > 0 && preStack[preStack.length - 1] === ch) {
+      preStack.pop();
+    }
+  }
+
   // Clean trailing dangling tokens outside strings
   s = s.replace(/,\s*$/, '');
   if (s.endsWith(':')) {
     s += '""';
-  } else {
+  } else if (preStack[preStack.length - 1] === '}') {
     // Strip incomplete object key without ':' like , "partialKey"
     s = s.replace(/,\s*"(?:\\.|[^"\\])*"\s*$/, '');
   }
@@ -348,6 +379,10 @@ export async function extractWorldWithAI(params: {
   if (provider.requiresKey && !provider.apiKey.trim()) {
     throw new Error(`尚未填写 ${provider.name} 的 API Key，无法执行 AI 提取`);
   }
+  const localhostHint = detectUnreachableLocalhost(provider.baseUrl);
+  if (localhostHint) {
+    throw new Error(localhostHint);
+  }
 
   const { snippet, sampled } = buildExtractionSnippet(rawText, EXTRACTION_SNIPPET_LIMIT);
   const sys = `你是小说设定提炼助手。请根据用户提供的文本或小说节选，提炼结构化世界观 JSON 对象（严格只输出 JSON，不要输出解释文字或思考过程）：
@@ -397,9 +432,9 @@ export async function extractWorldWithAI(params: {
       }),
     });
     if (!resp.ok) throw new Error(`AI 提取请求失败 (HTTP ${resp.status})`);
-    const parsed = JSON.parse(resp.text);
+    const parsed = safeJsonParse<{ content?: Array<{ text?: string }> }>(resp.text, 'AI 世界观提取');
     const blocks = Array.isArray(parsed?.content) ? parsed.content : [];
-    rawResponseText = blocks.map((b: { text?: string }) => b.text || '').join('');
+    rawResponseText = blocks.map((b) => b.text || '').join('');
   } else {
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
     if (provider.apiKey.trim()) headers.Authorization = `Bearer ${provider.apiKey.trim()}`;
@@ -437,7 +472,10 @@ export async function extractWorldWithAI(params: {
     }
 
     if (!resp.ok) throw new Error(`AI 提取请求失败 (HTTP ${resp.status})`);
-    const parsed = JSON.parse(resp.text);
+    const parsed = safeJsonParse<{ choices?: Array<{ message?: { content?: string } }> }>(
+      resp.text,
+      'AI 世界观提取'
+    );
     rawResponseText = String(parsed?.choices?.[0]?.message?.content || '');
   }
 

@@ -4,6 +4,7 @@ import { createId } from '../utils/platform';
 
 const MAX_ZIP_BYTES = 100 * 1024 * 1024;
 const MAX_JSON_FILE_BYTES = 20 * 1024 * 1024;
+const MAX_ZIP_UNCOMPRESSED_BYTES = 200 * 1024 * 1024;
 
 interface DeepSeekFragment {
   type: string;
@@ -289,7 +290,26 @@ export async function parseDeepSeekArchive(
     lower.endsWith('.zip') || (bytes.length >= 2 && bytes[0] === 0x50 && bytes[1] === 0x4b);
 
   if (isZip) {
-    const entries = unzipSync(bytes);
+    let totalUncompressed = 0;
+    const entries = unzipSync(bytes, {
+      filter: (file) => {
+        const isNeeded =
+          file.name === 'manifest.json' ||
+          file.name === 'chat_session_index.json' ||
+          (file.name.startsWith('chat_sessions/') && file.name.endsWith('.json'));
+        if (!isNeeded) return false;
+        const orig = file.originalSize || 0;
+        if (orig > MAX_JSON_FILE_BYTES) {
+          warnings.push(`跳过过大文件: ${file.name}`);
+          return false;
+        }
+        totalUncompressed += orig;
+        if (totalUncompressed > MAX_ZIP_UNCOMPRESSED_BYTES) {
+          throw new Error('压缩包解压体积超过 200MB 安全上限，已中止导入');
+        }
+        return true;
+      },
+    });
     let formatVersion = 'zip-unknown';
     const indexMap = new Map<string, DeepSeekIndexItem>();
     const indexOrder: string[] = [];

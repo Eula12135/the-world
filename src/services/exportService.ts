@@ -3,14 +3,15 @@ import {
   loadProvidersDecrypted,
   loadSettingsDecrypted,
   normalizeSettings,
-  saveProviderEncrypted,
-  saveSettingsEncrypted,
+  prepareProviderForStorage,
+  prepareSettingsForStorage,
 } from '../db/database';
 import type {
   Character,
   CharacterRelation,
   ChatMessage,
   ChatSession,
+  MediaProviderCredential,
   PersonaPreset,
   ProviderConfig,
   TimelineEvent,
@@ -115,6 +116,39 @@ export function worldToMarkdown(params: {
   return lines.join('\n');
 }
 
+function stripProviderConfigsKeys(
+  configs?: Record<string, MediaProviderCredential>
+): Record<string, MediaProviderCredential> | undefined {
+  if (!configs) return undefined;
+  const out: Record<string, MediaProviderCredential> = {};
+  for (const [k, v] of Object.entries(configs)) {
+    out[k] = { ...v, apiKey: '' };
+  }
+  return out;
+}
+
+function mergePreservedProviderConfigs(
+  incoming?: Record<string, MediaProviderCredential>,
+  existing?: Record<string, MediaProviderCredential>
+): Record<string, MediaProviderCredential> {
+  const merged: Record<string, MediaProviderCredential> = {};
+  if (existing) {
+    for (const [k, v] of Object.entries(existing)) {
+      merged[k] = { ...v };
+    }
+  }
+  if (incoming) {
+    for (const [k, v] of Object.entries(incoming)) {
+      const prevKey = existing?.[k]?.apiKey || '';
+      merged[k] = {
+        ...v,
+        apiKey: v.apiKey || prevKey,
+      };
+    }
+  }
+  return merged;
+}
+
 export async function exportFullBackupJson(includeApiKeys: boolean): Promise<string> {
   const [
     providers,
@@ -149,14 +183,24 @@ export async function exportFullBackupJson(includeApiKeys: boolean): Promise<str
     ? settings
     : {
         ...settings,
-        imageGen: { ...settings.imageGen, apiKey: '' },
-        voice: { ...settings.voice, ttsApiKey: '', sttApiKey: '' },
+        imageGen: {
+          ...settings.imageGen,
+          apiKey: '',
+          providerConfigs: stripProviderConfigsKeys(settings.imageGen.providerConfigs),
+        },
+        voice: {
+          ...settings.voice,
+          ttsApiKey: '',
+          sttApiKey: '',
+          ttsProviderConfigs: stripProviderConfigsKeys(settings.voice.ttsProviderConfigs),
+          sttProviderConfigs: stripProviderConfigsKeys(settings.voice.sttProviderConfigs),
+        },
       };
 
   return JSON.stringify(
     {
       app: 'the-world',
-      backupVersion: 5,
+      backupVersion: 6,
       exportedAt: new Date().toISOString(),
       includesApiKeys: includeApiKeys,
       data: {
@@ -192,18 +236,42 @@ export async function importFullBackupJson(rawText: string): Promise<{
   ]);
   const currentKeyMap = new Map(currentProviders.map((p) => [p.id, p.apiKey]));
 
-  if (Array.isArray(d.providers)) {
-    for (const p of d.providers as ProviderConfig[]) {
-      await saveProviderEncrypted({
-        ...p,
-        apiKey: p.apiKey || currentKeyMap.get(p.id) || '',
-      });
-    }
+  const encryptedProviders = Array.isArray(d.providers)
+    ? await Promise.all(
+        (d.providers as ProviderConfig[]).map((p) =>
+          prepareProviderForStorage({
+            ...p,
+            apiKey: p.apiKey || currentKeyMap.get(p.id) || '',
+          })
+        )
+      )
+    : null;
+
+  let encryptedSettings = null;
+  if (d.settings) {
+    const merged = normalizeSettings(d.settings);
+    merged.imageGen.apiKey = merged.imageGen.apiKey || currentSettings.imageGen.apiKey;
+    merged.imageGen.providerConfigs = mergePreservedProviderConfigs(
+      merged.imageGen.providerConfigs,
+      currentSettings.imageGen.providerConfigs
+    );
+    merged.voice.ttsApiKey = merged.voice.ttsApiKey || currentSettings.voice.ttsApiKey;
+    merged.voice.sttApiKey = merged.voice.sttApiKey || currentSettings.voice.sttApiKey;
+    merged.voice.ttsProviderConfigs = mergePreservedProviderConfigs(
+      merged.voice.ttsProviderConfigs,
+      currentSettings.voice.ttsProviderConfigs
+    );
+    merged.voice.sttProviderConfigs = mergePreservedProviderConfigs(
+      merged.voice.sttProviderConfigs,
+      currentSettings.voice.sttProviderConfigs
+    );
+    encryptedSettings = await prepareSettingsForStorage(merged);
   }
 
   await db.transaction(
     'rw',
     [
+      db.providers,
       db.sessions,
       db.messages,
       db.worlds,
@@ -212,8 +280,10 @@ export async function importFullBackupJson(rawText: string): Promise<{
       db.timelineEvents,
       db.personaPresets,
       db.voiceProfiles,
+      db.settings,
     ],
     async () => {
+      if (encryptedProviders) await db.providers.bulkPut(encryptedProviders);
       if (Array.isArray(d.sessions)) await db.sessions.bulkPut(d.sessions);
       if (Array.isArray(d.messages)) await db.messages.bulkPut(d.messages);
       if (Array.isArray(d.worlds)) {
@@ -245,16 +315,11 @@ export async function importFullBackupJson(rawText: string): Promise<{
       if (Array.isArray(d.voiceProfiles)) {
         await db.voiceProfiles.bulkPut(d.voiceProfiles as VoiceProfile[]);
       }
+      if (encryptedSettings) {
+        await db.settings.put(encryptedSettings);
+      }
     }
   );
-
-  if (d.settings) {
-    const merged = normalizeSettings(d.settings);
-    merged.imageGen.apiKey = merged.imageGen.apiKey || currentSettings.imageGen.apiKey;
-    merged.voice.ttsApiKey = merged.voice.ttsApiKey || currentSettings.voice.ttsApiKey;
-    merged.voice.sttApiKey = merged.voice.sttApiKey || currentSettings.voice.sttApiKey;
-    await saveSettingsEncrypted(merged);
-  }
 
   return {
     sessionsCount: Array.isArray(d.sessions) ? d.sessions.length : 0,

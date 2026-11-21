@@ -1,4 +1,5 @@
 import React, { useRef, useState } from 'react';
+import { useShallow } from 'zustand/react/shallow';
 import { useAppStore } from '../../store/useAppStore';
 
 /** 触发切换的最小位移（跟手位移，不是手指位移） */
@@ -20,7 +21,15 @@ const SWIPE_LEFT_GOES_TO_WORLDS = true;
  * 松手未达阈值会弹性回弹，所以滑错了不用慌，滑回来就行。
  */
 export const SwipeNavigator: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { activeView, setActiveView, sidebarOpen, setSidebarOpen, activeModal } = useAppStore();
+  const { activeView, setActiveView, sidebarOpen, setSidebarOpen, activeModal } = useAppStore(
+    useShallow((s) => ({
+      activeView: s.activeView,
+      setActiveView: s.setActiveView,
+      sidebarOpen: s.sidebarOpen,
+      setSidebarOpen: s.setSidebarOpen,
+      activeModal: s.activeModal,
+    }))
+  );
   const [dragX, setDragX] = useState(0);
   const [animating, setAnimating] = useState(true);
   const start = useRef<{ x: number; y: number; active: boolean; horizontal: boolean } | null>(null);
@@ -28,11 +37,30 @@ export const SwipeNavigator: React.FC<{ children: React.ReactNode }> = ({ childr
   // 抽屉打开、或有弹窗时不做手势，避免和滚动/选择冲突
   const gesturesEnabled = activeModal === 'none' && !sidebarOpen;
 
+  const hasHorizontallyScrollableAncestor = (el: HTMLElement | null, boundary: HTMLElement) => {
+    let cur = el;
+    while (cur && cur !== boundary) {
+      if (cur.scrollWidth > cur.clientWidth + 2) {
+        const overflowX = window.getComputedStyle(cur).overflowX;
+        if (overflowX === 'auto' || overflowX === 'scroll') return true;
+      }
+      cur = cur.parentElement;
+    }
+    return false;
+  };
+
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (!gesturesEnabled) return;
+    if (!gesturesEnabled || e.pointerType !== 'touch') return;
     const target = e.target as HTMLElement | null;
-    // 表单控件上不拦截横向滑动（否则滑块、输入框选字会失效）
-    if (target?.closest('input, textarea, select, audio, video, [contenteditable="true"]')) return;
+    // 表单控件、代码块、表格、图谱等区域不拦截横向滑动
+    if (
+      target?.closest(
+        'input, textarea, select, audio, video, pre, code, table, svg, [contenteditable="true"], [data-no-swipe="true"]'
+      ) ||
+      hasHorizontallyScrollableAncestor(target, e.currentTarget)
+    ) {
+      return;
+    }
     start.current = { x: e.clientX, y: e.clientY, active: true, horizontal: false };
     setAnimating(false);
   };
@@ -100,10 +128,10 @@ export const SwipeNavigator: React.FC<{ children: React.ReactNode }> = ({ childr
       <div
         className="flex-1 flex flex-col min-h-0 w-full"
         style={{
-          transform: `translateX(${dragX}px) scale(${1 - progress * 0.02})`,
-          transition: animating ? 'transform 220ms cubic-bezier(0.22, 0.61, 0.36, 1)' : 'none',
-          boxShadow: progress > 0.02 ? `0 0 24px rgba(0,0,0,${0.12 * progress})` : 'none',
-          willChange: 'transform',
+          transform: dragX !== 0 ? `translateX(${dragX}px) scale(${1 - progress * 0.02})` : undefined,
+          transition: animating ? 'transform 220ms cubic-bezier(0.22, 0.61, 0.36, 1)' : undefined,
+          boxShadow: progress > 0.02 ? `0 0 24px rgba(0,0,0,${0.12 * progress})` : undefined,
+          willChange: dragX !== 0 ? 'transform' : undefined,
         }}
       >
         {children}

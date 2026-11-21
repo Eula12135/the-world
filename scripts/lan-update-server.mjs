@@ -66,7 +66,16 @@ function getLanIpv4Addresses() {
   return ips;
 }
 
-function serveDownload(res, filePath, contentType, downloadFilename) {
+function escapeHtml(str) {
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function serveDownload(req, res, filePath, contentType, downloadFilename) {
   const stat = fs.statSync(filePath);
   res.writeHead(200, {
     'Content-Type': contentType,
@@ -75,14 +84,25 @@ function serveDownload(res, filePath, contentType, downloadFilename) {
     'Access-Control-Allow-Origin': '*',
     'Cache-Control': 'no-cache',
   });
-  fs.createReadStream(filePath).pipe(res);
+  if (req.method === 'HEAD') {
+    res.end();
+    return;
+  }
+  const stream = fs.createReadStream(filePath);
+  stream.on('error', () => {
+    if (!res.headersSent) res.writeHead(500);
+    res.end();
+  });
+  stream.pipe(res);
 }
 
 const server = http.createServer((req, res) => {
   const reqUrl = new URL(req.url || '/', `http://${req.headers.host || `127.0.0.1:${PORT}`}`);
   const pathname = reqUrl.pathname;
   const baseOrigin = `http://${req.headers.host || `127.0.0.1:${PORT}`}`;
+  const safeOrigin = escapeHtml(baseOrigin);
   const version = readPackageVersion();
+  const safeVersion = escapeHtml(version);
   const apkPath = findApkPath();
   const exePath = findExePath(version);
 
@@ -110,7 +130,7 @@ const server = http.createServer((req, res) => {
       'Access-Control-Allow-Origin': '*',
       'Cache-Control': 'no-cache',
     });
-    res.end(body);
+    res.end(req.method === 'HEAD' ? undefined : body);
     return;
   }
 
@@ -121,6 +141,7 @@ const server = http.createServer((req, res) => {
       return;
     }
     serveDownload(
+      req,
       res,
       apkPath,
       'application/vnd.android.package-archive',
@@ -135,7 +156,7 @@ const server = http.createServer((req, res) => {
       res.end('未找到 Windows EXE 安装包，请先执行 electron-builder --win');
       return;
     }
-    serveDownload(res, exePath, 'application/octet-stream', `The-World-Setup-${version}.exe`);
+    serveDownload(req, res, exePath, 'application/octet-stream', `The-World-Setup-${version}.exe`);
     return;
   }
 
@@ -147,7 +168,7 @@ const server = http.createServer((req, res) => {
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>The World v${version} 局域网更新服务</title>
+  <title>The World v${safeVersion} 局域网更新服务</title>
   <style>
     body { font-family: -apple-system, sans-serif; max-width: 600px; margin: 40px auto; padding: 0 16px; background: #0f1117; color: #f3f4f6; line-height: 1.6; }
     .card { background: #1b1f2b; border: 1px solid #272c3a; border-radius: 16px; padding: 20px; margin-top: 16px; }
@@ -156,10 +177,10 @@ const server = http.createServer((req, res) => {
   </style>
 </head>
 <body>
-  <h2>The World v${version} 局域网分发中心</h2>
+  <h2>The World v${safeVersion} 局域网分发中心</h2>
   <div class="card">
     <div>把下方地址填进手机端「设置 → 版本与更新检测」，即可局域网一键检查并下载更新：</div>
-    <p><code>${baseOrigin}/latest.json</code></p>
+    <p><code>${safeOrigin}/latest.json</code></p>
     <div>${apkInfo}</div>
     <div>${exeInfo}</div>
     <div>
@@ -174,7 +195,7 @@ const server = http.createServer((req, res) => {
     'Content-Type': 'text/html; charset=utf-8',
     'Access-Control-Allow-Origin': '*',
   });
-  res.end(html);
+  res.end(req.method === 'HEAD' ? undefined : html);
 });
 
 server.listen(PORT, HOST, () => {

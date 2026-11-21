@@ -68,10 +68,15 @@ export const TimelinePanel: React.FC<{ worldId: string }> = ({ worldId }) => {
   const handleMove = async (idx: number, dir: -1 | 1) => {
     const targetIdx = idx + dir;
     if (targetIdx < 0 || targetIdx >= sorted.length) return;
-    const a = sorted[idx];
-    const b = sorted[targetIdx];
-    await upsertTimelineEvent({ ...a, orderIndex: b.orderIndex });
-    await upsertTimelineEvent({ ...b, orderIndex: a.orderIndex });
+    const reordered = [...sorted];
+    const [moved] = reordered.splice(idx, 1);
+    reordered.splice(targetIdx, 0, moved);
+    for (let i = 0; i < reordered.length; i++) {
+      const expectedOrder = (i + 1) * 10;
+      if (reordered[i].orderIndex !== expectedOrder) {
+        await upsertTimelineEvent({ ...reordered[i], orderIndex: expectedOrder });
+      }
+    }
   };
 
   const handleDelete = (ev: TimelineEvent) => {

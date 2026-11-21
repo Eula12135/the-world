@@ -309,4 +309,71 @@ describe('database v3, cascades, backup & security checks', () => {
     expect(isSafeHttpUrl('https://platform.deepseek.com/api_keys')).toBe(true);
     expect(isSafeHttpUrl('javascript:alert(1)')).toBe(false);
   });
+
+  it('migrates legacy media configs into per-provider maps and preserves all provider keys on backup restore', async () => {
+    await db.settings.put({
+      ...DEFAULT_SETTINGS,
+      imageGen: {
+        ...DEFAULT_SETTINGS.imageGen,
+        presetId: 'siliconflow',
+        baseUrl: 'https://api.siliconflow.cn/v1',
+        apiKey: 'img-sf-legacy',
+        model: 'Kwai-Kolors/Kolors',
+      },
+      voice: {
+        ...DEFAULT_SETTINGS.voice,
+        ttsEngine: 'openai_api',
+        ttsProviderId: undefined,
+        ttsBaseUrl: 'https://api.breeze.blue',
+        ttsApiKey: 'tts-breeze-legacy',
+        ttsModel: 'breeze-tts-2',
+        ttsVoice: 'voc_123',
+      },
+    });
+    const migrated = await loadSettingsDecrypted();
+    expect(migrated.imageGen.providerConfigs?.siliconflow?.apiKey).toBe('img-sf-legacy');
+    expect(migrated.voice.ttsProviderConfigs?.breeze?.apiKey).toBe('tts-breeze-legacy');
+
+    // Configure both Breeze and SiliconFlow TTS keys locally
+    await saveSettingsEncrypted({
+      ...migrated,
+      voice: {
+        ...migrated.voice,
+        ttsProviderConfigs: {
+          breeze: {
+            baseUrl: 'https://api.breeze.blue',
+            apiKey: 'local-breeze-key',
+            model: 'breeze-tts-2',
+            defaultVoice: 'voc_breeze',
+          },
+          siliconflow_tts: {
+            baseUrl: 'https://api.siliconflow.cn/v1',
+            apiKey: 'local-sf-tts-key',
+            model: 'FunAudioLLM/CosyVoice2-0.5B',
+            defaultVoice: 'FunAudioLLM/CosyVoice2-0.5B:anna',
+          },
+        },
+        sttProviderConfigs: {
+          siliconflow_stt: {
+            baseUrl: 'https://api.siliconflow.cn/v1',
+            apiKey: 'local-sf-stt-key',
+            model: 'FunAudioLLM/SenseVoiceSmall',
+          },
+        },
+      },
+    });
+
+    const strippedBackup = await exportFullBackupJson(false);
+    const parsedBackup = JSON.parse(strippedBackup);
+    expect(parsedBackup.data.settings.voice.ttsProviderConfigs.breeze.apiKey).toBe('');
+    expect(parsedBackup.data.settings.voice.ttsProviderConfigs.siliconflow_tts.apiKey).toBe('');
+    expect(parsedBackup.data.settings.voice.sttProviderConfigs.siliconflow_stt.apiKey).toBe('');
+
+    await importFullBackupJson(strippedBackup);
+    const restored = await loadSettingsDecrypted();
+    expect(restored.imageGen.providerConfigs?.siliconflow?.apiKey).toBe('img-sf-legacy');
+    expect(restored.voice.ttsProviderConfigs?.breeze?.apiKey).toBe('local-breeze-key');
+    expect(restored.voice.ttsProviderConfigs?.siliconflow_tts?.apiKey).toBe('local-sf-tts-key');
+    expect(restored.voice.sttProviderConfigs?.siliconflow_stt?.apiKey).toBe('local-sf-stt-key');
+  });
 });

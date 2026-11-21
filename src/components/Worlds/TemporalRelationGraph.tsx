@@ -189,6 +189,7 @@ export const TemporalRelationGraph: React.FC<{ worldId: string }> = ({ worldId }
 
   const svgRef = useRef<SVGSVGElement>(null);
   const scrubberRef = useRef<HTMLDivElement>(null);
+  const didDragRef = useRef(false);
 
   useEffect(() => {
     if (scrubberRef.current && activePointId === '__latest__') {
@@ -199,6 +200,9 @@ export const TemporalRelationGraph: React.FC<{ worldId: string }> = ({ worldId }
   const handlePointerMove = (e: React.PointerEvent<SVGSVGElement>) => {
     const d = dragRef.current;
     if (d.kind === 'none') return;
+    if (Math.hypot(e.clientX - d.startX, e.clientY - d.startY) > 4) {
+      didDragRef.current = true;
+    }
     const rect = svgRef.current?.getBoundingClientRect();
     const scaleX = rect && rect.width > 0 ? 680 / rect.width : 1;
     const scaleY = rect && rect.height > 0 ? 440 / rect.height : 1;
@@ -558,7 +562,10 @@ export const TemporalRelationGraph: React.FC<{ worldId: string }> = ({ worldId }
 
       {/* Main Graph or List */}
       {viewMode === 'graph' ? (
-        <div className="relative flex-1 min-h-[380px] rounded-2xl bg-card border border-line overflow-hidden select-none">
+        <div
+          data-no-swipe="true"
+          className="relative flex-1 min-h-[380px] rounded-2xl bg-card border border-line overflow-hidden select-none"
+        >
           <div className="absolute top-3 right-3 z-10 flex items-center gap-1">
             {selectedCharId && (
               <button
@@ -592,6 +599,8 @@ export const TemporalRelationGraph: React.FC<{ worldId: string }> = ({ worldId }
             preserveAspectRatio="xMidYMid meet"
             className="w-full h-full touch-none"
             onPointerDown={(e) => {
+              e.stopPropagation();
+              didDragRef.current = false;
               if ((e.target as Element).tagName === 'svg') {
                 dragRef.current = {
                   kind: 'pan',
@@ -717,6 +726,7 @@ export const TemporalRelationGraph: React.FC<{ worldId: string }> = ({ worldId }
                     opacity={dim ? 0.35 : 1}
                     onPointerDown={(e) => {
                       e.stopPropagation();
+                      didDragRef.current = false;
                       dragRef.current = {
                         kind: 'node',
                         charId: c.id,
@@ -728,6 +738,10 @@ export const TemporalRelationGraph: React.FC<{ worldId: string }> = ({ worldId }
                     }}
                     onClick={(e) => {
                       e.stopPropagation();
+                      if (didDragRef.current) {
+                        didDragRef.current = false;
+                        return;
+                      }
                       setSelectedCharId((prev) => (prev === c.id ? null : c.id));
                     }}
                   >
@@ -811,7 +825,10 @@ export const TemporalRelationGraph: React.FC<{ worldId: string }> = ({ worldId }
                             <div className="text-[10.5px] text-dim">
                               {ev ? `事件「${ev.title}」后` : '故事初始'}
                             </div>
-                            <div className="font-medium flex items-center gap-1.5" style={{ color: meta.color }}>
+                            <div
+                              className="font-medium flex items-center gap-1.5"
+                              style={{ color: meta?.color || '#64748b' }}
+                            >
                               <span>{ph.label}</span>
                             </div>
                           </div>

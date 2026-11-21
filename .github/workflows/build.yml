@@ -41,7 +41,7 @@ jobs:
       - run: pnpm install --frozen-lockfile || pnpm install
       - name: Build Web & Electron
         env:
-          VITE_UPDATE_REPO: ${{ github.repository }}
+          VITE_UPDATE_REPO: ${{ vars.VITE_UPDATE_REPO || github.repository }}
         run: npm run build && npm run build:electron
       - run: npx electron-builder --publish never
       - uses: actions/upload-artifact@v4
@@ -69,7 +69,7 @@ jobs:
       - run: pnpm install --frozen-lockfile || pnpm install
       - name: Sync Android Web Bundle
         env:
-          VITE_UPDATE_REPO: ${{ github.repository }}
+          VITE_UPDATE_REPO: ${{ vars.VITE_UPDATE_REPO || github.repository }}
         run: npm run android:sync
       - name: Build Android Debug APK
         working-directory: android
@@ -91,21 +91,26 @@ jobs:
           path: raw-artifacts
       - name: Prepare Release Assets & latest.json
         run: |
+          VERSION="${GITHUB_REF_NAME#v}"
           mkdir -p release-assets
           find raw-artifacts -type f \( -name "*.exe" -o -name "*.dmg" -o -name "*.AppImage" -o -name "*.deb" -o -name "*.zip" \) -exec cp {} release-assets/ \;
           if [ -f raw-artifacts/android-apk/app-debug.apk ]; then
-            cp raw-artifacts/android-apk/app-debug.apk "release-assets/The-World-${GITHUB_REF_NAME}-android.apk"
+            cp raw-artifacts/android-apk/app-debug.apk "release-assets/The-World-${VERSION}-android.apk"
           fi
-          VERSION="${GITHUB_REF_NAME#v}"
           BASE_DL="https://github.com/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}"
-          APK_FILE=$(ls release-assets/*.apk 2>/dev/null | head -n1 | xargs -r basename)
-          WIN_FILE=$(ls release-assets/*Setup*.exe 2>/dev/null | head -n1 | xargs -r basename)
+          APK_PATH=$(find release-assets -maxdepth 1 -type f -name "*.apk" | head -n1)
+          APK_FILE=${APK_PATH:+$(basename "$APK_PATH")}
+          WIN_PATH=$(find release-assets -maxdepth 1 -type f -name "*Setup*.exe" | head -n1)
+          WIN_FILE=${WIN_PATH:+$(basename "$WIN_PATH")}
+          WIN_ASSET_NAME=${WIN_FILE// /.}
           cat > release-assets/latest.json <<EOF
           {
             "version": "${VERSION}",
+            "name": "The World ${GITHUB_REF_NAME}",
+            "pageUrl": "https://github.com/${GITHUB_REPOSITORY}/releases/tag/${GITHUB_REF_NAME}",
             "releaseUrl": "https://github.com/${GITHUB_REPOSITORY}/releases/tag/${GITHUB_REF_NAME}",
             "androidUrl": "${APK_FILE:+${BASE_DL}/${APK_FILE}}",
-            "windowsUrl": "${WIN_FILE:+${BASE_DL}/${WIN_FILE}}",
+            "windowsUrl": "${WIN_ASSET_NAME:+${BASE_DL}/${WIN_ASSET_NAME}}",
             "notes": "Release ${GITHUB_REF_NAME}"
           }
           EOF

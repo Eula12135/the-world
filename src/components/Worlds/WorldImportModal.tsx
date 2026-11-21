@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
   AlertTriangle,
   CheckCircle2,
@@ -60,6 +61,17 @@ export const WorldImportModal: React.FC<WorldImportModalProps> = ({
       providers[0],
     [providers, settings.defaultProviderId]
   );
+
+  useEffect(() => {
+    if (!open) return;
+    setTitleInput('');
+    setGenreInput('奇幻');
+    setRawText('');
+    setDetectedEncoding(null);
+    setExtracted(null);
+    setErrorMsg(null);
+    setMode(targetWorldId ? 'merge' : 'new');
+  }, [open, targetWorldId]);
 
   useEffect(() => {
     if (!open || !defaultReadyProvider) return;
@@ -185,11 +197,12 @@ export const WorldImportModal: React.FC<WorldImportModalProps> = ({
     onClose();
   };
 
-  return (
-    <div
-      className="fixed inset-0 z-50 bg-black/55 backdrop-blur-[2px] flex items-center justify-center p-3 md:p-4"
-      onClick={onClose}
-    >
+  return typeof document !== 'undefined'
+    ? createPortal(
+        <div
+          className="fixed inset-0 z-50 bg-black/55 backdrop-blur-[2px] flex items-center justify-center p-3 md:p-4"
+          onClick={onClose}
+        >
       <div
         className="w-full max-w-2xl max-h-[88vh] rounded-2xl bg-card border border-line shadow-2xl flex flex-col overflow-hidden"
         onClick={(e) => e.stopPropagation()}
@@ -448,6 +461,8 @@ export const WorldImportModal: React.FC<WorldImportModalProps> = ({
           </div>
         </div>
       </div>
-    </div>
-  );
+    </div>,
+    document.body
+  )
+    : null;
 };

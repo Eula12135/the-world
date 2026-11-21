@@ -49,11 +49,14 @@ export function resolveRelationAtPoint(
 
   // Sort phases chronologically: initial phases (-1) first, then by event index
   const ranked = phases
-    .map((p, origIdx) => ({
-      phase: p,
-      rank: p.fromEventId && orderMap.has(p.fromEventId) ? orderMap.get(p.fromEventId)! : -1,
-      origIdx,
-    }))
+    .map((p, origIdx) => {
+      const rank = !p.fromEventId
+        ? -1
+        : orderMap.has(p.fromEventId)
+          ? orderMap.get(p.fromEventId)!
+          : Number.POSITIVE_INFINITY;
+      return { phase: p, rank, origIdx };
+    })
     .sort((a, b) => (a.rank !== b.rank ? a.rank - b.rank : a.origIdx - b.origIdx));
 
   if (pointEventId === INITIAL_STORY_POINT) {
@@ -62,8 +65,12 @@ export function resolveRelationAtPoint(
     return { relation, activePhase, changedAtCurrentEvent: false };
   }
 
-  const targetRank =
-    pointEventId && orderMap.has(pointEventId) ? orderMap.get(pointEventId)! : Number.MAX_SAFE_INTEGER;
+  // Fail closed when a specific non-initial anchor event ID cannot be resolved in orderedEvents
+  const targetRank = !pointEventId
+    ? Number.MAX_SAFE_INTEGER
+    : orderMap.has(pointEventId)
+      ? orderMap.get(pointEventId)!
+      : -1;
 
   const eligible = ranked.filter((r) => r.rank <= targetRank);
   if (eligible.length === 0) {

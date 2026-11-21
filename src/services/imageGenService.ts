@@ -1,10 +1,18 @@
-import type { Character, ImageGenConfig, ProviderConfig, WorldProject } from '../types';
+import type {
+  Character,
+  ImageGenConfig,
+  MediaProviderCredential,
+  ProviderConfig,
+  WorldProject,
+} from '../types';
 import {
   base64ToUint8Array,
   crossPlatformFetchBinary,
   crossPlatformFetchJson,
+  safeJsonParse,
   uint8ArrayToBase64,
 } from './llm';
+import { detectUnreachableLocalhost } from '../utils/platform';
 
 export interface ImageGenPreset {
   id: string;
@@ -64,7 +72,7 @@ export const IMAGE_GEN_PRESETS: ImageGenPreset[] = [
   },
 ];
 
-function extractHost(url: string): string {
+export function extractEndpointHost(url: string): string {
   try {
     return new URL(url.trim()).hostname.toLowerCase();
   } catch {
@@ -73,7 +81,7 @@ function extractHost(url: string): string {
 }
 
 export function isLocalEndpointUrl(url: string): boolean {
-  const host = extractHost(url);
+  const host = extractEndpointHost(url);
   return host === 'localhost' || host === '127.0.0.1' || host === '::1';
 }
 
@@ -84,12 +92,118 @@ export function resolveReusableApiKey(
 ): string {
   const trimmed = explicitKey.trim();
   if (trimmed) return trimmed;
-  const targetHost = extractHost(baseUrl);
+  const targetHost = extractEndpointHost(baseUrl);
   if (!targetHost) return '';
   const match = providers.find(
-    (p) => p.apiKey.trim().length > 0 && extractHost(p.baseUrl) === targetHost
+    (p) => p.apiKey.trim().length > 0 && extractEndpointHost(p.baseUrl) === targetHost
   );
   return match?.apiKey.trim() || '';
+}
+
+export function resolveMediaApiKey(params: {
+  providerId?: string;
+  baseUrl: string;
+  explicitKey?: string;
+  providerConfigs?: Record<string, MediaProviderCredential>;
+  providers: ProviderConfig[];
+}): string {
+  const trimmed = (params.explicitKey || '').trim();
+  if (trimmed) return trimmed;
+
+  if (params.providerId && params.providerConfigs?.[params.providerId]?.apiKey?.trim()) {
+    return params.providerConfigs[params.providerId].apiKey.trim();
+  }
+
+  const targetHost = extractEndpointHost(params.baseUrl);
+  if (!targetHost) return '';
+
+  if (params.providerConfigs) {
+    for (const cred of Object.values(params.providerConfigs)) {
+      if (cred?.apiKey?.trim() && extractEndpointHost(cred.baseUrl) === targetHost) {
+        return cred.apiKey.trim();
+      }
+    }
+  }
+
+  return resolveReusableApiKey(params.baseUrl, '', params.providers);
+}
+
+const IMAGE_MODEL_PATTERN =
+  /cogview|flux|kolors|dall-e|gpt-image|sdxl|stable-diffusion|image|wanx|jimeng|seedream|imagen|ideogram|recraft|qwen-image/i;
+
+export async function fetchImageGenModels(params: {
+  baseUrl: string;
+  apiKey: string;
+  providers: ProviderConfig[];
+  providerConfigs?: Record<string, MediaProviderCredential>;
+  providerId?: string;
+}): Promise<string[]> {
+  const cleanBase = params.baseUrl.trim().replace(/\/+$/, '');
+  if (!cleanBase) {
+    throw new Error('请先填写生图 Base URL');
+  }
+  const localhostWarning = detectUnreachableLocalhost(cleanBase);
+  if (localhostWarning) {
+    throw new Error(localhostWarning);
+  }
+
+  const apiKey = resolveMediaApiKey({
+    providerId: params.providerId,
+    baseUrl: cleanBase,
+    explicitKey: params.apiKey,
+    providerConfigs: params.providerConfigs,
+    providers: params.providers,
+  });
+  if (!apiKey && !isLocalEndpointUrl(cleanBase)) {
+    throw new Error('请先填写生图 API Key（同域名文本厂商 Key 可自动复用）');
+  }
+
+  const headers: Record<string, string> = {};
+  if (apiKey) {
+    headers.Authorization = `Bearer ${apiKey}`;
+  }
+
+  if (extractEndpointHost(cleanBase).includes('siliconflow')) {
+    const sfResp = await crossPlatformFetchJson({
+      url: `${cleanBase}/models?sub_type=text-to-image`,
+      method: 'GET',
+      headers,
+    });
+    if (sfResp.ok) {
+      const parsed = safeJsonParse<{ data?: Array<{ id?: string }> }>(
+        sfResp.text,
+        '生图模型列表返回格式异常'
+      );
+      const list = Array.isArray(parsed?.data)
+        ? parsed.data.map((m) => (typeof m?.id === 'string' ? m.id : '')).filter(Boolean)
+        : [];
+      if (list.length > 0) {
+        return Array.from(new Set(list)).sort((a, b) => a.localeCompare(b));
+      }
+    }
+  }
+
+  const resp = await crossPlatformFetchJson({
+    url: `${cleanBase}/models`,
+    method: 'GET',
+    headers,
+  });
+  if (!resp.ok) {
+    throw new Error(`拉取生图模型失败 (HTTP ${resp.status})`);
+  }
+  const parsed = safeJsonParse<{ data?: Array<{ id?: string }> }>(
+    resp.text,
+    '生图模型列表返回格式异常'
+  );
+  const all = Array.isArray(parsed?.data)
+    ? parsed.data.map((m) => (typeof m?.id === 'string' ? m.id : '')).filter(Boolean)
+    : [];
+  if (all.length === 0) {
+    throw new Error('接口未返回可用模型列表，请手动填写模型 ID');
+  }
+  const filtered = all.filter((id) => IMAGE_MODEL_PATTERN.test(id));
+  const result = filtered.length > 0 ? filtered : all;
+  return Array.from(new Set(result)).sort((a, b) => a.localeCompare(b));
 }
 
 export function buildCharacterImagePrompt(
@@ -191,8 +305,18 @@ export async function generateImage(params: {
   if (!cleanBase || !model) {
     throw new Error('请先在「模型 → 生图模型」配置有效的 Base URL 与模型 ID');
   }
+  const localhostWarning = detectUnreachableLocalhost(cleanBase);
+  if (localhostWarning) {
+    throw new Error(localhostWarning);
+  }
 
-  const apiKey = resolveReusableApiKey(cleanBase, config.apiKey, providers);
+  const apiKey = resolveMediaApiKey({
+    providerId: config.presetId,
+    baseUrl: cleanBase,
+    explicitKey: config.apiKey,
+    providerConfigs: config.providerConfigs,
+    providers,
+  });
   if (!apiKey && !isLocalEndpointUrl(cleanBase)) {
     throw new Error('请先在「模型 → 生图模型」填写 API Key（同域名文本厂商的 Key 可留空自动复用）');
   }
@@ -226,7 +350,10 @@ export async function generateImage(params: {
     throw new Error(msg);
   }
 
-  const parsed = JSON.parse(resp.text);
+  const parsed = safeJsonParse<{ data?: Array<{ b64_json?: string; url?: string }> }>(
+    resp.text,
+    '生图接口返回了非 JSON 响应'
+  );
   const first = Array.isArray(parsed?.data) ? parsed.data[0] : null;
   if (!first) {
     throw new Error('生图接口未返回图像数据');

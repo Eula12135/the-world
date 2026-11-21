@@ -1,5 +1,6 @@
 import type { ChatMessage, ProviderConfig } from '../types';
-import { crossPlatformFetchJson } from './llm';
+import { detectUnreachableLocalhost } from '../utils/platform';
+import { crossPlatformFetchJson, safeJsonParse } from './llm';
 
 export async function compressConversationMemory(params: {
   provider: ProviderConfig;
@@ -13,6 +14,10 @@ export async function compressConversationMemory(params: {
 
   if (provider.requiresKey && !provider.apiKey.trim()) {
     throw new Error(`尚未填写 ${provider.name} 的 API Key，无法压缩记忆`);
+  }
+  const localhostHint = detectUnreachableLocalhost(provider.baseUrl);
+  if (localhostHint) {
+    throw new Error(localhostHint);
   }
 
   const transcript = cleanMsgs
@@ -44,10 +49,10 @@ export async function compressConversationMemory(params: {
       }),
     });
     if (!resp.ok) throw new Error(`记忆压缩失败 (HTTP ${resp.status})`);
-    const parsed = JSON.parse(resp.text);
+    const parsed = safeJsonParse<{ content?: Array<{ text?: string }> }>(resp.text, '记忆压缩接口');
     const blocks = Array.isArray(parsed?.content) ? parsed.content : [];
     return blocks
-      .map((b: { text?: string }) => b.text || '')
+      .map((b) => b.text || '')
       .join('')
       .trim();
   }
@@ -69,6 +74,9 @@ export async function compressConversationMemory(params: {
     }),
   });
   if (!resp.ok) throw new Error(`记忆压缩失败 (HTTP ${resp.status})`);
-  const parsed = JSON.parse(resp.text);
+  const parsed = safeJsonParse<{ choices?: Array<{ message?: { content?: string } }> }>(
+    resp.text,
+    '记忆压缩接口'
+  );
   return String(parsed?.choices?.[0]?.message?.content || '').trim();
 }

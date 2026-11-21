@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react';
+import { useShallow } from 'zustand/react/shallow';
 import {
   BookOpen,
   Download,
@@ -20,7 +21,7 @@ import { useAppStore } from '../../store/useAppStore';
 import type { ChatSession } from '../../types';
 import { db } from '../../db/database';
 import { sessionToMarkdown } from '../../services/exportService';
-import { downloadTextFile } from '../../utils/platform';
+import { downloadTextFile, isImeComposing, isProviderReady } from '../../utils/platform';
 
 function groupSessions(sessions: ChatSession[]) {
   const now = Date.now();
@@ -68,7 +69,27 @@ export const Sidebar: React.FC = () => {
     worlds,
     isStreaming,
     streamingSessionId,
-  } = useAppStore();
+  } = useAppStore(
+    useShallow((s) => ({
+      sidebarOpen: s.sidebarOpen,
+      setSidebarOpen: s.setSidebarOpen,
+      sessions: s.sessions,
+      activeSessionId: s.activeSessionId,
+      activeView: s.activeView,
+      setActiveView: s.setActiveView,
+      setActiveModal: s.setActiveModal,
+      selectSession: s.selectSession,
+      startNewDraft: s.startNewDraft,
+      updateSession: s.updateSession,
+      deleteSession: s.deleteSession,
+      requestConfirm: s.requestConfirm,
+      showToast: s.showToast,
+      providers: s.providers,
+      worlds: s.worlds,
+      isStreaming: s.isStreaming,
+      streamingSessionId: s.streamingSessionId,
+    }))
+  );
 
   const [query, setQuery] = useState('');
   const [menuSessionId, setMenuSessionId] = useState<string | null>(null);
@@ -76,7 +97,7 @@ export const Sidebar: React.FC = () => {
   const [renameText, setRenameText] = useState('');
 
   const configuredCount = useMemo(
-    () => providers.filter((p) => p.enabled && (!p.requiresKey || p.apiKey.trim().length > 0)).length,
+    () => providers.filter((p) => p.enabled && isProviderReady(p)).length,
     [providers]
   );
 
@@ -103,8 +124,14 @@ export const Sidebar: React.FC = () => {
   const handleExportSession = async (s: ChatSession) => {
     setMenuSessionId(null);
     const msgs = await db.messages.where('sessionId').equals(s.id).sortBy('createdAt');
-    downloadTextFile(`${s.title}.md`, sessionToMarkdown(s, msgs, true), 'text/markdown;charset=utf-8');
-    showToast('已导出对话 Markdown', 'success');
+    const ok = await downloadTextFile(
+      `${s.title}.md`,
+      sessionToMarkdown(s, msgs, true),
+      'text/markdown;charset=utf-8'
+    );
+    if (ok) {
+      showToast('已导出对话 Markdown', 'success');
+    }
   };
 
   const handleDeleteSession = (s: ChatSession) => {
@@ -292,7 +319,7 @@ export const Sidebar: React.FC = () => {
                                 onChange={(e) => setRenameText(e.target.value)}
                                 onBlur={() => commitRename(s)}
                                 onKeyDown={(e) => {
-                                  if (e.key === 'Enter') commitRename(s);
+                                  if (e.key === 'Enter' && !isImeComposing(e)) commitRename(s);
                                   if (e.key === 'Escape') setRenamingId(null);
                                 }}
                                 className="w-full px-2.5 py-1.5 rounded-lg bg-canvas border border-accent text-[13px] text-ink outline-none"

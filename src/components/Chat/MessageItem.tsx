@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { useShallow } from 'zustand/react/shallow';
 import {
   AlertTriangle,
   BookmarkPlus,
@@ -18,6 +19,7 @@ import {
 import type { Character, ChatMessage, PersonaPreset } from '../../types';
 import { useAppStore } from '../../store/useAppStore';
 import { speakText, stopSpeaking } from '../../services/voiceService';
+import { openExternalUrl } from '../../utils/platform';
 
 interface MessageItemProps {
   message: ChatMessage;
@@ -28,7 +30,7 @@ interface MessageItemProps {
   personaPreset?: PersonaPreset;
 }
 
-export const MessageItem: React.FC<MessageItemProps> = ({
+export const MessageItem: React.FC<MessageItemProps> = React.memo(({
   message,
   isLastAssistant,
   sessionWorldId,
@@ -42,14 +44,29 @@ export const MessageItem: React.FC<MessageItemProps> = ({
     editAndResend,
     worlds,
     updateWorld,
-    settings,
+    voiceSettings,
     providers,
     voiceProfiles,
-    speakingMessageId,
+    isSpeaking,
     setSpeakingMessageId,
     showToast,
     requestConfirm,
-  } = useAppStore();
+  } = useAppStore(
+    useShallow((s) => ({
+      regenerateLastAssistant: s.regenerateLastAssistant,
+      deleteMessage: s.deleteMessage,
+      editAndResend: s.editAndResend,
+      worlds: s.worlds,
+      updateWorld: s.updateWorld,
+      voiceSettings: s.settings.voice,
+      providers: s.providers,
+      voiceProfiles: s.voiceProfiles,
+      isSpeaking: s.speakingMessageId === message.id,
+      setSpeakingMessageId: s.setSpeakingMessageId,
+      showToast: s.showToast,
+      requestConfirm: s.requestConfirm,
+    }))
+  );
 
   const [copied, setCopied] = useState(false);
   const [thinkOpen, setThinkOpen] = useState(false);
@@ -58,7 +75,6 @@ export const MessageItem: React.FC<MessageItemProps> = ({
   const [draftEdit, setDraftEdit] = useState(message.content);
 
   const isUser = message.role === 'user';
-  const isSpeaking = speakingMessageId === message.id;
 
   const handleCopy = async () => {
     try {
@@ -81,13 +97,13 @@ export const MessageItem: React.FC<MessageItemProps> = ({
     const voiceProfileId =
       roleCharacter?.voiceProfileId ||
       personaPreset?.voiceProfileId ||
-      settings.voice.activeVoiceProfileId;
+      voiceSettings.activeVoiceProfileId;
     const voiceProfile = voiceProfileId
       ? voiceProfiles.find((vp) => vp.id === voiceProfileId)
       : undefined;
     await speakText({
       text: message.content,
-      config: settings.voice,
+      config: voiceSettings,
       providers,
       profile: voiceProfile,
       // 绑定了音色档案时以档案为准；只有在没有档案时才用旧的自定义音色 ID 兜底，
@@ -275,6 +291,25 @@ export const MessageItem: React.FC<MessageItemProps> = ({
             <ReactMarkdown
               remarkPlugins={[remarkGfm]}
               urlTransform={(url) => (/^(https?:|mailto:)/i.test(url) ? url : '')}
+              components={{
+                a: ({ href, children, ...props }) => {
+                  const safeHref = href && /^(https?:|mailto:)/i.test(href) ? href : undefined;
+                  if (!safeHref) return <span>{children}</span>;
+                  return (
+                    <a
+                      {...props}
+                      href={safeHref}
+                      rel="noopener noreferrer"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        openExternalUrl(safeHref).catch(() => {});
+                      }}
+                    >
+                      {children}
+                    </a>
+                  );
+                },
+              }}
             >
               {message.content}
             </ReactMarkdown>
@@ -306,7 +341,7 @@ export const MessageItem: React.FC<MessageItemProps> = ({
               <span>{copied ? '已复制' : '复制'}</span>
             </button>
 
-            {settings.voice.ttsEnabled && message.content && (
+            {voiceSettings.ttsEnabled && message.content && (
               <button
                 onClick={handleSpeakToggle}
                 className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[12px] cursor-pointer ${
@@ -361,4 +396,4 @@ export const MessageItem: React.FC<MessageItemProps> = ({
       </div>
     </div>
   );
-};
+});

@@ -8,7 +8,6 @@
  * 前置：package.json 的 version 已升好、Windows/Android 产物已构建完成。
  * 令牌只从环境变量读取，不落盘、不写进仓库。
  */
-import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -29,12 +28,16 @@ const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'))
 const version = pkg.version;
 const tag = `v${version}`;
 
+function sanitizePathForLog(pathname) {
+  return String(pathname).replace(/access_token=[^&]+/gi, 'access_token=***');
+}
+
 async function api(pathname, init = {}) {
   const url = `${API}${pathname}`;
   const resp = await fetch(url, init);
   const text = await resp.text();
   if (!resp.ok) {
-    throw new Error(`${init.method || 'GET'} ${pathname} → HTTP ${resp.status}: ${text.slice(0, 300)}`);
+    throw new Error(`${init.method || 'GET'} ${sanitizePathForLog(pathname)} → HTTP ${resp.status}: ${text.slice(0, 300)}`);
   }
   return text ? JSON.parse(text) : null;
 }
@@ -89,7 +92,13 @@ async function main() {
   }
   console.log(`安装包 ${installerMB.toFixed(1)} MB（Gitee 上限 100MB）`);
 
-  const existing = await api(`/repos/${OWNER}/${REPO}/releases`);
+  // 发布说明：优先读 RELEASE_NOTES 环境变量指定的文件，其次 ./release-notes.md
+  const notesFile = process.env.RELEASE_NOTES || path.join(ROOT, 'release-notes.md');
+  const rawNotes = fs.existsSync(notesFile) ? fs.readFileSync(notesFile, 'utf8').trim() : '';
+  const releaseBody = rawNotes || `自动发布 ${tag}`;
+  const manifestNotes = (rawNotes || `v${version}`).slice(0, 800);
+
+  const existing = await api(`/repos/${OWNER}/${REPO}/releases?access_token=${TOKEN}&per_page=100`);
   const already = existing.find((r) => r.tag_name === tag);
   if (already) {
     console.log(`Release ${tag} 已存在（id=${already.id}），跳过创建`);
@@ -97,11 +106,6 @@ async function main() {
 
   let release = already;
   if (!release) {
-    // 发布说明：优先读 RELEASE_NOTES 环境变量指定的文件，其次 ./release-notes.md
-    const notesFile = process.env.RELEASE_NOTES || path.join(ROOT, 'release-notes.md');
-    const body = fs.existsSync(notesFile)
-      ? fs.readFileSync(notesFile, 'utf8')
-      : `自动发布 ${tag}`;
     release = await api(`/repos/${OWNER}/${REPO}/releases`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -111,13 +115,21 @@ async function main() {
         name: `The World ${tag}`,
         target_commitish: 'main',
         prerelease: false,
-        body,
+        body: releaseBody,
       }),
     });
     console.log(`已创建 Release ${tag}（id=${release.id}）`);
   }
 
+  const existingAssetNames = new Set(
+    Array.isArray(release.assets) ? release.assets.map((a) => a.name).filter(Boolean) : []
+  );
+
   for (const asset of targets) {
+    if (existingAssetNames.has(asset.name)) {
+      console.log(`附件 ${asset.name} 已存在，跳过上传`);
+      continue;
+    }
     const stat = fs.statSync(asset.file);
     console.log(`上传 ${asset.name}（${(stat.size / 1024 / 1024).toFixed(1)} MB）…`);
     const form = new FormData();
@@ -130,7 +142,7 @@ async function main() {
   }
 
   // 只保留最近 KEEP 个版本（按创建时间倒序）
-  const all = await api(`/repos/${OWNER}/${REPO}/releases`);
+  const all = await api(`/repos/${OWNER}/${REPO}/releases?access_token=${TOKEN}&per_page=100`);
   const sorted = [...all].sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)));
   const toDelete = sorted.slice(KEEP);
   for (const rel of toDelete) {
@@ -154,7 +166,7 @@ async function main() {
     releaseUrl: `https://gitee.com/${OWNER}/${REPO}/releases/tag/${tag}`,
     windowsUrl: `${base}/The-World-Setup-${version}.exe`,
     androidUrl: `${ghBase}/The-World-${version}-android.apk`,
-    notes: `v${version}`,
+    notes: manifestNotes,
   };
   fs.writeFileSync(path.join(ROOT, 'latest.json'), JSON.stringify(manifest, null, 2) + '\n');
   console.log('\n已生成 latest.json（APK 指向 GitHub，Windows 包指向 Gitee）');

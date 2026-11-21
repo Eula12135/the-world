@@ -1,7 +1,20 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Bot, Check, Plus, Sparkles, Trash2, UserRound, Users, X } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import {
+  Bot,
+  Check,
+  Plus,
+  Sparkles,
+  Square,
+  Trash2,
+  UserRound,
+  Users,
+  Volume2,
+  X,
+} from 'lucide-react';
 import { useAppStore } from '../../store/useAppStore';
 import type { ChatMode, PersonaPreset } from '../../types';
+import { speakText, stopSpeaking } from '../../services/voiceService';
 import { createId } from '../../utils/platform';
 
 const AVATAR_COLORS = ['#4d6bfe', '#10b981', '#f59e0b', '#ec4899', '#8b5cf6', '#06b6d4', '#ef4444'];
@@ -17,9 +30,14 @@ export const SessionModeModal: React.FC = () => {
     characters,
     personaPresets,
     voiceProfiles,
+    providers,
+    settings,
     upsertPersonaPreset,
     deletePersonaPreset,
     setActiveView,
+    openProvidersModal,
+    lastCreatedVoiceForTarget,
+    clearLastCreatedVoiceForTarget,
     showToast,
   } = useAppStore();
 
@@ -28,6 +46,7 @@ export const SessionModeModal: React.FC = () => {
   const [presetName, setPresetName] = useState('');
   const [presetDesc, setPresetDesc] = useState('');
   const [presetVoiceId, setPresetVoiceId] = useState('');
+  const [previewingPresetVoice, setPreviewingPresetVoice] = useState(false);
 
   const session = sessions.find((s) => s.id === activeSessionId) ?? null;
   const chatMode: ChatMode = (session ? session.chatMode : draftConfig.chatMode) || 'assistant';
@@ -44,6 +63,20 @@ export const SessionModeModal: React.FC = () => {
       setSelectedRoleWorldId(worldId || worlds[0]?.id || '');
     }
   }, [open, worldId, worlds]);
+
+  useEffect(() => {
+    if (lastCreatedVoiceForTarget?.targetKey === 'persona') {
+      setPresetVoiceId(lastCreatedVoiceForTarget.profileId);
+      setSavingPreset(true);
+      clearLastCreatedVoiceForTarget();
+    }
+  }, [lastCreatedVoiceForTarget, clearLastCreatedVoiceForTarget]);
+
+  useEffect(() => {
+    return () => {
+      stopSpeaking();
+    };
+  }, []);
 
   const activePreset = useMemo(
     () => (personaPresetId ? personaPresets.find((p) => p.id === personaPresetId) : undefined),
@@ -143,11 +176,13 @@ export const SessionModeModal: React.FC = () => {
         )}
       </button>
 
-      {open && (
-        <div
-          className="fixed inset-0 z-50 bg-black/55 backdrop-blur-[2px] flex items-end md:items-center justify-center p-0 md:p-4"
-          onClick={() => setOpen(false)}
-        >
+      {open &&
+        typeof document !== 'undefined' &&
+        createPortal(
+          <div
+            className="fixed inset-0 z-50 bg-black/55 backdrop-blur-[2px] flex items-end md:items-center justify-center p-0 md:p-4"
+            onClick={() => setOpen(false)}
+          >
           <div
             className="w-full md:max-w-xl rounded-t-2xl md:rounded-2xl bg-card border border-line shadow-2xl overflow-hidden flex flex-col max-h-[88vh]"
             onClick={(e) => e.stopPropagation()}
@@ -175,6 +210,7 @@ export const SessionModeModal: React.FC = () => {
                       chatMode: 'assistant',
                       roleCharacterId: undefined,
                       personaPresetId: undefined,
+                      ...(chatMode !== 'assistant' ? { systemPromptOverride: '' } : {}),
                     })
                   }
                   className={`p-3 rounded-xl border text-left cursor-pointer transition ${
@@ -198,6 +234,7 @@ export const SessionModeModal: React.FC = () => {
                     patchSessionOrDraft({
                       chatMode: 'custom_persona',
                       roleCharacterId: undefined,
+                      ...(chatMode !== 'custom_persona' ? { systemPromptOverride: '' } : {}),
                     })
                   }
                   className={`p-3 rounded-xl border text-left cursor-pointer transition ${
@@ -221,6 +258,7 @@ export const SessionModeModal: React.FC = () => {
                     patchSessionOrDraft({
                       chatMode: 'character_role',
                       personaPresetId: undefined,
+                      ...(chatMode !== 'character_role' ? { systemPromptOverride: '' } : {}),
                     })
                   }
                   className={`p-3 rounded-xl border text-left cursor-pointer transition ${
@@ -306,20 +344,71 @@ export const SessionModeModal: React.FC = () => {
                           className="px-3 py-1.5 rounded-lg bg-canvas border border-line text-ink text-[12px] outline-none focus:border-accent"
                         />
                       </div>
-                      {voiceProfiles.length > 0 && (
-                        <select
-                          value={presetVoiceId}
-                          onChange={(e) => setPresetVoiceId(e.target.value)}
-                          className="w-full px-3 py-1.5 rounded-lg bg-canvas border border-line text-ink text-[12px] outline-none focus:border-accent"
-                        >
-                          <option value="">绑定专属音色档案（可选）</option>
-                          {voiceProfiles.map((vp) => (
-                            <option key={vp.id} value={vp.id}>
-                              {vp.name}（{vp.isCloned ? '克隆' : vp.engine === 'native' ? '原生' : 'API'}）
-                            </option>
-                          ))}
-                        </select>
-                      )}
+                      <div className="space-y-1.5">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[11.5px] text-secondary">绑定声音（可选）</span>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              openProvidersModal('voice', {
+                                voiceSubTab: 'create',
+                                bindTarget: { kind: 'persona' },
+                              })
+                            }
+                            className="flex items-center gap-0.5 text-[11.5px] text-accent font-medium hover:underline cursor-pointer"
+                          >
+                            <Plus className="w-3 h-3" />
+                            <span>新建声音</span>
+                          </button>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <select
+                            value={presetVoiceId}
+                            onChange={(e) => setPresetVoiceId(e.target.value)}
+                            className="flex-1 min-w-0 px-3 py-1.5 rounded-lg bg-canvas border border-line text-ink text-[12px] outline-none focus:border-accent"
+                          >
+                            <option value="">跟随全局默认声音</option>
+                            {voiceProfiles.map((vp) => (
+                              <option key={vp.id} value={vp.id}>
+                                {vp.name}（{vp.isCloned ? '克隆' : vp.engine === 'native' ? '原生' : 'API'}）
+                              </option>
+                            ))}
+                          </select>
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              if (previewingPresetVoice) {
+                                stopSpeaking();
+                                setPreviewingPresetVoice(false);
+                                return;
+                              }
+                              const vp = presetVoiceId
+                                ? voiceProfiles.find((p) => p.id === presetVoiceId)
+                                : undefined;
+                              setPreviewingPresetVoice(true);
+                              await speakText({
+                                text: `你好，我是${presetName.trim() || '新设定人物'}。`,
+                                config: settings.voice,
+                                providers,
+                                profile: vp,
+                                onEnd: () => setPreviewingPresetVoice(false),
+                                onError: (msg) => {
+                                  setPreviewingPresetVoice(false);
+                                  showToast(msg, 'error');
+                                },
+                              });
+                            }}
+                            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-line bg-canvas text-[12px] text-ink hover:border-accent cursor-pointer shrink-0"
+                          >
+                            {previewingPresetVoice ? (
+                              <Square className="w-3 h-3 text-accent" />
+                            ) : (
+                              <Volume2 className="w-3 h-3 text-accent" />
+                            )}
+                            <span>{previewingPresetVoice ? '停止' : '试听'}</span>
+                          </button>
+                        </div>
+                      </div>
                       <div className="flex justify-end gap-2">
                         <button
                           type="button"
@@ -527,7 +616,8 @@ export const SessionModeModal: React.FC = () => {
               )}
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </>
   );

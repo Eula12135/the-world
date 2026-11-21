@@ -212,4 +212,27 @@ describe('worldImport service', () => {
     expect(res.relations[0].phases[0].fromEventId).toBeUndefined();
     expect(res.relations[0].phases[1].fromEventId).toBe(res.events[1].id);
   });
+
+  it('recognizes numeric/Title Word heading styles and preserves truncated array string items', () => {
+    const docXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+      <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+        <w:body>
+          <w:p><w:pPr><w:pStyle w:val="Title"/></w:pPr><w:r><w:t>大纪元总览</w:t></w:r></w:p>
+          <w:p><w:pPr><w:pStyle w:val="1"/></w:pPr><w:r><w:t>第一章 世界格局</w:t></w:r></w:p>
+          <w:p><w:r><w:t>南北分治百年。</w:t></w:r></w:p>
+        </w:body>
+      </w:document>`;
+    const docxBytes = zipSync({ 'word/document.xml': strToU8(docXml) });
+    const text = extractTextFromDocx(docxBytes);
+    expect(text).toContain('## 大纪元总览');
+    expect(text).toContain('## 第一章 世界格局');
+
+    const truncatedArray = '{"name":"九州","timelineEvents":[{"timeLabel":"元年","title":"启程","details":"x","characterNames":["林澈","苏岚"';
+    const parsed = extractJsonObject(truncatedArray);
+    expect(parsed.name).toBe('九州');
+    expect((parsed.timelineEvents as Array<{ characterNames: string[] }>)[0].characterNames).toEqual([
+      '林澈',
+      '苏岚',
+    ]);
+  });
 });

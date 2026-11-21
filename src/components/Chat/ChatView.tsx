@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useShallow } from 'zustand/react/shallow';
 import {
   AlertCircle,
   ArrowUp,
@@ -13,6 +14,7 @@ import {
 } from 'lucide-react';
 import { useAppStore } from '../../store/useAppStore';
 import { useMobileKeyboardOpen } from '../../utils/keyboard';
+import { isImeComposing, isProviderReady } from '../../utils/platform';
 import { startVoiceCapture, stopSpeaking, type VoiceCaptureHandle } from '../../services/voiceService';
 import { MessageItem } from './MessageItem';
 import { WorldContextPopover } from '../Common/WorldContextPopover';
@@ -53,12 +55,36 @@ export const ChatView: React.FC = () => {
     updateSettings,
     setSpeakingMessageId,
     showToast,
-  } = useAppStore();
+  } = useAppStore(
+    useShallow((s) => ({
+      sessions: s.sessions,
+      activeSessionId: s.activeSessionId,
+      draftConfig: s.draftConfig,
+      messages: s.messages,
+      providers: s.providers,
+      worlds: s.worlds,
+      characters: s.characters,
+      personaPresets: s.personaPresets,
+      settings: s.settings,
+      isStreaming: s.isStreaming,
+      streamingSessionId: s.streamingSessionId,
+      streamingError: s.streamingError,
+      sendMessage: s.sendMessage,
+      stopStreaming: s.stopStreaming,
+      setActiveModal: s.setActiveModal,
+      updateSettings: s.updateSettings,
+      setSpeakingMessageId: s.setSpeakingMessageId,
+      showToast: s.showToast,
+    }))
+  );
 
   const [input, setInput] = useState('');
   const [voiceState, setVoiceState] = useState<'idle' | 'listening' | 'transcribing'>('idle');
   const voiceHandleRef = useRef<VoiceCaptureHandle | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const nearBottomRef = useRef(true);
+  const prevMsgLenRef = useRef(messages.length);
   const keyboardOpen = useMobileKeyboardOpen();
 
   const session = sessions.find((s) => s.id === activeSessionId) ?? null;
@@ -80,29 +106,43 @@ export const ChatView: React.FC = () => {
   const isCurrentSessionStreaming =
     isStreaming && (activeSessionId === null || streamingSessionId === activeSessionId);
 
-  const currentProviderId = session ? session.providerId : draftConfig.providerId;
   const hasReadyProvider = useMemo(
-    () =>
-      currentProviderId === 'ollama' ||
-      providers.some((p) => p.enabled && p.requiresKey && p.apiKey.trim().length > 0),
-    [providers, currentProviderId]
+    () => providers.some((p) => p.enabled && isProviderReady(p)),
+    [providers]
   );
 
+  const handleMessagesScroll = () => {
+    const el = scrollContainerRef.current;
+    if (!el) return;
+    nearBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 120;
+  };
+
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: isCurrentSessionStreaming ? 'auto' : 'smooth' });
-  }, [messages.length, messages[messages.length - 1]?.content, isCurrentSessionStreaming]);
+    const addedMessages = messages.length > prevMsgLenRef.current;
+    prevMsgLenRef.current = messages.length;
+    if (addedMessages || nearBottomRef.current) {
+      bottomRef.current?.scrollIntoView({ behavior: isCurrentSessionStreaming ? 'auto' : 'smooth' });
+    }
+  }, [
+    messages.length,
+    messages[messages.length - 1]?.content,
+    messages[messages.length - 1]?.reasoning,
+    isCurrentSessionStreaming,
+  ]);
 
   useEffect(() => {
     if (!keyboardOpen || messages.length === 0) return;
     const timer = window.setTimeout(() => {
-      bottomRef.current?.scrollIntoView({ behavior: 'auto' });
+      if (nearBottomRef.current) {
+        bottomRef.current?.scrollIntoView({ behavior: 'auto' });
+      }
     }, 80);
     return () => window.clearTimeout(timer);
   }, [keyboardOpen, messages.length]);
 
   useEffect(() => {
     return () => {
-      voiceHandleRef.current?.stop();
+      voiceHandleRef.current?.cancel();
       voiceHandleRef.current = null;
     };
   }, []);
@@ -111,11 +151,12 @@ export const ChatView: React.FC = () => {
     const trimmed = input.trim();
     if (!trimmed || isStreaming) return;
     setInput('');
+    nearBottomRef.current = true;
     await sendMessage(trimmed);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
+    if (e.key === 'Enter' && !e.shiftKey && !isImeComposing(e)) {
       e.preventDefault();
       handleSend();
     }
@@ -356,7 +397,11 @@ export const ChatView: React.FC = () => {
         </div>
       ) : (
         <>
-          <div className="flex-1 overflow-y-auto px-3 md:px-6">
+          <div
+            ref={scrollContainerRef}
+            onScroll={handleMessagesScroll}
+            className="flex-1 overflow-y-auto px-3 md:px-6"
+          >
             <div className="max-w-3xl mx-auto py-6 space-y-6">
               {messages.map((m) => (
                 <MessageItem

@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { useShallow } from 'zustand/react/shallow';
 import { Download, ExternalLink, Loader2, Lock, RefreshCw, ShieldCheck, X } from 'lucide-react';
 import { useAppStore } from '../../store/useAppStore';
 import type { ThemeMode } from '../../types';
@@ -29,15 +30,33 @@ function formatCharLimitBadge(chars: number): string {
 }
 
 export const SettingsModal: React.FC = () => {
-  const { activeModal, setActiveModal, settings, updateSettings, setUpdateNotice } = useAppStore();
+  const { activeModal, setActiveModal, settings, updateSettings, setUpdateNotice } = useAppStore(
+    useShallow((s) => ({
+      activeModal: s.activeModal,
+      setActiveModal: s.setActiveModal,
+      settings: s.settings,
+      updateSettings: s.updateSettings,
+      setUpdateNotice: s.setUpdateNotice,
+    }))
+  );
   const [desktopEncrypted, setDesktopEncrypted] = useState<boolean | null>(null);
   const [checkingUpdate, setCheckingUpdate] = useState(false);
   const [checkResult, setCheckResult] = useState<UpdateCheckResult | null>(null);
   const [checkErr, setCheckErr] = useState<string | null>(null);
   const [apkProgress, setApkProgress] = useState<ApkUpdateProgress | null>(null);
+  const [maxTokensText, setMaxTokensText] = useState(String(settings.maxTokens));
+  const [contextLimitText, setContextLimitText] = useState(String(settings.contextMessagesLimit));
   const apkCleanupRef = useRef<(() => void) | null>(null);
 
   const effectiveUpdateSource = (settings.updateRepo || '').trim() || DEFAULT_UPDATE_SOURCE;
+
+  useEffect(() => {
+    setMaxTokensText(String(settings.maxTokens));
+  }, [settings.maxTokens, activeModal]);
+
+  useEffect(() => {
+    setContextLimitText(String(settings.contextMessagesLimit));
+  }, [settings.contextMessagesLimit, activeModal]);
 
   useEffect(() => {
     return () => {
@@ -148,12 +167,16 @@ export const SettingsModal: React.FC = () => {
                 type="number"
                 min={256}
                 max={65536}
-                value={settings.maxTokens}
-                onChange={(e) =>
-                  updateSettings({
-                    maxTokens: Math.min(65536, Math.max(256, Number(e.target.value) || 4096)),
-                  })
-                }
+                value={maxTokensText}
+                onChange={(e) => setMaxTokensText(e.target.value)}
+                onBlur={() => {
+                  const parsed = Math.round(Number(maxTokensText));
+                  const clamped = Number.isFinite(parsed)
+                    ? Math.min(65536, Math.max(256, parsed))
+                    : 4096;
+                  setMaxTokensText(String(clamped));
+                  updateSettings({ maxTokens: clamped });
+                }}
                 className="w-full px-3 py-1.5 rounded-xl bg-canvas border border-line text-ink outline-none focus:border-accent"
               />
             </div>
@@ -166,12 +189,16 @@ export const SettingsModal: React.FC = () => {
                 type="number"
                 min={2}
                 max={500}
-                value={settings.contextMessagesLimit}
-                onChange={(e) =>
-                  updateSettings({
-                    contextMessagesLimit: Math.min(500, Math.max(2, Number(e.target.value) || 20)),
-                  })
-                }
+                value={contextLimitText}
+                onChange={(e) => setContextLimitText(e.target.value)}
+                onBlur={() => {
+                  const parsed = Math.round(Number(contextLimitText));
+                  const clamped = Number.isFinite(parsed)
+                    ? Math.min(500, Math.max(2, parsed))
+                    : 20;
+                  setContextLimitText(String(clamped));
+                  updateSettings({ contextMessagesLimit: clamped });
+                }}
                 className="w-full px-3 py-1.5 rounded-xl bg-canvas border border-line text-ink outline-none focus:border-accent"
               />
             </div>
@@ -356,30 +383,29 @@ export const SettingsModal: React.FC = () => {
                           </span>
                         </button>
                       ) : (
-                        <button
-                          onClick={() => openExternalUrl(checkResult.downloadUrl)}
-                          className="flex items-center gap-1 px-3 py-1 rounded-lg bg-accent text-white cursor-pointer"
-                        >
-                          <Download className="w-3.5 h-3.5" />
-                          <span>下载新版安装包</span>
-                        </button>
+                        <>
+                          {checkResult.downloadUrl && (
+                            <button
+                              onClick={() => openExternalUrl(checkResult.downloadUrl).catch(() => {})}
+                              className="flex items-center gap-1 px-3 py-1 rounded-lg bg-accent text-white cursor-pointer"
+                            >
+                              <Download className="w-3.5 h-3.5" />
+                              <span>下载新版安装包</span>
+                            </button>
+                          )}
+                          <button
+                            onClick={() =>
+                              openExternalUrl(checkResult.pageUrl || checkResult.releaseUrl).catch(
+                                () => {}
+                              )
+                            }
+                            className="flex items-center gap-1 px-3 py-1 rounded-lg border border-line text-secondary cursor-pointer"
+                          >
+                            <ExternalLink className="w-3.5 h-3.5" />
+                            <span>查看详情</span>
+                          </button>
+                        </>
                       )}
-                      {canInAppAndroidUpdate() && checkResult.downloadUrl && (
-                        <button
-                          onClick={() => openExternalUrl(checkResult.downloadUrl)}
-                          className="flex items-center gap-1 px-3 py-1 rounded-lg border border-line text-secondary cursor-pointer"
-                        >
-                          <ExternalLink className="w-3.5 h-3.5" />
-                          <span>浏览器下载</span>
-                        </button>
-                      )}
-                      <button
-                        onClick={() => openExternalUrl(checkResult.releaseUrl)}
-                        className="flex items-center gap-1 px-3 py-1 rounded-lg border border-line text-secondary cursor-pointer"
-                      >
-                        <ExternalLink className="w-3.5 h-3.5" />
-                        <span>查看详情</span>
-                      </button>
                     </div>
                     {apkProgress && (
                       <div className="pt-1.5 space-y-1">

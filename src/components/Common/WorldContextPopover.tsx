@@ -1,4 +1,6 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
+import { useShallow } from 'zustand/react/shallow';
 import {
   BookOpen,
   Check,
@@ -33,21 +35,62 @@ export const WorldContextPopover: React.FC<WorldContextPopoverProps> = ({ draftI
     relations,
     timelineEvents,
     messages,
+    isStreaming,
     settings,
     setActiveView,
     compressSessionMemory,
     showToast,
-  } = useAppStore();
+  } = useAppStore(
+    useShallow((s) => ({
+      worlds: s.worlds,
+      sessions: s.sessions,
+      activeSessionId: s.activeSessionId,
+      draftConfig: s.draftConfig,
+      updateDraftConfig: s.updateDraftConfig,
+      updateSession: s.updateSession,
+      updateWorld: s.updateWorld,
+      characters: s.characters,
+      relations: s.relations,
+      timelineEvents: s.timelineEvents,
+      messages: s.messages,
+      isStreaming: s.isStreaming,
+      settings: s.settings,
+      setActiveView: s.setActiveView,
+      compressSessionMemory: s.compressSessionMemory,
+      showToast: s.showToast,
+    }))
+  );
 
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState<'world' | 'memory' | 'preview'>('world');
   const [compressing, setCompressing] = useState(false);
 
+  // Debounce draftInput & pause heavy prompt recomputation per-token while streaming
+  const [debouncedDraft, setDebouncedDraft] = useState(draftInput);
+  useEffect(() => {
+    const timer = window.setTimeout(() => setDebouncedDraft(draftInput), 220);
+    return () => window.clearTimeout(timer);
+  }, [draftInput]);
+
+  const [evalMessages, setEvalMessages] = useState(messages);
+  useEffect(() => {
+    if (!isStreaming || open) {
+      setEvalMessages(messages);
+    }
+  }, [isStreaming, open, messages]);
+
   const session = sessions.find((s) => s.id === activeSessionId) ?? null;
-  const worldId = session ? session.worldId : draftConfig.worldId;
+  const chatMode = (session ? session.chatMode : draftConfig.chatMode) || 'assistant';
+  const roleCharacterId = session ? session.roleCharacterId : draftConfig.roleCharacterId;
+  const rawWorldId = session ? session.worldId : draftConfig.worldId;
+  const roleChar = roleCharacterId ? characters.find((c) => c.id === roleCharacterId) : undefined;
+  const effectiveWorldId =
+    rawWorldId || (chatMode === 'character_role' ? roleChar?.worldId : undefined);
   const enableWorldContext = session ? session.enableWorldContext : draftConfig.enableWorldContext;
   const storyPointEventId = session ? session.storyPointEventId : draftConfig.storyPointEventId;
-  const boundWorld = worldId ? worlds.find((w) => w.id === worldId) ?? null : null;
+  const boundWorld = effectiveWorldId
+    ? worlds.find((w) => w.id === effectiveWorldId) ?? null
+    : null;
 
   const worldChars = useMemo(
     () => (boundWorld ? characters.filter((c) => c.worldId === boundWorld.id) : []),
@@ -77,18 +120,12 @@ export const WorldContextPopover: React.FC<WorldContextPopoverProps> = ({ draftI
 
   const isLongHistory = Boolean(session && unsummarizedCount > settings.contextMessagesLimit);
 
-  const chatMode = (session ? session.chatMode : draftConfig.chatMode) || 'assistant';
-  const roleCharacterId = session ? session.roleCharacterId : draftConfig.roleCharacterId;
   const systemPromptOverride =
     (session ? session.systemPromptOverride : draftConfig.systemPromptOverride) || '';
   const effectiveChars = useMemo(() => {
     if (boundWorld) return worldChars;
-    if (roleCharacterId) {
-      const c = characters.find((x) => x.id === roleCharacterId);
-      return c ? [c] : [];
-    }
-    return [];
-  }, [boundWorld, worldChars, roleCharacterId, characters]);
+    return roleChar ? [roleChar] : [];
+  }, [boundWorld, worldChars, roleChar]);
 
   const built = useMemo(
     () =>
@@ -106,8 +143,8 @@ export const WorldContextPopover: React.FC<WorldContextPopoverProps> = ({ draftI
         characters: effectiveChars,
         relations: worldRels,
         events: worldEvents,
-        recentMessages: messages,
-        draftInput,
+        recentMessages: evalMessages,
+        draftInput: debouncedDraft,
       }),
     [
       settings,
@@ -121,8 +158,8 @@ export const WorldContextPopover: React.FC<WorldContextPopoverProps> = ({ draftI
       effectiveChars,
       worldRels,
       worldEvents,
-      messages,
-      draftInput,
+      evalMessages,
+      debouncedDraft,
     ]
   );
 
@@ -224,11 +261,13 @@ export const WorldContextPopover: React.FC<WorldContextPopoverProps> = ({ draftI
         </button>
       )}
 
-      {open && (
-        <div
-          className="fixed inset-0 z-50 bg-black/55 backdrop-blur-[2px] flex items-end md:items-center justify-center p-0 md:p-4"
-          onClick={() => setOpen(false)}
-        >
+      {open &&
+        typeof document !== 'undefined' &&
+        createPortal(
+          <div
+            className="fixed inset-0 z-50 bg-black/55 backdrop-blur-[2px] flex items-end md:items-center justify-center p-0 md:p-4"
+            onClick={() => setOpen(false)}
+          >
           <div
             className="w-full md:max-w-xl rounded-t-2xl md:rounded-2xl bg-card border border-line shadow-2xl overflow-hidden flex flex-col max-h-[85vh]"
             onClick={(e) => e.stopPropagation()}
@@ -597,7 +636,8 @@ export const WorldContextPopover: React.FC<WorldContextPopoverProps> = ({ draftI
               </div>
             )}
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

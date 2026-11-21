@@ -8,6 +8,20 @@ export interface StreamCallbacks {
   onError: (err: Error) => void;
 }
 
+export function safeJsonParse<T = unknown>(raw: string, fallbackContext = '接口返回了非 JSON 内容'): T {
+  try {
+    return JSON.parse(raw) as T;
+  } catch {
+    const preview = raw.trim().slice(0, 120);
+    throw new Error(`${fallbackContext}${preview ? `：${preview}` : ''}`);
+  }
+}
+
+export function isOpenAIReasoningModel(model: string): boolean {
+  const base = (model || '').trim().split('/').pop() || '';
+  return /^(?:o[134])(?:-|$)/i.test(base);
+}
+
 export function splitInlineThinkTags(
   rawText: string,
   existingReasoning: string
@@ -111,39 +125,54 @@ function buildRequestPayload(
     messages.push({ role: 'system', content: systemPrompt.trim() });
   }
   for (const m of recent) {
+    if (m.role === 'assistant' && !m.content.trim()) continue;
     messages.push({ role: m.role, content: m.content });
   }
 
-  const payload = {
+  const payload: Record<string, unknown> = {
     model,
     messages,
-    temperature: settings.temperature,
-    top_p: settings.topP,
-    max_tokens: settings.maxTokens,
     stream,
   };
+  if (isOpenAIReasoningModel(model)) {
+    payload.max_completion_tokens = settings.maxTokens;
+  } else {
+    payload.temperature = settings.temperature;
+    payload.top_p = settings.topP;
+    payload.max_tokens = settings.maxTokens;
+  }
 
   return { url: `${cleanBase}/chat/completions`, headers, payload };
 }
 
 export function createSseLineProcessor(
   protocol: ProviderConfig['protocol'],
-  callbacks: Pick<StreamCallbacks, 'onDelta' | 'onComplete'>
+  callbacks: Pick<StreamCallbacks, 'onDelta' | 'onComplete'> &
+    Partial<Pick<StreamCallbacks, 'onError'>>
 ) {
   let rawContent = '';
   let rawReasoning = '';
   let buffer = '';
+  let failed = false;
 
   const emit = () => {
     callbacks.onDelta(splitInlineThinkTags(rawContent, rawReasoning));
   };
 
+  const fail = (message: string) => {
+    if (failed) return;
+    failed = true;
+    callbacks.onError?.(new Error(message));
+  };
+
   const feed = (chunk: string) => {
+    if (failed) return;
     buffer += chunk;
     const lines = buffer.split(/\r?\n/);
     buffer = lines.pop() ?? '';
 
     for (const rawLine of lines) {
+      if (failed) break;
       const line = rawLine.trim();
       if (!line || !line.startsWith('data:')) continue;
       const dataStr = line.slice(5).trim();
@@ -151,6 +180,15 @@ export function createSseLineProcessor(
 
       try {
         const parsed = JSON.parse(dataStr);
+        if (parsed?.type === 'error' || parsed?.error) {
+          const msg =
+            parsed?.error?.message ||
+            parsed?.message ||
+            (typeof parsed?.error === 'string' ? parsed.error : '') ||
+            '流式接口返回错误';
+          fail(String(msg));
+          return;
+        }
         if (protocol === 'anthropic') {
           if (parsed?.type === 'content_block_delta') {
             if (parsed.delta?.type === 'thinking_delta' && parsed.delta.thinking) {
@@ -179,13 +217,15 @@ export function createSseLineProcessor(
   };
 
   const finish = () => {
+    if (failed) return;
     if (buffer.trim()) {
       feed('\n');
     }
+    if (failed) return;
     callbacks.onComplete(splitInlineThinkTags(rawContent, rawReasoning));
   };
 
-  return { feed, finish };
+  return { feed, finish, hasFailed: () => failed };
 }
 
 function parseNonStreamCompletion(
@@ -256,14 +296,29 @@ export function streamChat(
 
   const streamSpec = buildRequestPayload(provider, model, systemPrompt, history, settings, true);
   const bodyJson = JSON.stringify(streamSpec.payload);
-  const processor = createSseLineProcessor(provider.protocol, callbacks);
+  let settled = false;
+  let cancelDesktopOrFetch: () => void = () => {};
+  const processor = createSseLineProcessor(provider.protocol, {
+    onDelta: callbacks.onDelta,
+    onComplete: (res) => {
+      if (settled) return;
+      settled = true;
+      callbacks.onComplete(res);
+    },
+    onError: (err) => {
+      if (settled) return;
+      settled = true;
+      cancelDesktopOrFetch();
+      callbacks.onError(err);
+    },
+  });
 
   // 1. Desktop Electron path: bypasses CORS via main process fetch
   if (typeof window !== 'undefined' && window.theWorldDesktop?.streamStart) {
     const reqId = createId('req');
     let aborted = false;
     const unsub = window.theWorldDesktop.onStreamEvent(reqId, (ev) => {
-      if (aborted) return;
+      if (aborted || settled) return;
       if (ev.type === 'chunk' && ev.data) {
         processor.feed(ev.data);
       } else if (ev.type === 'done') {
@@ -271,29 +326,37 @@ export function streamChat(
         processor.finish();
       } else if (ev.type === 'error') {
         unsub();
+        settled = true;
         callbacks.onError(new Error(ev.message || `请求失败 (HTTP ${ev.status || 0})`));
       }
     });
 
-    window.theWorldDesktop
-      .streamStart({ reqId, url: streamSpec.url, headers: streamSpec.headers, body: bodyJson })
-      .catch((err: unknown) => {
-        if (!aborted) {
-          unsub();
-          callbacks.onError(err instanceof Error ? err : new Error(String(err)));
-        }
-      });
-
-    return () => {
+    cancelDesktopOrFetch = () => {
       aborted = true;
       unsub();
       window.theWorldDesktop?.streamAbort(reqId).catch(() => {});
     };
+
+    window.theWorldDesktop
+      .streamStart({ reqId, url: streamSpec.url, headers: streamSpec.headers, body: bodyJson })
+      .catch((err: unknown) => {
+        if (!aborted && !settled) {
+          unsub();
+          settled = true;
+          callbacks.onError(err instanceof Error ? err : new Error(String(err)));
+        }
+      });
+
+    return cancelDesktopOrFetch;
   }
 
   // 2. Web & Android Capacitor path
   const controller = new AbortController();
   let aborted = false;
+  cancelDesktopOrFetch = () => {
+    aborted = true;
+    controller.abort();
+  };
 
   (async () => {
     let gotResponseHeaders = false;
@@ -320,10 +383,15 @@ export function streamChat(
         if (value) {
           processor.feed(decoder.decode(value, { stream: true }));
         }
+        if (processor.hasFailed()) break;
       }
-      processor.finish();
+      if (!processor.hasFailed()) {
+        const tail = decoder.decode();
+        if (tail) processor.feed(tail);
+        processor.finish();
+      }
     } catch (err) {
-      if (aborted || (err instanceof DOMException && err.name === 'AbortError')) {
+      if (aborted || settled || (err instanceof DOMException && err.name === 'AbortError')) {
         return;
       }
 
@@ -345,7 +413,7 @@ export function streamChat(
             data: nonStreamSpec.payload,
             responseType: 'text',
           });
-          if (aborted) return;
+          if (aborted || settled) return;
           if (nativeResp.status < 200 || nativeResp.status >= 300) {
             const rawText =
               typeof nativeResp.data === 'string'
@@ -354,11 +422,13 @@ export function streamChat(
             throw new Error(parseHttpErrorText(nativeResp.status, rawText));
           }
           const result = parseNonStreamCompletion(provider.protocol, nativeResp.data);
+          settled = true;
           callbacks.onDelta(result);
           callbacks.onComplete(result);
           return;
         } catch (nativeErr) {
-          if (aborted) return;
+          if (aborted || settled) return;
+          settled = true;
           callbacks.onError(
             nativeErr instanceof Error ? nativeErr : new Error('原生网络请求失败')
           );
@@ -366,16 +436,14 @@ export function streamChat(
         }
       }
 
+      settled = true;
       callbacks.onError(
         err instanceof Error ? err : new Error('网络请求失败，请检查 Base URL、Key 或网络环境')
       );
     }
   })();
 
-  return () => {
-    aborted = true;
-    controller.abort();
-  };
+  return cancelDesktopOrFetch;
 }
 
 export async function crossPlatformFetchJson(params: {
@@ -493,6 +561,49 @@ export async function crossPlatformUploadMultipart(params: {
     return window.theWorldDesktop.uploadMultipart(params);
   }
 
+  if (
+    Capacitor.isNativePlatform() &&
+    typeof window !== 'undefined' &&
+    window.TheWorldAndroid?.uploadMultipart
+  ) {
+    const reqId = createId('mp');
+    return new Promise((resolve) => {
+      let settled = false;
+      const finish = (res: { ok: boolean; status: number; text: string }) => {
+        if (settled) return;
+        settled = true;
+        window.removeEventListener('theworld-multipart', onDone);
+        window.clearTimeout(timer);
+        resolve(res);
+      };
+      const onDone = (ev: Event) => {
+        const detail = (
+          ev as CustomEvent<{ reqId?: string; ok?: boolean; status?: number; text?: string }>
+        ).detail;
+        if (!detail || detail.reqId !== reqId) return;
+        finish({
+          ok: Boolean(detail.ok),
+          status: typeof detail.status === 'number' ? detail.status : 0,
+          text: typeof detail.text === 'string' ? detail.text : '',
+        });
+      };
+      const timer = window.setTimeout(
+        () => finish({ ok: false, status: 0, text: '原生上传请求超时' }),
+        120_000
+      );
+      window.addEventListener('theworld-multipart', onDone);
+      try {
+        window.TheWorldAndroid!.uploadMultipart!(reqId, JSON.stringify(params));
+      } catch (err) {
+        finish({
+          ok: false,
+          status: 0,
+          text: err instanceof Error ? err.message : '原生上传调用失败',
+        });
+      }
+    });
+  }
+
   const form = new FormData();
   for (const [k, v] of Object.entries(params.fields || {})) {
     form.append(k, v);
@@ -538,10 +649,13 @@ export async function fetchProviderModels(provider: ProviderConfig): Promise<str
   if (!resp.ok) {
     throw new Error(`拉取模型失败 (HTTP ${resp.status})`);
   }
-  const parsed = JSON.parse(resp.text);
+  const parsed = safeJsonParse<{ data?: Array<{ id?: string }> }>(
+    resp.text,
+    '模型列表接口返回格式异常'
+  );
   const list: string[] = Array.isArray(parsed?.data)
     ? parsed.data
-        .map((m: { id?: string }) => (typeof m?.id === 'string' ? m.id : ''))
+        .map((m) => (typeof m?.id === 'string' ? m.id : ''))
         .filter(Boolean)
     : [];
   if (list.length === 0) {
@@ -590,15 +704,20 @@ export async function testProviderConnection(
 
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
     if (provider.apiKey.trim()) headers.Authorization = `Bearer ${provider.apiKey.trim()}`;
+    const testBody: Record<string, unknown> = {
+      model,
+      messages: [{ role: 'user', content: 'Hi' }],
+    };
+    if (isOpenAIReasoningModel(model)) {
+      testBody.max_completion_tokens = 8;
+    } else {
+      testBody.max_tokens = 8;
+    }
     const resp = await crossPlatformFetchJson({
       url: `${cleanBase}/chat/completions`,
       method: 'POST',
       headers,
-      body: JSON.stringify({
-        model,
-        max_tokens: 8,
-        messages: [{ role: 'user', content: 'Hi' }],
-      }),
+      body: JSON.stringify(testBody),
     });
     const latencyMs = Date.now() - started;
     if (!resp.ok) {

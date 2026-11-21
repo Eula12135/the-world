@@ -113,7 +113,7 @@ describe('updateChecker', () => {
 
   it('parses static/LAN manifest JSON and resolves relative asset paths per platform', () => {
     const manifest = JSON.stringify({
-      version: '0.4.0',
+      version: '0.9.0',
       notes: '修复输入法高度与长篇上限',
       releaseUrl: './index.html',
       androidUrl: './the-world.apk',
@@ -123,7 +123,7 @@ describe('updateChecker', () => {
 
     const androidRes = parseManifestJson(manifest, base, true);
     expect(androidRes.hasUpdate).toBe(true);
-    expect(androidRes.latestVersion).toBe('0.4.0');
+    expect(androidRes.latestVersion).toBe('0.9.0');
     expect(androidRes.downloadUrl).toBe('http://192.168.1.50:8787/the-world.apk');
     expect(androidRes.releaseUrl).toBe('http://192.168.1.50:8787/index.html');
     expect(androidRes.sourceKind).toBe('manifest');

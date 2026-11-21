@@ -5,6 +5,7 @@ import { Check, ChevronDown, Edit3, Eye, List, Plus } from 'lucide-react';
 import type { WorldProject } from '../../types';
 import { parseDocumentSections, WORLD_TEMPLATES } from '../../data/worldTemplates';
 import { useAppStore } from '../../store/useAppStore';
+import { openExternalUrl } from '../../utils/platform';
 
 interface WorldDocEditorProps {
   world: WorldProject;
@@ -19,21 +20,72 @@ export const WorldDocEditor: React.FC<WorldDocEditorProps> = ({ world }) => {
   const [insertOpen, setInsertOpen] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
+  const latestRef = useRef({
+    worldId: world.id,
+    draft: world.document,
+    synced: world.document,
+  });
+
+  // Flush pending edits before switching world.id, then sync cleanly
   useEffect(() => {
+    const prev = latestRef.current;
+    if (prev.worldId !== world.id && prev.draft !== prev.synced) {
+      void updateWorld(prev.worldId, { document: prev.draft });
+    }
+    latestRef.current = {
+      worldId: world.id,
+      draft: world.document,
+      synced: world.document,
+    };
     setDraft(world.document);
     setSaveState('saved');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [world.id]);
+
+  // Sync external updates (e.g. appended from Chat) if editor has no unsaved local changes
+  useEffect(() => {
+    const cur = latestRef.current;
+    if (cur.worldId === world.id && world.document !== cur.synced) {
+      if (cur.draft === cur.synced) {
+        cur.draft = world.document;
+        cur.synced = world.document;
+        setDraft(world.document);
+        setSaveState('saved');
+      } else {
+        cur.synced = world.document;
+      }
+    }
+  }, [world.id, world.document]);
+
+  // Flush dirty doc on unmount
+  useEffect(() => {
+    return () => {
+      const cur = latestRef.current;
+      if (cur.draft !== cur.synced) {
+        void updateWorld(cur.worldId, { document: cur.draft });
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Debounced auto-save
   useEffect(() => {
-    if (draft === world.document) return;
+    latestRef.current.draft = draft;
+    if (draft === latestRef.current.synced) return;
     setSaveState('saving');
-    const timer = setTimeout(async () => {
-      await updateWorld(world.id, { document: draft });
-      setSaveState('saved');
+    const targetWorldId = world.id;
+    const docToSave = draft;
+    const timer = window.setTimeout(async () => {
+      await updateWorld(targetWorldId, { document: docToSave });
+      if (latestRef.current.worldId === targetWorldId) {
+        latestRef.current.synced = docToSave;
+        if (latestRef.current.draft === docToSave) {
+          setSaveState('saved');
+        }
+      }
     }, 450);
-    return () => clearTimeout(timer);
-  }, [draft, world.id, world.document, updateWorld]);
+    return () => window.clearTimeout(timer);
+  }, [draft, world.id, updateWorld]);
 
   const sections = useMemo(() => parseDocumentSections(draft), [draft]);
   const charCount = useMemo(() => draft.replace(/\s+/g, '').length, [draft]);
@@ -215,6 +267,25 @@ export const WorldDocEditor: React.FC<WorldDocEditorProps> = ({ world }) => {
               <ReactMarkdown
                 remarkPlugins={[remarkGfm]}
                 urlTransform={(url) => (/^(https?:|mailto:)/i.test(url) ? url : '')}
+                components={{
+                  a: ({ href, children, ...props }) => {
+                    const safeHref = href && /^(https?:|mailto:)/i.test(href) ? href : undefined;
+                    if (!safeHref) return <span>{children}</span>;
+                    return (
+                      <a
+                        {...props}
+                        href={safeHref}
+                        rel="noopener noreferrer"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          openExternalUrl(safeHref).catch(() => {});
+                        }}
+                      >
+                        {children}
+                      </a>
+                    );
+                  },
+                }}
               >
                 {draft}
               </ReactMarkdown>

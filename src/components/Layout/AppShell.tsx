@@ -1,18 +1,27 @@
 import React, { useEffect } from 'react';
+import { useShallow } from 'zustand/react/shallow';
 import { BookOpen, KeyRound, MessageSquare, Settings } from 'lucide-react';
 import { useAppStore } from '../../store/useAppStore';
 import { useMobileKeyboardOpen } from '../../utils/keyboard';
+import { isProviderReady } from '../../utils/platform';
 import { Sidebar } from './Sidebar';
 import { TopBar } from './TopBar';
 import { SwipeNavigator } from './SwipeNavigator';
 
 export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { activeView, activeModal, setActiveView, setActiveModal, setSidebarOpen, providers } =
-    useAppStore();
+    useAppStore(
+      useShallow((s) => ({
+        activeView: s.activeView,
+        activeModal: s.activeModal,
+        setActiveView: s.setActiveView,
+        setActiveModal: s.setActiveModal,
+        setSidebarOpen: s.setSidebarOpen,
+        providers: s.providers,
+      }))
+    );
   const keyboardOpen = useMobileKeyboardOpen();
-  const readyCount = providers.filter(
-    (p) => p.enabled && p.requiresKey && p.apiKey.trim().length > 0
-  ).length;
+  const readyCount = providers.filter((p) => p.enabled && isProviderReady(p)).length;
 
   useEffect(() => {
     const mq = window.matchMedia('(min-width: 768px)');

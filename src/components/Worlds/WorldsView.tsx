@@ -26,7 +26,7 @@ import { TimelinePanel } from './TimelinePanel';
 import { TemporalRelationGraph } from './TemporalRelationGraph';
 import { WorldImportModal } from './WorldImportModal';
 import { worldToMarkdown } from '../../services/exportService';
-import { downloadTextFile } from '../../utils/platform';
+import { downloadTextFile, isImeComposing } from '../../utils/platform';
 
 type StudioTab = 'doc' | 'characters' | 'timeline' | 'relations';
 
@@ -105,7 +105,7 @@ export const WorldsView: React.FC = () => {
     showToast(`已创建《${trimmed}》`, 'success');
   };
 
-  const handleExportMd = () => {
+  const handleExportMd = async () => {
     if (!activeWorld) return;
     setMenuOpen(false);
     const md = worldToMarkdown({
@@ -114,8 +114,14 @@ export const WorldsView: React.FC = () => {
       events: worldEvents,
       relations: worldRels,
     });
-    downloadTextFile(`${activeWorld.name}-设定集.md`, md, 'text/markdown;charset=utf-8');
-    showToast('已导出设定集 Markdown', 'success');
+    const ok = await downloadTextFile(
+      `${activeWorld.name}-设定集.md`,
+      md,
+      'text/markdown;charset=utf-8'
+    );
+    if (ok) {
+      showToast('已导出设定集 Markdown', 'success');
+    }
   };
 
   const handleDeleteWorld = () => {
@@ -281,8 +287,8 @@ export const WorldsView: React.FC = () => {
                   showToast('已修改作品名称');
                 }
               }}
-              onKeyDown={async (e) => {
-                if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !isImeComposing(e)) e.currentTarget.blur();
                 if (e.key === 'Escape') setRenaming(false);
               }}
               className="px-3 py-1.5 rounded-xl bg-card border border-accent text-[14px] font-semibold text-ink outline-none"
@@ -411,9 +417,9 @@ export const WorldsView: React.FC = () => {
           </div>
 
           {tab === 'doc' && <WorldDocEditor world={activeWorld} />}
-          {tab === 'characters' && <CharactersPanel worldId={activeWorld.id} />}
-          {tab === 'timeline' && <TimelinePanel worldId={activeWorld.id} />}
-          {tab === 'relations' && <TemporalRelationGraph worldId={activeWorld.id} />}
+          {tab === 'characters' && <CharactersPanel key={activeWorld.id} worldId={activeWorld.id} />}
+          {tab === 'timeline' && <TimelinePanel key={activeWorld.id} worldId={activeWorld.id} />}
+          {tab === 'relations' && <TemporalRelationGraph key={activeWorld.id} worldId={activeWorld.id} />}
         </>
       )}
 

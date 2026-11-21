@@ -10,6 +10,8 @@ import android.os.Bundle;
 import android.provider.Settings;
 import android.speech.RecognizerIntent;
 import android.speech.tts.TextToSpeech;
+import android.speech.tts.UtteranceProgressListener;
+import android.util.Base64;
 import android.view.View;
 import android.view.ViewGroup;
 import android.webkit.JavascriptInterface;
@@ -22,39 +24,92 @@ import androidx.core.view.WindowInsetsCompat;
 import androidx.core.view.WindowInsetsControllerCompat;
 import com.getcapacitor.BridgeActivity;
 import java.io.BufferedInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.DataOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.Locale;
+import java.util.UUID;
 import org.json.JSONObject;
 
 public class MainActivity extends BridgeActivity {
     private boolean lastImeVisible = false;
     private TextToSpeech tts;
-    private boolean ttsReady = false;
+    private volatile boolean ttsReady = false;
     private static final int REQ_CODE_STT = 9042;
     private static final int REQ_CODE_INSTALL_PACKAGES = 9043;
+    private static final int REQ_CODE_EXPORT_FILE = 9044;
+    private static final String STATE_PENDING_INSTALL_APK = "pendingInstallApk";
+    private static final String STATE_PENDING_EXPORT_FILE = "pendingExportTempFile";
+    private static final String STATE_PENDING_EXPORT_MIME = "pendingExportMime";
     private File pendingInstallApk = null;
+    private File pendingExportTempFile = null;
+    private String pendingExportMime = "text/plain";
     private volatile boolean apkDownloading = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        if (savedInstanceState != null) {
+            String apkPath = savedInstanceState.getString(STATE_PENDING_INSTALL_APK);
+            if (apkPath != null && !apkPath.isEmpty()) {
+                pendingInstallApk = new File(apkPath);
+            }
+            String expPath = savedInstanceState.getString(STATE_PENDING_EXPORT_FILE);
+            if (expPath != null && !expPath.isEmpty()) {
+                pendingExportTempFile = new File(expPath);
+            }
+            String expMime = savedInstanceState.getString(STATE_PENDING_EXPORT_MIME);
+            if (expMime != null && !expMime.isEmpty()) {
+                pendingExportMime = expMime;
+            }
+        }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             WindowCompat.setDecorFitsSystemWindows(getWindow(), false);
         }
         applySystemBarAppearance(true);
 
         tts = new TextToSpeech(this, status -> {
+            if (isFinishing() || isDestroyed() || tts == null) {
+                return;
+            }
             if (status == TextToSpeech.SUCCESS) {
                 int res = tts.setLanguage(Locale.CHINA);
                 if (res == TextToSpeech.LANG_MISSING_DATA || res == TextToSpeech.LANG_NOT_SUPPORTED) {
                     tts.setLanguage(Locale.getDefault());
                 }
+                tts.setOnUtteranceProgressListener(new UtteranceProgressListener() {
+                    @Override
+                    public void onStart(String utteranceId) {}
+
+                    @Override
+                    public void onDone(String utteranceId) {
+                        dispatchTtsEvent("done", utteranceId, "");
+                    }
+
+                    @Override
+                    public void onStop(String utteranceId, boolean interrupted) {
+                        dispatchTtsEvent("done", utteranceId, "");
+                    }
+
+                    @Override
+                    public void onError(String utteranceId) {
+                        dispatchTtsEvent("error", utteranceId, "系统语音朗读失败");
+                    }
+
+                    @Override
+                    public void onError(String utteranceId, int errorCode) {
+                        dispatchTtsEvent("error", utteranceId, "系统语音朗读失败 (code " + errorCode + ")");
+                    }
+                });
                 ttsReady = true;
             }
         });
@@ -63,6 +118,20 @@ public class MainActivity extends BridgeActivity {
             WebView webView = getBridge().getWebView();
             webView.addJavascriptInterface(new AndroidThemeBridge(), "TheWorldAndroid");
             setupSystemAndImeInsets(webView);
+        }
+    }
+
+    @Override
+    protected void onSaveInstanceState(Bundle outState) {
+        super.onSaveInstanceState(outState);
+        if (pendingInstallApk != null) {
+            outState.putString(STATE_PENDING_INSTALL_APK, pendingInstallApk.getAbsolutePath());
+        }
+        if (pendingExportTempFile != null) {
+            outState.putString(STATE_PENDING_EXPORT_FILE, pendingExportTempFile.getAbsolutePath());
+        }
+        if (pendingExportMime != null) {
+            outState.putString(STATE_PENDING_EXPORT_MIME, pendingExportMime);
         }
     }
 
@@ -78,6 +147,46 @@ public class MainActivity extends BridgeActivity {
             ttsReady = false;
         }
         super.onDestroy();
+    }
+
+    private void dispatchTtsEvent(String status, String utteranceId, String message) {
+        if (getBridge() != null && getBridge().getWebView() != null) {
+            WebView webView = getBridge().getWebView();
+            String detail =
+                "{\"status\":" + JSONObject.quote(status) +
+                ",\"utteranceId\":" + JSONObject.quote(utteranceId != null ? utteranceId : "") +
+                ",\"message\":" + JSONObject.quote(message != null ? message : "") +
+                "}";
+            String js = "window.dispatchEvent(new CustomEvent('theworld-tts',{detail:" + detail + "}));";
+            webView.post(() -> webView.evaluateJavascript(js, null));
+        }
+    }
+
+    private void dispatchExportEvent(boolean ok, boolean canceled, String message) {
+        if (getBridge() != null && getBridge().getWebView() != null) {
+            WebView webView = getBridge().getWebView();
+            String detail =
+                "{\"ok\":" + ok +
+                ",\"canceled\":" + canceled +
+                ",\"message\":" + JSONObject.quote(message != null ? message : "") +
+                "}";
+            String js = "window.dispatchEvent(new CustomEvent('theworld-export',{detail:" + detail + "}));";
+            webView.post(() -> webView.evaluateJavascript(js, null));
+        }
+    }
+
+    private void dispatchMultipartEvent(String reqId, boolean ok, int status, String text) {
+        if (getBridge() != null && getBridge().getWebView() != null) {
+            WebView webView = getBridge().getWebView();
+            String detail =
+                "{\"reqId\":" + JSONObject.quote(reqId != null ? reqId : "") +
+                ",\"ok\":" + ok +
+                ",\"status\":" + status +
+                ",\"text\":" + JSONObject.quote(text != null ? text : "") +
+                "}";
+            String js = "window.dispatchEvent(new CustomEvent('theworld-multipart',{detail:" + detail + "}));";
+            webView.post(() -> webView.evaluateJavascript(js, null));
+        }
     }
 
     private void dispatchSttDetail(String jsonDetailLiteral) {
@@ -112,6 +221,15 @@ public class MainActivity extends BridgeActivity {
         } catch (Exception ignored) {
             return false;
         }
+    }
+
+    private String sanitizeExportFilename(String raw) {
+        if (raw == null) return "export.txt";
+        String cleaned = raw.replaceAll("[/\\\\:*?\"<>|\\r\\n\\t]+", "_").trim();
+        while (cleaned.startsWith(".")) {
+            cleaned = cleaned.substring(1).trim();
+        }
+        return cleaned.isEmpty() ? "export.txt" : cleaned;
     }
 
     private void installApkFile(File apkFile) {
@@ -177,6 +295,44 @@ public class MainActivity extends BridgeActivity {
                 } else {
                     pendingInstallApk = null;
                     dispatchApkUpdateEvent("error", 0, "未授予「安装未知应用」权限，请开启后重试");
+                }
+            }
+            return;
+        }
+        if (requestCode == REQ_CODE_EXPORT_FILE) {
+            File srcFile = pendingExportTempFile;
+            pendingExportTempFile = null;
+            if (resultCode == Activity.RESULT_OK && data != null && data.getData() != null && srcFile != null && srcFile.exists()) {
+                Uri destUri = data.getData();
+                new Thread(() -> {
+                    try (
+                        InputStream in = new FileInputStream(srcFile);
+                        OutputStream out = getContentResolver().openOutputStream(destUri)
+                    ) {
+                        if (out == null) {
+                            throw new Exception("无法写入目标文件");
+                        }
+                        byte[] buf = new byte[8192];
+                        int len;
+                        while ((len = in.read(buf)) != -1) {
+                            out.write(buf, 0, len);
+                        }
+                        out.flush();
+                        dispatchExportEvent(true, false, "");
+                    } catch (Exception e) {
+                        dispatchExportEvent(false, false, e.getMessage() != null ? e.getMessage() : "写入导出文件失败");
+                    } finally {
+                        srcFile.delete();
+                    }
+                }, "theworld-file-export").start();
+            } else {
+                if (srcFile != null && srcFile.exists()) {
+                    srcFile.delete();
+                }
+                if (resultCode == Activity.RESULT_CANCELED) {
+                    dispatchExportEvent(false, true, "");
+                } else {
+                    dispatchExportEvent(false, false, "导出文件失败");
                 }
             }
             return;
@@ -260,19 +416,37 @@ public class MainActivity extends BridgeActivity {
 
         @JavascriptInterface
         public void speak(String text, float rate) {
-            speak(text, rate, 1.0f);
+            speakWithId(text, rate, 1.0f, 1.0f, "tw_tts");
         }
 
         @JavascriptInterface
         public void speak(String text, float rate, float pitch) {
+            speakWithId(text, rate, pitch, 1.0f, "tw_tts");
+        }
+
+        @JavascriptInterface
+        public void speakWithId(String text, float rate, float pitch, float volume, String utteranceId) {
+            String uid = (utteranceId != null && !utteranceId.isEmpty()) ? utteranceId : "tw_tts";
             runOnUiThread(() -> {
-                if (tts != null && ttsReady && text != null && !text.trim().isEmpty()) {
-                    float clampedRate = Math.max(0.5f, Math.min(2.0f, rate));
-                    float clampedPitch = Math.max(0.5f, Math.min(2.0f, pitch));
-                    tts.setSpeechRate(clampedRate);
-                    tts.setPitch(clampedPitch);
-                    String safeText = text.length() > 3800 ? text.substring(0, 3800) : text;
-                    tts.speak(safeText, TextToSpeech.QUEUE_FLUSH, null, "tw_tts");
+                if (tts == null || !ttsReady) {
+                    dispatchTtsEvent("error", uid, "系统语音引擎尚未就绪，请检查系统 TTS 服务或切换云端 TTS");
+                    return;
+                }
+                if (text == null || text.trim().isEmpty()) {
+                    dispatchTtsEvent("done", uid, "");
+                    return;
+                }
+                float clampedRate = Math.max(0.5f, Math.min(2.0f, rate));
+                float clampedPitch = Math.max(0.5f, Math.min(2.0f, pitch));
+                float clampedVolume = Math.max(0.1f, Math.min(1.0f, volume));
+                tts.setSpeechRate(clampedRate);
+                tts.setPitch(clampedPitch);
+                Bundle params = new Bundle();
+                params.putFloat(TextToSpeech.Engine.KEY_PARAM_VOLUME, clampedVolume);
+                String safeText = text.length() > 3800 ? text.substring(0, 3800) : text;
+                int rc = tts.speak(safeText, TextToSpeech.QUEUE_FLUSH, params, uid);
+                if (rc == TextToSpeech.ERROR) {
+                    dispatchTtsEvent("error", uid, "系统语音朗读调用失败");
                 }
             });
         }
@@ -287,6 +461,166 @@ public class MainActivity extends BridgeActivity {
                     }
                 }
             });
+        }
+
+        @JavascriptInterface
+        public void exportTextFile(String filename, String content, String mimeType) {
+            String safeName = sanitizeExportFilename(filename);
+            String cleanMime = (mimeType != null && !mimeType.trim().isEmpty())
+                ? mimeType.split(";")[0].trim()
+                : "text/plain";
+            String safeContent = content != null ? content : "";
+
+            new Thread(() -> {
+                try {
+                    File exportsDir = new File(getCacheDir(), "exports");
+                    if (!exportsDir.exists()) {
+                        exportsDir.mkdirs();
+                    }
+                    File tmp = new File(exportsDir, safeName);
+                    try (FileOutputStream fos = new FileOutputStream(tmp)) {
+                        fos.write(safeContent.getBytes(StandardCharsets.UTF_8));
+                        fos.flush();
+                    }
+                    runOnUiThread(() -> {
+                        pendingExportTempFile = tmp;
+                        pendingExportMime = cleanMime;
+                        try {
+                            Intent createIntent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
+                            createIntent.addCategory(Intent.CATEGORY_OPENABLE);
+                            createIntent.setType(cleanMime);
+                            createIntent.putExtra(Intent.EXTRA_TITLE, safeName);
+                            startActivityForResult(createIntent, REQ_CODE_EXPORT_FILE);
+                        } catch (Exception safErr) {
+                            pendingExportTempFile = null;
+                            try {
+                                Uri fileUri = FileProvider.getUriForFile(
+                                    MainActivity.this,
+                                    getPackageName() + ".fileprovider",
+                                    tmp
+                                );
+                                Intent shareIntent = new Intent(Intent.ACTION_SEND);
+                                shareIntent.setType(cleanMime);
+                                shareIntent.putExtra(Intent.EXTRA_STREAM, fileUri);
+                                shareIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                                startActivity(Intent.createChooser(shareIntent, "导出文件"));
+                                dispatchExportEvent(true, false, "");
+                            } catch (Exception shareErr) {
+                                tmp.delete();
+                                dispatchExportEvent(
+                                    false,
+                                    false,
+                                    shareErr.getMessage() != null ? shareErr.getMessage() : "无法启动导出界面"
+                                );
+                            }
+                        }
+                    });
+                } catch (Exception e) {
+                    dispatchExportEvent(false, false, e.getMessage() != null ? e.getMessage() : "写入导出临时文件失败");
+                }
+            }, "theworld-prepare-export").start();
+        }
+
+        @JavascriptInterface
+        public void uploadMultipart(String reqId, String jsonSpec) {
+            new Thread(() -> {
+                HttpURLConnection conn = null;
+                try {
+                    JSONObject spec = new JSONObject(jsonSpec);
+                    String rawUrl = spec.optString("url", "").trim();
+                    if (!rawUrl.startsWith("http://") && !rawUrl.startsWith("https://")) {
+                        dispatchMultipartEvent(reqId, false, 400, "Unsupported URL protocol");
+                        return;
+                    }
+                    JSONObject headersObj = spec.optJSONObject("headers");
+                    JSONObject fieldsObj = spec.optJSONObject("fields");
+                    String fileField = spec.optString("fileField", "file");
+                    String fileName = spec.optString("fileName", "audio.webm");
+                    String fileMime = spec.optString("fileMime", "audio/webm");
+                    String fileBase64 = spec.optString("fileBase64", "");
+
+                    byte[] fileBytes = Base64.decode(fileBase64, Base64.DEFAULT);
+                    String boundary = "----TheWorldBoundary" + UUID.randomUUID().toString().replace("-", "");
+
+                    URL url = new URL(rawUrl);
+                    conn = (HttpURLConnection) url.openConnection();
+                    conn.setRequestMethod("POST");
+                    conn.setDoOutput(true);
+                    conn.setDoInput(true);
+                    conn.setConnectTimeout(15000);
+                    conn.setReadTimeout(90000);
+                    conn.setRequestProperty("Content-Type", "multipart/form-data; boundary=" + boundary);
+
+                    if (headersObj != null) {
+                        Iterator<String> keys = headersObj.keys();
+                        while (keys.hasNext()) {
+                            String k = keys.next();
+                            if (!"content-type".equalsIgnoreCase(k)) {
+                                conn.setRequestProperty(k, headersObj.optString(k, ""));
+                            }
+                        }
+                    }
+
+                    try (DataOutputStream dos = new DataOutputStream(conn.getOutputStream())) {
+                        if (fieldsObj != null) {
+                            Iterator<String> fkeys = fieldsObj.keys();
+                            while (fkeys.hasNext()) {
+                                String fk = fkeys.next();
+                                String fv = fieldsObj.optString(fk, "");
+                                String safeFk = fk.replace("\"", "").replace("\r", "").replace("\n", "");
+                                dos.write(("--" + boundary + "\r\n").getBytes(StandardCharsets.UTF_8));
+                                dos.write(
+                                    ("Content-Disposition: form-data; name=\"" + safeFk + "\"\r\n\r\n")
+                                        .getBytes(StandardCharsets.UTF_8)
+                                );
+                                dos.write(fv.getBytes(StandardCharsets.UTF_8));
+                                dos.write("\r\n".getBytes(StandardCharsets.UTF_8));
+                            }
+                        }
+
+                        String safeField = fileField.replace("\"", "").replace("\r", "").replace("\n", "");
+                        String safeFileName = fileName.replace("\"", "").replace("\r", "").replace("\n", "");
+                        String safeMime = fileMime.replace("\r", "").replace("\n", "");
+                        dos.write(("--" + boundary + "\r\n").getBytes(StandardCharsets.UTF_8));
+                        dos.write(
+                            ("Content-Disposition: form-data; name=\"" + safeField + "\"; filename=\"" + safeFileName + "\"\r\n")
+                                .getBytes(StandardCharsets.UTF_8)
+                        );
+                        dos.write(("Content-Type: " + safeMime + "\r\n\r\n").getBytes(StandardCharsets.UTF_8));
+                        dos.write(fileBytes);
+                        dos.write(("\r\n--" + boundary + "--\r\n").getBytes(StandardCharsets.UTF_8));
+                        dos.flush();
+                    }
+
+                    int status = conn.getResponseCode();
+                    InputStream respStream = (status >= 200 && status < 300)
+                        ? conn.getInputStream()
+                        : conn.getErrorStream();
+                    String respText = "";
+                    if (respStream != null) {
+                        try (InputStream is = respStream; ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
+                            byte[] buf = new byte[8192];
+                            int len;
+                            while ((len = is.read(buf)) != -1) {
+                                baos.write(buf, 0, len);
+                            }
+                            respText = new String(baos.toByteArray(), StandardCharsets.UTF_8);
+                        }
+                    }
+                    dispatchMultipartEvent(reqId, status >= 200 && status < 300, status, respText);
+                } catch (Exception e) {
+                    dispatchMultipartEvent(
+                        reqId,
+                        false,
+                        0,
+                        e.getMessage() != null ? e.getMessage() : "Multipart upload failed"
+                    );
+                } finally {
+                    if (conn != null) {
+                        conn.disconnect();
+                    }
+                }
+            }, "theworld-multipart-upload").start();
         }
 
         @JavascriptInterface
@@ -365,14 +699,18 @@ public class MainActivity extends BridgeActivity {
                             if (location == null || location.trim().isEmpty()) {
                                 throw new Exception("下载重定向缺少目标地址");
                             }
-                            currentUrl = new URL(url, location).toString();
+                            String nextUrl = new URL(url, location).toString();
+                            if (!nextUrl.startsWith("http://") && !nextUrl.startsWith("https://")) {
+                                throw new Exception("不支持的重定向下载协议");
+                            }
+                            currentUrl = nextUrl;
                             continue;
                         }
                         break;
                     }
 
                     if (conn == null) {
-                        throw new Exception("无法建立下载连接");
+                        throw new Exception("下载重定向次数过多或无法建立连接");
                     }
                     int status = conn.getResponseCode();
                     if (status < 200 || status >= 300) {
