@@ -12,3 +12,6 @@ Thumbs.db
 # Android 发布签名（绝不入库）
 android/keystore/
 android/keystore.properties
+
+# 可选：本地发布说明（由 publish-gitee.mjs 读取）
+release-notes.md

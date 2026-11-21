@@ -97,6 +97,11 @@ async function main() {
 
   let release = already;
   if (!release) {
+    // 发布说明：优先读 RELEASE_NOTES 环境变量指定的文件，其次 ./release-notes.md
+    const notesFile = process.env.RELEASE_NOTES || path.join(ROOT, 'release-notes.md');
+    const body = fs.existsSync(notesFile)
+      ? fs.readFileSync(notesFile, 'utf8')
+      : `自动发布 ${tag}`;
     release = await api(`/repos/${OWNER}/${REPO}/releases`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -106,7 +111,7 @@ async function main() {
         name: `The World ${tag}`,
         target_commitish: 'main',
         prerelease: false,
-        body: `自动发布 ${tag}`,
+        body,
       }),
     });
     console.log(`已创建 Release ${tag}（id=${release.id}）`);
