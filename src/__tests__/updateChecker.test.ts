@@ -2,14 +2,56 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   type ApkUpdateProgress,
   canInAppAndroidUpdate,
+  checkForAppUpdate,
   compareSemver,
   detectUpdateSource,
   parseManifestJson,
   pickAssetDownloadUrl,
+  splitUpdateSources,
   startInAppAndroidUpdate,
 } from '../services/updateChecker';
 
 describe('updateChecker', () => {
+  it('splits multiple update sources and falls back in order', async () => {
+    expect(
+      splitUpdateSources('https://a.example/latest.json, Eula12135/the-world\ngitee:me/repo')
+    ).toEqual(['https://a.example/latest.json', 'Eula12135/the-world', 'gitee:me/repo']);
+    expect(splitUpdateSources('   ')).toEqual([]);
+
+    const origFetch = globalThis.fetch;
+    globalThis.fetch = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('国内源挂了'))
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ version: '9.9.9', androidUrl: 'https://b.example/a.apk' }), {
+          status: 200,
+        })
+      );
+    try {
+      // 第一个源失败后应自动回退到第二个源
+      const res = await checkForAppUpdate(
+        'https://a.example/latest.json https://b.example/latest.json',
+        true
+      );
+      expect(res.latestVersion).toBe('9.9.9');
+      expect(res.sourceKind).toBe('manifest');
+    } finally {
+      globalThis.fetch = origFetch;
+    }
+  });
+
+  it('reports every source when all of them fail', async () => {
+    const origFetch = globalThis.fetch;
+    globalThis.fetch = vi.fn().mockRejectedValue(new Error('network down'));
+    try {
+      await expect(
+        checkForAppUpdate('https://a.example/latest.json https://b.example/latest.json', true)
+      ).rejects.toThrow(/所有更新源都不可用/);
+    } finally {
+      globalThis.fetch = origFetch;
+    }
+  });
+
   it('compares semantic versions accurately', () => {
     expect(compareSemver('0.2.2', '0.2.1')).toBe(1);
     expect(compareSemver('v1.0.0', '0.9.9')).toBe(1);

@@ -147,9 +147,47 @@ export function parseManifestJson(
   };
 }
 
+/** 更新源可以填多个，用空格 / 逗号 / 换行分隔，按顺序尝试，第一个成功的生效。 */
+export function splitUpdateSources(raw: string): string[] {
+  return raw
+    .split(/[\s,;]+/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
 export async function checkForAppUpdate(
   source: string,
   preferAndroid: boolean = isAndroidNative()
+): Promise<UpdateCheckResult> {
+  const candidates = splitUpdateSources(source);
+  const list = candidates.length > 0 ? candidates : splitUpdateSources(DEFAULT_UPDATE_SOURCE);
+
+  if (list.length === 0) {
+    throw new Error(
+      '尚未配置更新源，请输入 GitHub 仓库（owner/repo）、gitee:owner/repo 或 latest.json 链接'
+    );
+  }
+
+  if (list.length === 1) {
+    return checkSingleSource(list[0], preferAndroid);
+  }
+
+  const errors: string[] = [];
+  for (const candidate of list) {
+    try {
+      const result = await checkSingleSource(candidate, preferAndroid);
+      return { ...result, releaseNotes: result.releaseNotes };
+    } catch (err) {
+      errors.push(`${candidate} → ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+
+  throw new Error(`所有更新源都不可用：\n${errors.join('\n')}`);
+}
+
+async function checkSingleSource(
+  source: string,
+  preferAndroid: boolean
 ): Promise<UpdateCheckResult> {
   const effective = source.trim() || DEFAULT_UPDATE_SOURCE;
   const detected = detectUpdateSource(effective);

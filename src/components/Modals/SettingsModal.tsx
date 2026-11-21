@@ -264,6 +264,7 @@ export const SettingsModal: React.FC = () => {
                     ? `默认：${DEFAULT_UPDATE_SOURCE}（可留空或自定义）`
                     : 'owner/the-world 或 gitee:owner/repo 或 latest.json 链接'
                 }
+                title="可以填多个源，用空格或逗号分隔；按顺序尝试，第一个可用的生效（建议国内源放前面）"
                 className="flex-1 min-w-0 px-3 py-1.5 rounded-xl bg-canvas border border-line text-ink text-[12px] font-mono outline-none focus:border-accent"
               />
               <button
@@ -288,6 +289,9 @@ export const SettingsModal: React.FC = () => {
               </div>
               <div>
                 • 静态清单 / 局域网同步：<code className="text-secondary">http://192.168.x.x:8787/latest.json</code>
+              </div>
+              <div className="text-amber-500">
+                • 可以填多个源（空格/逗号分隔），按顺序尝试——建议把国内源放最前面，GitHub 作为兜底
               </div>
             </div>
 
