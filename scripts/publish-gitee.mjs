@@ -138,6 +138,28 @@ async function main() {
     await api(`/repos/${OWNER}/${REPO}/releases/${rel.id}?access_token=${TOKEN}`, { method: 'DELETE' });
   }
   console.log(`保留 ${Math.min(sorted.length, KEEP)} 个版本，删除 ${toDelete.length} 个`);
+
+  // 生成 latest.json（分平台下载地址）
+  // 关键：Gitee 用 application/zip 提供 .apk，浏览器会把它当压缩包加 .zip 后缀；
+  // GitHub 给的是 application/vnd.android.package-archive，浏览器会正常存成 .apk。
+  // 所以 APK 指向 GitHub，Windows 安装包指向 Gitee（快且 .exe 类型正确）。
+  const ghOwner = process.env.GITHUB_OWNER || 'Eula12135';
+  const ghRepo = process.env.GITHUB_REPO || 'the-world';
+  const base = `https://gitee.com/${OWNER}/${REPO}/releases/download/${tag}`;
+  const ghBase = `https://github.com/${ghOwner}/${ghRepo}/releases/download/${tag}`;
+  const manifest = {
+    version,
+    name: `The World ${tag}`,
+    pageUrl: `https://gitee.com/${OWNER}/${REPO}/releases/tag/${tag}`,
+    releaseUrl: `https://gitee.com/${OWNER}/${REPO}/releases/tag/${tag}`,
+    windowsUrl: `${base}/The-World-Setup-${version}.exe`,
+    androidUrl: `${ghBase}/The-World-${version}-android.apk`,
+    notes: `v${version}`,
+  };
+  fs.writeFileSync(path.join(ROOT, 'latest.json'), JSON.stringify(manifest, null, 2) + '\n');
+  console.log('\n已生成 latest.json（APK 指向 GitHub，Windows 包指向 Gitee）');
+  console.log('请提交并推送 latest.json 到 Gitee，使 raw 地址生效：');
+  console.log(`  https://gitee.com/${OWNER}/${REPO}/raw/main/latest.json`);
 }
 
 main().catch((err) => {
