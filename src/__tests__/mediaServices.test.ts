@@ -1,7 +1,20 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { buildCharacterImagePrompt, resolveReusableApiKey } from '../services/imageGenService';
-import { splitSpeechChunks, stripMarkdownForSpeech } from '../services/voiceService';
-import type { Character, ProviderConfig, WorldProject } from '../types';
+import {
+  buildBreezeTtsPayload,
+  buildTtsSpeechPayload,
+  formatTtsHttpError,
+  isBreezeCloudBase,
+  listBreezeVoices,
+  normalizeBreezeBaseUrl,
+  resolveEffectiveVoiceConfig,
+  sanitizeCloneCustomName,
+  splitSpeechChunks,
+  stripMarkdownForSpeech,
+  uploadClonedVoice,
+} from '../services/voiceService';
+import { DEFAULT_VOICE_CONFIG } from '../db/database';
+import type { Character, ProviderConfig, VoiceProfile, WorldProject } from '../types';
 
 describe('imageGenService & voiceService helpers', () => {
   it('reuses API key from matching provider hostname when explicit key is blank', () => {
@@ -82,5 +95,189 @@ describe('imageGenService & voiceService helpers', () => {
     const chunks = splitSpeechChunks(longText, 120);
     expect(chunks.length).toBeGreaterThan(2);
     expect(chunks.every((c) => c.length <= 120)).toBe(true);
+  });
+
+  it('builds TTS payloads with CosyVoice2 endofprompt + gain clamping and OpenAI instructions', () => {
+    const cosyPayload = buildTtsSpeechPayload({
+      model: 'FunAudioLLM/CosyVoice2-0.5B',
+      text: '今天天气真不错。',
+      voice: 'speech:custom:abc:123',
+      rate: 1.2,
+      gain: 25,
+      styleInstruction: '温柔低沉地说',
+    });
+    expect(cosyPayload.input).toBe('温柔低沉地说 <|endofprompt|>今天天气真不错。');
+    expect(cosyPayload.gain).toBe(10);
+    expect(cosyPayload.speed).toBe(1.2);
+    expect(cosyPayload.instructions).toBeUndefined();
+
+    const openaiPayload = buildTtsSpeechPayload({
+      model: 'gpt-4o-mini-tts',
+      text: 'Hello world',
+      voice: 'alloy',
+      rate: 1.0,
+      gain: 0,
+      styleInstruction: 'Speak calmly',
+    });
+    expect(openaiPayload.input).toBe('Hello world');
+    expect(openaiPayload.instructions).toBe('Speak calmly');
+    expect(openaiPayload.gain).toBeUndefined();
+
+    const breezePayload = buildTtsSpeechPayload({
+      model: 'BreezeBlue/Breeze-TTS-2',
+      text: '你好，欢迎使用。',
+      voice: '',
+      rate: 1.0,
+      gain: 0,
+      styleInstruction: '年轻女性，温柔清冷、声线清澈',
+    });
+    expect(breezePayload.voice).toBeUndefined();
+    expect(breezePayload.instructions).toBe('年轻女性，温柔清冷、声线清澈');
+    expect(breezePayload.extra_params).toEqual({ guidance_scale: 4.0 });
+    expect(breezePayload.response_format).toBe('wav');
+  });
+
+  it('never sends a sub-1 speech speed that strict gateways reject with HTTP 422', () => {
+    const slowPayload = buildTtsSpeechPayload({
+      model: 'FunAudioLLM/CosyVoice2-0.5B',
+      text: '慢慢说。',
+      voice: 'FunAudioLLM/CosyVoice2-0.5B:alex',
+      rate: 0.5,
+      gain: 0,
+    });
+    expect(slowPayload.speed).toBe(1);
+  });
+
+  it('turns a raw 422 validation body into an actionable message', () => {
+    const raw = JSON.stringify({
+      ok: false,
+      code: 'VALIDATION_ERROR',
+      detail: 'Input should be greater than or equal to 1',
+      error: 'Input should be gre',
+    });
+
+    const msg = formatTtsHttpError(422, raw);
+    expect(msg).toContain('HTTP 422');
+    expect(msg).toContain('Input should be greater than or equal to 1');
+    expect(msg).toContain('语速');
+    expect(msg).not.toContain('{"ok"');
+
+    expect(formatTtsHttpError(401, '{"detail":"invalid api key"}')).toContain('鉴权失败');
+  });
+
+  it('normalizes Breeze cloud URLs and builds strict 5-key Breeze payload + lists voices with xi-api-key', async () => {
+    expect(isBreezeCloudBase('https://api.breeze.blue')).toBe(true);
+    expect(isBreezeCloudBase('https://api.breezeblue.ai/v1')).toBe(true);
+    expect(isBreezeCloudBase('http://127.0.0.1:7860/v1')).toBe(false);
+
+    expect(normalizeBreezeBaseUrl('https://api.breezeblue.ai/v1')).toBe('https://api.breeze.blue');
+    expect(normalizeBreezeBaseUrl('https://api.breeze.blue/v1/')).toBe('https://api.breeze.blue');
+
+    const cloudPayload = buildBreezeTtsPayload({
+      text: '有一个人，决定追上太阳。',
+      model: 'BreezeBlue/Breeze-TTS-2',
+      instructions: '压低声音，语速慢',
+    });
+    expect(cloudPayload).toEqual({
+      text: '有一个人，决定追上太阳。',
+      model_id: 'breeze-tts-2',
+      language_code: 'zh',
+      instructions: '压低声音，语速慢',
+      voice_settings: { guidance_scale: 1 },
+    });
+    expect(Object.keys(cloudPayload).sort()).toEqual([
+      'instructions',
+      'language_code',
+      'model_id',
+      'text',
+      'voice_settings',
+    ]);
+    expect(cloudPayload.output_format).toBeUndefined();
+    expect(cloudPayload.speed).toBeUndefined();
+    expect(cloudPayload.input).toBeUndefined();
+    expect(cloudPayload.voice).toBeUndefined();
+
+    const noInstPayload = buildBreezeTtsPayload({ text: '测试无指令' });
+    expect(Object.keys(noInstPayload).sort()).toEqual([
+      'language_code',
+      'model_id',
+      'text',
+      'voice_settings',
+    ]);
+
+    const mockFetch = vi.fn().mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          voices: [{ voice_id: 'voc_demo_123', name: '演示女声', category: 'cloned' }],
+        }),
+        { status: 200 }
+      )
+    );
+    const origFetch = globalThis.fetch;
+    globalThis.fetch = mockFetch;
+    try {
+      const voices = await listBreezeVoices({
+        baseUrl: 'https://api.breezeblue.ai/v1',
+        apiKey: 'brz_test_fake_key',
+        providers: [],
+      });
+      expect(voices).toEqual([{ voiceId: 'voc_demo_123', name: '演示女声', category: 'cloned' }]);
+      expect(mockFetch).toHaveBeenCalledWith(
+        'https://api.breeze.blue/v1/voices',
+        expect.objectContaining({
+          method: 'GET',
+          headers: { 'xi-api-key': 'brz_test_fake_key' },
+        })
+      );
+    } finally {
+      globalThis.fetch = origFetch;
+    }
+  });
+
+  it('resolves VoiceProfile overrides and uploads cloned voice reference via API', async () => {
+    const profile: VoiceProfile = {
+      id: 'vp1',
+      name: '测试克隆音色',
+      engine: 'openai_api',
+      baseUrl: 'https://api.siliconflow.cn/v1',
+      model: 'FunAudioLLM/CosyVoice2-0.5B',
+      voiceId: 'speech:test:1:2',
+      rate: 1.15,
+      pitch: 0.9,
+      volume: 0.85,
+      gain: 3,
+      styleInstruction: '冷淡克制地说',
+      isCloned: true,
+      createdAt: 1,
+      updatedAt: 1,
+    };
+    const merged = resolveEffectiveVoiceConfig(DEFAULT_VOICE_CONFIG, profile);
+    expect(merged.ttsEngine).toBe('openai_api');
+    expect(merged.ttsVoice).toBe('speech:test:1:2');
+    expect(merged.ttsGain).toBe(3);
+    expect(merged.ttsStyleInstruction).toBe('冷淡克制地说');
+
+    expect(sanitizeCloneCustomName('林澈 Voice #1')).toBe('Voice_1');
+
+    const mockFetch = vi.fn().mockResolvedValueOnce(
+      new Response(JSON.stringify({ uri: 'speech:linche:abc:xyz' }), { status: 200 })
+    );
+    const origFetch = globalThis.fetch;
+    globalThis.fetch = mockFetch;
+    try {
+      const res = await uploadClonedVoice({
+        baseUrl: 'https://api.siliconflow.cn/v1',
+        apiKey: 'sk-sf-test',
+        providers: [],
+        model: 'FunAudioLLM/CosyVoice2-0.5B',
+        customName: 'linche_voice',
+        text: '夜色已深，准备出发。',
+        audioDataUrl: 'data:audio/mpeg;base64,SUQz',
+      });
+      expect(res.uri).toBe('speech:linche:abc:xyz');
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+    } finally {
+      globalThis.fetch = origFetch;
+    }
   });
 });

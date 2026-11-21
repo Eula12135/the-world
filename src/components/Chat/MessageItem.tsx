@@ -44,6 +44,7 @@ export const MessageItem: React.FC<MessageItemProps> = ({
     updateWorld,
     settings,
     providers,
+    voiceProfiles,
     speakingMessageId,
     setSpeakingMessageId,
     showToast,
@@ -77,10 +78,18 @@ export const MessageItem: React.FC<MessageItemProps> = ({
       return;
     }
     setSpeakingMessageId(message.id);
+    const voiceProfileId =
+      roleCharacter?.voiceProfileId ||
+      personaPreset?.voiceProfileId ||
+      settings.voice.activeVoiceProfileId;
+    const voiceProfile = voiceProfileId
+      ? voiceProfiles.find((vp) => vp.id === voiceProfileId)
+      : undefined;
     await speakText({
       text: message.content,
       config: settings.voice,
       providers,
+      profile: voiceProfile,
       voiceOverride: roleCharacter?.voiceName || personaPreset?.voiceName,
       onEnd: () => {
         if (useAppStore.getState().speakingMessageId === message.id) {

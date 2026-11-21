@@ -16,6 +16,7 @@ export const SessionModeModal: React.FC = () => {
     worlds,
     characters,
     personaPresets,
+    voiceProfiles,
     upsertPersonaPreset,
     deletePersonaPreset,
     setActiveView,
@@ -26,6 +27,7 @@ export const SessionModeModal: React.FC = () => {
   const [savingPreset, setSavingPreset] = useState(false);
   const [presetName, setPresetName] = useState('');
   const [presetDesc, setPresetDesc] = useState('');
+  const [presetVoiceId, setPresetVoiceId] = useState('');
 
   const session = sessions.find((s) => s.id === activeSessionId) ?? null;
   const chatMode: ChatMode = (session ? session.chatMode : draftConfig.chatMode) || 'assistant';
@@ -87,6 +89,7 @@ export const SessionModeModal: React.FC = () => {
       description: presetDesc.trim(),
       systemPrompt: sys,
       avatarColor: AVATAR_COLORS[personaPresets.length % AVATAR_COLORS.length],
+      voiceProfileId: presetVoiceId || undefined,
       createdAt: now,
       updatedAt: now,
     };
@@ -98,6 +101,7 @@ export const SessionModeModal: React.FC = () => {
     setSavingPreset(false);
     setPresetName('');
     setPresetDesc('');
+    setPresetVoiceId('');
     showToast(`已保存常用人设「${name}」`, 'success');
   };
 
@@ -302,6 +306,20 @@ export const SessionModeModal: React.FC = () => {
                           className="px-3 py-1.5 rounded-lg bg-canvas border border-line text-ink text-[12px] outline-none focus:border-accent"
                         />
                       </div>
+                      {voiceProfiles.length > 0 && (
+                        <select
+                          value={presetVoiceId}
+                          onChange={(e) => setPresetVoiceId(e.target.value)}
+                          className="w-full px-3 py-1.5 rounded-lg bg-canvas border border-line text-ink text-[12px] outline-none focus:border-accent"
+                        >
+                          <option value="">绑定专属音色档案（可选）</option>
+                          {voiceProfiles.map((vp) => (
+                            <option key={vp.id} value={vp.id}>
+                              {vp.name}（{vp.isCloned ? '克隆' : vp.engine === 'native' ? '原生' : 'API'}）
+                            </option>
+                          ))}
+                        </select>
+                      )}
                       <div className="flex justify-end gap-2">
                         <button
                           type="button"

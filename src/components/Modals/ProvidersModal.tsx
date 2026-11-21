@@ -7,11 +7,9 @@ import {
   Image as ImageIcon,
   KeyRound,
   Loader2,
-  Mic,
   Plus,
   RefreshCw,
   Sparkles,
-  Square,
   Trash2,
   Volume2,
   X,
@@ -21,13 +19,7 @@ import { useAppStore } from '../../store/useAppStore';
 import type { ImageGenConfig, ProviderConfig, VoiceConfig } from '../../types';
 import { fetchProviderModels, testProviderConnection } from '../../services/llm';
 import { IMAGE_GEN_PRESETS } from '../../services/imageGenService';
-import {
-  listNativeVoices,
-  speakText,
-  stopSpeaking,
-  STT_PRESETS,
-  TTS_PRESETS,
-} from '../../services/voiceService';
+import { VoiceStudioTab } from './VoiceStudioTab';
 import { createId, openExternalUrl } from '../../utils/platform';
 
 type ProviderModalTab = 'llm' | 'image' | 'voice';
@@ -58,8 +50,6 @@ export const ProvidersModal: React.FC = () => {
   const [showImgKey, setShowImgKey] = useState(false);
 
   const [draftVoice, setDraftVoice] = useState<VoiceConfig>(settings.voice);
-  const [showVoiceKey, setShowVoiceKey] = useState(false);
-  const [previewingVoice, setPreviewingVoice] = useState(false);
 
   useEffect(() => {
     if (activeModal !== 'providers') return;
@@ -82,7 +72,6 @@ export const ProvidersModal: React.FC = () => {
 
   const activeImgPreset =
     IMAGE_GEN_PRESETS.find((p) => p.id === draftImg.presetId) || IMAGE_GEN_PRESETS[0];
-  const nativeVoices = listNativeVoices();
 
   const handleSave = async () => {
     await saveProvider({
@@ -199,25 +188,6 @@ export const ProvidersModal: React.FC = () => {
       },
     });
     showToast('语音 TTS / STT 配置已保存', 'success');
-  };
-
-  const handlePreviewTts = async () => {
-    if (previewingVoice) {
-      stopSpeaking();
-      setPreviewingVoice(false);
-      return;
-    }
-    setPreviewingVoice(true);
-    await speakText({
-      text: '你好，欢迎使用 The World 本地语音框架，当前配置工作正常。',
-      config: draftVoice,
-      providers,
-      onEnd: () => setPreviewingVoice(false),
-      onError: (msg) => {
-        setPreviewingVoice(false);
-        showToast(msg, 'error');
-      },
-    });
   };
 
   return (
@@ -703,334 +673,13 @@ export const ProvidersModal: React.FC = () => {
           </div>
         )}
 
-        {/* TAB 3: Voice TTS / STT */}
+        {/* TAB 3: Voice Tuning & Cloning Studio */}
         {tab === 'voice' && (
-          <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-5 text-[13px]">
-            {/* TTS Section */}
-            <div className="p-4 rounded-2xl bg-sidebar border border-line space-y-3">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div className="flex items-center gap-2 font-semibold text-ink text-[14px]">
-                  <Volume2 className="w-4 h-4 text-accent" />
-                  <span>AI 语音朗读 (TTS)</span>
-                </div>
-                <div className="flex items-center gap-3 text-[12px]">
-                  <label className="flex items-center gap-1.5 cursor-pointer text-secondary">
-                    <input
-                      type="checkbox"
-                      checked={draftVoice.ttsEnabled}
-                      onChange={(e) =>
-                        setDraftVoice({ ...draftVoice, ttsEnabled: e.target.checked })
-                      }
-                    />
-                    <span>显示朗读按钮</span>
-                  </label>
-                  <label className="flex items-center gap-1.5 cursor-pointer text-secondary">
-                    <input
-                      type="checkbox"
-                      checked={draftVoice.ttsAutoPlay}
-                      onChange={(e) =>
-                        setDraftVoice({ ...draftVoice, ttsAutoPlay: e.target.checked })
-                      }
-                    />
-                    <span>回复完自动朗读</span>
-                  </label>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={() => setDraftVoice({ ...draftVoice, ttsEngine: 'native' })}
-                  className={`p-2.5 rounded-xl border text-left cursor-pointer ${
-                    draftVoice.ttsEngine === 'native'
-                      ? 'border-accent bg-accent-soft'
-                      : 'border-line bg-canvas'
-                  }`}
-                >
-                  <div className="font-semibold text-ink">系统原生语音（完全免费离线）</div>
-                  <div className="text-[11px] text-dim mt-0.5">
-                    手机调用 Android TextToSpeech，电脑调用系统自带微软语音库，零成本无 Key
-                  </div>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setDraftVoice({ ...draftVoice, ttsEngine: 'openai_api' })}
-                  className={`p-2.5 rounded-xl border text-left cursor-pointer ${
-                    draftVoice.ttsEngine === 'openai_api'
-                      ? 'border-accent bg-accent-soft'
-                      : 'border-line bg-canvas'
-                  }`}
-                >
-                  <div className="font-semibold text-ink">自定义 TTS API（高拟真）</div>
-                  <div className="text-[11px] text-dim mt-0.5">
-                    接入硅基流动 CosyVoice2、OpenAI 或本地 GPT-SoVITS / Kokoro 服务
-                  </div>
-                </button>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-center">
-                <div>
-                  <label className="block mb-1 text-[12px] text-secondary">
-                    语速调节 ({draftVoice.ttsRate.toFixed(1)}x)
-                  </label>
-                  <input
-                    type="range"
-                    min={0.6}
-                    max={1.8}
-                    step={0.1}
-                    value={draftVoice.ttsRate}
-                    onChange={(e) =>
-                      setDraftVoice({ ...draftVoice, ttsRate: Number(e.target.value) })
-                    }
-                    className="w-full accent-[#4d6bfe]"
-                  />
-                </div>
-                {draftVoice.ttsEngine === 'native' && nativeVoices.length > 0 && (
-                  <div>
-                    <label className="block mb-1 text-[12px] text-secondary">
-                      系统语音包（桌面/Web 可选）
-                    </label>
-                    <select
-                      value={draftVoice.ttsNativeVoice}
-                      onChange={(e) =>
-                        setDraftVoice({ ...draftVoice, ttsNativeVoice: e.target.value })
-                      }
-                      className="w-full px-3 py-1.5 rounded-xl bg-canvas border border-line text-ink text-[12px] outline-none"
-                    >
-                      <option value="">自动匹配中文语音</option>
-                      {nativeVoices.map((v) => (
-                        <option key={`${v.name}-${v.lang}`} value={v.name}>
-                          {v.name} ({v.lang})
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                )}
-              </div>
-
-              {draftVoice.ttsEngine === 'openai_api' && (
-                <div className="space-y-3 pt-2 border-t border-line">
-                  <div className="flex flex-wrap gap-1.5">
-                    {TTS_PRESETS.map((p) => (
-                      <button
-                        key={p.id}
-                        type="button"
-                        onClick={() =>
-                          setDraftVoice({
-                            ...draftVoice,
-                            ttsBaseUrl: p.baseUrl,
-                            ttsModel: p.model,
-                            ttsVoice: p.defaultVoice,
-                          })
-                        }
-                        className="px-2.5 py-1 rounded-lg border border-line bg-canvas text-[11.5px] text-secondary hover:border-accent hover:text-accent cursor-pointer"
-                      >
-                        {p.name}
-                      </button>
-                    ))}
-                  </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                    <div>
-                      <label className="block mb-1 text-[12px] text-secondary">TTS Base URL</label>
-                      <input
-                        value={draftVoice.ttsBaseUrl}
-                        onChange={(e) =>
-                          setDraftVoice({ ...draftVoice, ttsBaseUrl: e.target.value })
-                        }
-                        className="w-full px-3 py-1.5 rounded-xl bg-canvas border border-line text-ink font-mono text-[12px] outline-none"
-                      />
-                    </div>
-                    <div>
-                      <label className="block mb-1 text-[12px] text-secondary">
-                        TTS API Key（可留空复用同域名 Key）
-                      </label>
-                      <div className="flex items-center rounded-xl bg-canvas border border-line px-3">
-                        <input
-                          type={showVoiceKey ? 'text' : 'password'}
-                          value={draftVoice.ttsApiKey}
-                          onChange={(e) =>
-                            setDraftVoice({ ...draftVoice, ttsApiKey: e.target.value })
-                          }
-                          placeholder="留空自动复用"
-                          className="flex-1 py-1.5 bg-transparent text-ink font-mono text-[12px] outline-none"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setShowVoiceKey((v) => !v)}
-                          className="p-1 text-dim cursor-pointer"
-                        >
-                          {showVoiceKey ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                        </button>
-                      </div>
-                    </div>
-                    <div>
-                      <label className="block mb-1 text-[12px] text-secondary">TTS 模型 ID</label>
-                      <input
-                        value={draftVoice.ttsModel}
-                        onChange={(e) => setDraftVoice({ ...draftVoice, ttsModel: e.target.value })}
-                        className="w-full px-3 py-1.5 rounded-xl bg-canvas border border-line text-ink font-mono text-[12px] outline-none"
-                      />
-                    </div>
-                    <div>
-                      <label className="block mb-1 text-[12px] text-secondary">默认音色 (Voice)</label>
-                      <input
-                        value={draftVoice.ttsVoice}
-                        onChange={(e) => setDraftVoice({ ...draftVoice, ttsVoice: e.target.value })}
-                        className="w-full px-3 py-1.5 rounded-xl bg-canvas border border-line text-ink font-mono text-[12px] outline-none"
-                      />
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              <div className="flex justify-end">
-                <button
-                  type="button"
-                  onClick={handlePreviewTts}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-accent/40 bg-accent-soft text-accent text-[12px] font-medium cursor-pointer"
-                >
-                  {previewingVoice ? (
-                    <>
-                      <Square className="w-3 h-3 fill-current" />
-                      <span>停止试听</span>
-                    </>
-                  ) : (
-                    <>
-                      <Volume2 className="w-3.5 h-3.5" />
-                      <span>试听当前朗读效果</span>
-                    </>
-                  )}
-                </button>
-              </div>
-            </div>
-
-            {/* STT Section */}
-            <div className="p-4 rounded-2xl bg-sidebar border border-line space-y-3">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div className="flex items-center gap-2 font-semibold text-ink text-[14px]">
-                  <Mic className="w-4 h-4 text-accent" />
-                  <span>语音输入转文字 (STT)</span>
-                </div>
-                <select
-                  value={draftVoice.sttLanguage}
-                  onChange={(e) => setDraftVoice({ ...draftVoice, sttLanguage: e.target.value })}
-                  className="px-2.5 py-1 rounded-lg bg-canvas border border-line text-ink text-[12px] outline-none"
-                >
-                  <option value="zh">识别语言：中文</option>
-                  <option value="en">识别语言：English</option>
-                </select>
-              </div>
-
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={() => setDraftVoice({ ...draftVoice, sttEngine: 'native' })}
-                  className={`p-2.5 rounded-xl border text-left cursor-pointer ${
-                    draftVoice.sttEngine === 'native'
-                      ? 'border-accent bg-accent-soft'
-                      : 'border-line bg-canvas'
-                  }`}
-                >
-                  <div className="font-semibold text-ink">系统原生识别（免费）</div>
-                  <div className="text-[11px] text-dim mt-0.5">
-                    Android 调用本机语音识别面板；若 PC 桌面端不支持离线语音，可切到右侧 API 方案
-                  </div>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setDraftVoice({ ...draftVoice, sttEngine: 'openai_api' })}
-                  className={`p-2.5 rounded-xl border text-left cursor-pointer ${
-                    draftVoice.sttEngine === 'openai_api'
-                      ? 'border-accent bg-accent-soft'
-                      : 'border-line bg-canvas'
-                  }`}
-                >
-                  <div className="font-semibold text-ink">自定义 STT API（全平台可用）</div>
-                  <div className="text-[11px] text-dim mt-0.5">
-                    麦克风录音后发送至硅基流动 SenseVoice（含免费额度）、Groq Whisper 或本地 Whisper
-                  </div>
-                </button>
-              </div>
-
-              {draftVoice.sttEngine === 'openai_api' && (
-                <div className="space-y-3 pt-2 border-t border-line">
-                  <div className="flex flex-wrap gap-1.5">
-                    {STT_PRESETS.map((p) => (
-                      <div key={p.id} className="flex items-center gap-1">
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setDraftVoice({
-                              ...draftVoice,
-                              sttBaseUrl: p.baseUrl,
-                              sttModel: p.model,
-                            })
-                          }
-                          className="px-2.5 py-1 rounded-lg border border-line bg-canvas text-[11.5px] text-secondary hover:border-accent hover:text-accent cursor-pointer"
-                        >
-                          {p.name}
-                        </button>
-                        {p.consoleUrl && (
-                          <button
-                            type="button"
-                            onClick={() => openExternalUrl(p.consoleUrl)}
-                            className="p-1 text-dim hover:text-accent cursor-pointer"
-                            title="去官网获取 Key"
-                          >
-                            <ExternalLink className="w-3 h-3" />
-                          </button>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-                    <div>
-                      <label className="block mb-1 text-[12px] text-secondary">STT Base URL</label>
-                      <input
-                        value={draftVoice.sttBaseUrl}
-                        onChange={(e) =>
-                          setDraftVoice({ ...draftVoice, sttBaseUrl: e.target.value })
-                        }
-                        className="w-full px-3 py-1.5 rounded-xl bg-canvas border border-line text-ink font-mono text-[12px] outline-none"
-                      />
-                    </div>
-                    <div>
-                      <label className="block mb-1 text-[12px] text-secondary">STT 模型 ID</label>
-                      <input
-                        value={draftVoice.sttModel}
-                        onChange={(e) => setDraftVoice({ ...draftVoice, sttModel: e.target.value })}
-                        className="w-full px-3 py-1.5 rounded-xl bg-canvas border border-line text-ink font-mono text-[12px] outline-none"
-                      />
-                    </div>
-                    <div>
-                      <label className="block mb-1 text-[12px] text-secondary">
-                        STT Key（可留空复用）
-                      </label>
-                      <input
-                        type={showVoiceKey ? 'text' : 'password'}
-                        value={draftVoice.sttApiKey}
-                        onChange={(e) =>
-                          setDraftVoice({ ...draftVoice, sttApiKey: e.target.value })
-                        }
-                        placeholder="留空自动复用"
-                        className="w-full px-3 py-1.5 rounded-xl bg-canvas border border-line text-ink font-mono text-[12px] outline-none"
-                      />
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            <div className="flex justify-end pt-2 border-t border-line">
-              <button
-                type="button"
-                onClick={handleSaveVoice}
-                className="px-4 py-2 rounded-xl font-medium bg-accent text-white hover:opacity-95 cursor-pointer"
-              >
-                保存语音设置
-              </button>
-            </div>
-          </div>
+          <VoiceStudioTab
+            draftVoice={draftVoice}
+            setDraftVoice={setDraftVoice}
+            onSaveVoice={handleSaveVoice}
+          />
         )}
       </div>
     </div>

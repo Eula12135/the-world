@@ -30,6 +30,7 @@ describe('database v3, cascades, backup & security checks', () => {
       db.relations.clear(),
       db.timelineEvents.clear(),
       db.personaPresets.clear(),
+      db.voiceProfiles.clear(),
       db.settings.clear(),
     ]);
     await ensureDatabaseInitialized();
@@ -165,6 +166,22 @@ describe('database v3, cascades, backup & security checks', () => {
       createdAt: 1,
       updatedAt: 1,
     });
+    await db.voiceProfiles.put({
+      id: 'vp1',
+      name: '剑客声线',
+      engine: 'openai_api',
+      baseUrl: 'https://api.siliconflow.cn/v1',
+      model: 'FunAudioLLM/CosyVoice2-0.5B',
+      voiceId: 'speech:sword:1:2',
+      rate: 0.95,
+      pitch: 1,
+      volume: 1,
+      gain: 2,
+      styleInstruction: '低沉冷静地说',
+      isCloned: true,
+      createdAt: 1,
+      updatedAt: 1,
+    });
 
     const safeJson = await exportFullBackupJson(false);
     expect(safeJson).not.toContain('sk-secret-local-key');
@@ -172,6 +189,7 @@ describe('database v3, cascades, backup & security checks', () => {
     expect(safeJson).not.toContain('tts-secret-key');
     expect(safeJson).not.toContain('stt-secret-key');
     expect(safeJson).toContain('冷峻剑客');
+    expect(safeJson).toContain('剑客声线');
 
     const withKeyJson = await exportFullBackupJson(true);
     expect(withKeyJson).toContain('sk-secret-local-key');
@@ -184,6 +202,7 @@ describe('database v3, cascades, backup & security checks', () => {
     expect(restoredSettings.imageGen.apiKey).toBe('img-secret-key');
     expect(restoredSettings.voice.ttsApiKey).toBe('tts-secret-key');
     expect(restoredSettings.voice.sttApiKey).toBe('stt-secret-key');
+    expect((await db.voiceProfiles.get('vp1'))?.voiceId).toBe('speech:sword:1:2');
   });
 
   it('exports Markdown for sessions and worlds including temporal relations', () => {

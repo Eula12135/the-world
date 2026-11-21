@@ -28,6 +28,7 @@ export const CharactersPanel: React.FC<{ worldId: string }> = ({ worldId }) => {
     worlds,
     providers,
     settings,
+    voiceProfiles,
     upsertCharacter,
     deleteCharacter,
     startNewDraft,
@@ -383,14 +384,35 @@ export const CharactersPanel: React.FC<{ worldId: string }> = ({ worldId }) => {
                 </div>
               </div>
               <div>
-                <label className="block mb-1.5 font-medium text-secondary">
-                  专属音色 ID（可选，API 语音朗读时优先使用）
-                </label>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="font-medium text-secondary">绑定音色档案（可选）</label>
+                  <button
+                    type="button"
+                    onClick={() => setActiveModal('providers')}
+                    className="text-[11.5px] text-accent hover:underline cursor-pointer"
+                  >
+                    去语音工坊调试/克隆音色
+                  </button>
+                </div>
+                <select
+                  value={editing.voiceProfileId || ''}
+                  onChange={(e) =>
+                    setEditing({ ...editing, voiceProfileId: e.target.value || undefined })
+                  }
+                  className="w-full px-3.5 py-2 rounded-xl bg-canvas border border-line text-[13px] text-ink outline-none focus:border-accent"
+                >
+                  <option value="">跟随全局默认语音设置</option>
+                  {voiceProfiles.map((vp) => (
+                    <option key={vp.id} value={vp.id}>
+                      {vp.name}（{vp.isCloned ? '克隆' : vp.engine === 'native' ? '原生' : 'API'}）
+                    </option>
+                  ))}
+                </select>
                 <input
                   value={editing.voiceName || ''}
                   onChange={(e) => setEditing({ ...editing, voiceName: e.target.value })}
-                  placeholder="例如：FunAudioLLM/CosyVoice2-0.5B:alex"
-                  className="w-full px-3.5 py-2 rounded-xl bg-canvas border border-line text-[13px] font-mono text-ink outline-none focus:border-accent"
+                  placeholder="或直接填自定义 API 音色 ID（优先级高于默认）"
+                  className="w-full mt-2 px-3 py-1.5 rounded-xl bg-canvas border border-line text-[12px] font-mono text-ink outline-none focus:border-accent"
                 />
               </div>
             </div>

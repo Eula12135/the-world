@@ -1,11 +1,14 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Download, ExternalLink, Loader2, Lock, RefreshCw, ShieldCheck, X } from 'lucide-react';
 import { useAppStore } from '../../store/useAppStore';
 import type { ThemeMode } from '../../types';
 import {
+  type ApkUpdateProgress,
   APP_VERSION,
+  canInAppAndroidUpdate,
   checkForAppUpdate,
   DEFAULT_UPDATE_SOURCE,
+  startInAppAndroidUpdate,
   type UpdateCheckResult,
 } from '../../services/updateChecker';
 import { openExternalUrl } from '../../utils/platform';
@@ -31,11 +34,25 @@ export const SettingsModal: React.FC = () => {
   const [checkingUpdate, setCheckingUpdate] = useState(false);
   const [checkResult, setCheckResult] = useState<UpdateCheckResult | null>(null);
   const [checkErr, setCheckErr] = useState<string | null>(null);
+  const [apkProgress, setApkProgress] = useState<ApkUpdateProgress | null>(null);
+  const apkCleanupRef = useRef<(() => void) | null>(null);
 
   const effectiveUpdateSource = (settings.updateRepo || '').trim() || DEFAULT_UPDATE_SOURCE;
 
   useEffect(() => {
-    if (activeModal !== 'settings') return;
+    return () => {
+      apkCleanupRef.current?.();
+      apkCleanupRef.current = null;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (activeModal !== 'settings') {
+      apkCleanupRef.current?.();
+      apkCleanupRef.current = null;
+      setApkProgress(null);
+      return;
+    }
     setCheckErr(null);
     if (window.theWorldDesktop?.isEncryptionAvailable) {
       window.theWorldDesktop
@@ -297,14 +314,61 @@ export const SettingsModal: React.FC = () => {
                         {checkResult.releaseNotes}
                       </div>
                     )}
-                    <div className="flex gap-2 pt-1">
-                      <button
-                        onClick={() => openExternalUrl(checkResult.downloadUrl)}
-                        className="flex items-center gap-1 px-3 py-1 rounded-lg bg-accent text-white cursor-pointer"
-                      >
-                        <Download className="w-3.5 h-3.5" />
-                        <span>下载新版安装包</span>
-                      </button>
+                    <div className="flex flex-wrap gap-2 pt-1">
+                      {canInAppAndroidUpdate() && checkResult.downloadUrl ? (
+                        <button
+                          disabled={apkProgress?.status === 'downloading'}
+                          onClick={() => {
+                            apkCleanupRef.current?.();
+                            setApkProgress({
+                              status: 'downloading',
+                              progress: 0,
+                              message: '正在连接下载服务器...',
+                            });
+                            apkCleanupRef.current = startInAppAndroidUpdate(
+                              checkResult.downloadUrl,
+                              (ev) => setApkProgress(ev)
+                            );
+                          }}
+                          className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-accent text-white font-medium cursor-pointer disabled:opacity-60"
+                        >
+                          {apkProgress?.status === 'downloading' ? (
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          ) : (
+                            <Download className="w-3.5 h-3.5" />
+                          )}
+                          <span>
+                            {apkProgress?.status === 'downloading'
+                              ? apkProgress.progress > 0
+                                ? `正在下载 ${apkProgress.progress}%`
+                                : '正在下载...'
+                              : apkProgress?.status === 'permission'
+                                ? '授权后自动继续安装'
+                                : apkProgress?.status === 'installing'
+                                  ? '正在拉起系统安装...'
+                                  : apkProgress?.status === 'error'
+                                    ? '重试 App 内更新'
+                                    : 'App 内一键下载并安装'}
+                          </span>
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => openExternalUrl(checkResult.downloadUrl)}
+                          className="flex items-center gap-1 px-3 py-1 rounded-lg bg-accent text-white cursor-pointer"
+                        >
+                          <Download className="w-3.5 h-3.5" />
+                          <span>下载新版安装包</span>
+                        </button>
+                      )}
+                      {canInAppAndroidUpdate() && checkResult.downloadUrl && (
+                        <button
+                          onClick={() => openExternalUrl(checkResult.downloadUrl)}
+                          className="flex items-center gap-1 px-3 py-1 rounded-lg border border-line text-secondary cursor-pointer"
+                        >
+                          <ExternalLink className="w-3.5 h-3.5" />
+                          <span>浏览器下载</span>
+                        </button>
+                      )}
                       <button
                         onClick={() => openExternalUrl(checkResult.releaseUrl)}
                         className="flex items-center gap-1 px-3 py-1 rounded-lg border border-line text-secondary cursor-pointer"
@@ -313,6 +377,27 @@ export const SettingsModal: React.FC = () => {
                         <span>查看详情</span>
                       </button>
                     </div>
+                    {apkProgress && (
+                      <div className="pt-1.5 space-y-1">
+                        {apkProgress.status !== 'error' && (
+                          <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
+                            <div
+                              className="h-full bg-accent transition-all duration-150"
+                              style={{
+                                width: `${Math.min(100, Math.max(4, apkProgress.progress))}%`,
+                              }}
+                            />
+                          </div>
+                        )}
+                        <div
+                          className={`text-[11.5px] ${
+                            apkProgress.status === 'error' ? 'text-red-500' : 'text-secondary'
+                          }`}
+                        >
+                          {apkProgress.message}
+                        </div>
+                      </div>
+                    )}
                   </>
                 ) : (
                   <div className="text-secondary">

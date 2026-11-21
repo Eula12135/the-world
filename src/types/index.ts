@@ -27,6 +27,7 @@ export interface PersonaPreset {
   avatarImage?: string;
   avatarColor: string;
   voiceName?: string;
+  voiceProfileId?: string;
   createdAt: number;
   updatedAt: number;
 }
@@ -49,16 +50,39 @@ export interface VoiceConfig {
   ttsAutoPlay: boolean;
   ttsEngine: TtsEngine;
   ttsRate: number;
+  ttsPitch: number;
+  ttsVolume: number;
+  ttsGain: number;
+  ttsStyleInstruction: string;
   ttsNativeVoice: string;
   ttsBaseUrl: string;
   ttsApiKey: string;
   ttsModel: string;
   ttsVoice: string;
+  activeVoiceProfileId?: string;
   sttEngine: SttEngine;
   sttBaseUrl: string;
   sttApiKey: string;
   sttModel: string;
   sttLanguage: string;
+}
+
+export interface VoiceProfile {
+  id: string;
+  name: string;
+  engine: TtsEngine;
+  baseUrl?: string;
+  model?: string;
+  voiceId: string;
+  rate: number;
+  pitch: number;
+  volume: number;
+  gain: number;
+  styleInstruction: string;
+  isCloned?: boolean;
+  sourceText?: string;
+  createdAt: number;
+  updatedAt: number;
 }
 
 export interface ChatSession {
@@ -123,6 +147,7 @@ export interface Character {
   avatarColor: string;
   avatarImage?: string;
   voiceName?: string;
+  voiceProfileId?: string;
   posX?: number;
   posY?: number;
   updatedAt: number;
@@ -239,9 +264,10 @@ declare global {
     theWorldDesktop?: DesktopBridge;
     TheWorldAndroid?: {
       setTheme: (isDark: boolean) => void;
-      speak?: (text: string, rate: number) => void;
+      speak?: (text: string, rate: number, pitch?: number) => void;
       stopSpeaking?: () => void;
       startNativeStt?: (lang: string) => void;
+      downloadAndInstallApk?: (apkUrl: string) => void;
     };
   }
 }

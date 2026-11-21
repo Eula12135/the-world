@@ -10,6 +10,7 @@ import type {
   ProviderConfig,
   TimelineEvent,
   VoiceConfig,
+  VoiceProfile,
   WorldProject,
 } from '../types';
 import { BUILTIN_PROVIDERS, DEFAULT_GLOBAL_SYSTEM_PROMPT } from '../data/providers';
@@ -30,6 +31,10 @@ export const DEFAULT_VOICE_CONFIG: VoiceConfig = {
   ttsAutoPlay: false,
   ttsEngine: 'native',
   ttsRate: 1,
+  ttsPitch: 1,
+  ttsVolume: 1,
+  ttsGain: 0,
+  ttsStyleInstruction: '',
   ttsNativeVoice: '',
   ttsBaseUrl: 'https://api.siliconflow.cn/v1',
   ttsApiKey: '',
@@ -67,6 +72,7 @@ export class TheWorldDatabase extends Dexie {
   relations!: Table<CharacterRelation, string>;
   timelineEvents!: Table<TimelineEvent, string>;
   personaPresets!: Table<PersonaPreset, string>;
+  voiceProfiles!: Table<VoiceProfile, string>;
   settings!: Table<AppSettings, string>;
 
   constructor() {
@@ -249,6 +255,31 @@ export class TheWorldDatabase extends Dexie {
               ...DEFAULT_IMAGE_GEN_CONFIG,
               ...((s.imageGen as Record<string, unknown>) || {}),
             };
+            s.voice = {
+              ...DEFAULT_VOICE_CONFIG,
+              ...((s.voice as Record<string, unknown>) || {}),
+            };
+          });
+      });
+
+    this.version(6)
+      .stores({
+        providers: 'id, enabled, isCustom',
+        sessions: 'id, updatedAt, pinned, worldId, sourceId',
+        messages: 'id, sessionId, createdAt, [sessionId+createdAt]',
+        worlds: 'id, updatedAt',
+        characters: 'id, worldId, updatedAt',
+        relations: 'id, worldId, sourceId, targetId',
+        timelineEvents: 'id, worldId, orderIndex',
+        personaPresets: 'id, updatedAt',
+        voiceProfiles: 'id, updatedAt',
+        settings: 'id',
+      })
+      .upgrade(async (tx) => {
+        await tx
+          .table('settings')
+          .toCollection()
+          .modify((s: Record<string, unknown>) => {
             s.voice = {
               ...DEFAULT_VOICE_CONFIG,
               ...((s.voice as Record<string, unknown>) || {}),

@@ -14,6 +14,7 @@ import type {
   PersonaPreset,
   ProviderConfig,
   TimelineEvent,
+  VoiceProfile,
   WorldProject,
 } from '../types';
 import { sortEventsChronologically } from './temporalGraph';
@@ -124,6 +125,7 @@ export async function exportFullBackupJson(includeApiKeys: boolean): Promise<str
     relations,
     timelineEvents,
     personaPresets,
+    voiceProfiles,
     settings,
   ] = await Promise.all([
     loadProvidersDecrypted(),
@@ -134,6 +136,7 @@ export async function exportFullBackupJson(includeApiKeys: boolean): Promise<str
     db.relations.toArray(),
     db.timelineEvents.toArray(),
     db.personaPresets.toArray(),
+    db.voiceProfiles.toArray(),
     loadSettingsDecrypted(),
   ]);
 
@@ -153,7 +156,7 @@ export async function exportFullBackupJson(includeApiKeys: boolean): Promise<str
   return JSON.stringify(
     {
       app: 'the-world',
-      backupVersion: 4,
+      backupVersion: 5,
       exportedAt: new Date().toISOString(),
       includesApiKeys: includeApiKeys,
       data: {
@@ -165,6 +168,7 @@ export async function exportFullBackupJson(includeApiKeys: boolean): Promise<str
         relations,
         timelineEvents,
         personaPresets,
+        voiceProfiles,
         settings: sanitizedSettings,
       },
     },
@@ -207,6 +211,7 @@ export async function importFullBackupJson(rawText: string): Promise<{
       db.relations,
       db.timelineEvents,
       db.personaPresets,
+      db.voiceProfiles,
     ],
     async () => {
       if (Array.isArray(d.sessions)) await db.sessions.bulkPut(d.sessions);
@@ -236,6 +241,9 @@ export async function importFullBackupJson(rawText: string): Promise<{
       if (Array.isArray(d.timelineEvents)) await db.timelineEvents.bulkPut(d.timelineEvents);
       if (Array.isArray(d.personaPresets)) {
         await db.personaPresets.bulkPut(d.personaPresets as PersonaPreset[]);
+      }
+      if (Array.isArray(d.voiceProfiles)) {
+        await db.voiceProfiles.bulkPut(d.voiceProfiles as VoiceProfile[]);
       }
     }
   );

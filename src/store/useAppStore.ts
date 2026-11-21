@@ -22,6 +22,7 @@ import type {
   PersonaPreset,
   ProviderConfig,
   TimelineEvent,
+  VoiceProfile,
   WorldProject,
 } from '../types';
 import { buildSessionSystemPrompt } from '../services/contextBuilder';
@@ -80,6 +81,7 @@ interface AppState {
 
   settings: AppSettings;
   personaPresets: PersonaPreset[];
+  voiceProfiles: VoiceProfile[];
   updateNotice: UpdateCheckResult | null;
 
   isStreaming: boolean;
@@ -106,6 +108,8 @@ interface AppState {
   deleteProvider: (id: string) => Promise<void>;
   upsertPersonaPreset: (preset: PersonaPreset) => Promise<void>;
   deletePersonaPreset: (id: string) => Promise<void>;
+  upsertVoiceProfile: (profile: VoiceProfile) => Promise<void>;
+  deleteVoiceProfile: (id: string) => Promise<void>;
 
   // Sessions & Chat
   selectSession: (sessionId: string) => Promise<void>;
@@ -206,6 +210,7 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   settings: DEFAULT_SETTINGS,
   personaPresets: [],
+  voiceProfiles: [],
   updateNotice: null,
 
   isStreaming: false,
@@ -224,15 +229,23 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   reloadAll: async () => {
-    const [providers, sessions, worlds, resolvedSettings, personaPresets, worldData] =
-      await Promise.all([
-        loadProvidersDecrypted(),
-        db.sessions.orderBy('updatedAt').reverse().toArray(),
-        db.worlds.orderBy('updatedAt').reverse().toArray(),
-        loadSettingsDecrypted(),
-        db.personaPresets.orderBy('updatedAt').reverse().toArray(),
-        loadWorldChildren(null),
-      ]);
+    const [
+      providers,
+      sessions,
+      worlds,
+      resolvedSettings,
+      personaPresets,
+      voiceProfiles,
+      worldData,
+    ] = await Promise.all([
+      loadProvidersDecrypted(),
+      db.sessions.orderBy('updatedAt').reverse().toArray(),
+      db.worlds.orderBy('updatedAt').reverse().toArray(),
+      loadSettingsDecrypted(),
+      db.personaPresets.orderBy('updatedAt').reverse().toArray(),
+      db.voiceProfiles.orderBy('updatedAt').reverse().toArray(),
+      loadWorldChildren(null),
+    ]);
 
     const currentSessionId = get().activeSessionId;
     const nextSessionId =
@@ -261,6 +274,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       ...worldData,
       settings: resolvedSettings,
       personaPresets,
+      voiceProfiles,
     });
   },
 
@@ -302,6 +316,39 @@ export const useAppStore = create<AppState>((set, get) => ({
     await db.personaPresets.delete(id);
     const personaPresets = await db.personaPresets.orderBy('updatedAt').reverse().toArray();
     set({ personaPresets });
+  },
+
+  upsertVoiceProfile: async (profile) => {
+    await db.voiceProfiles.put(profile);
+    const voiceProfiles = await db.voiceProfiles.orderBy('updatedAt').reverse().toArray();
+    set({ voiceProfiles });
+  },
+
+  deleteVoiceProfile: async (id) => {
+    await db.transaction(
+      'rw',
+      [db.voiceProfiles, db.characters, db.personaPresets],
+      async () => {
+        await db.voiceProfiles.delete(id);
+        await db.characters.toCollection().modify((c) => {
+          if (c.voiceProfileId === id) c.voiceProfileId = undefined;
+        });
+        await db.personaPresets.toCollection().modify((p) => {
+          if (p.voiceProfileId === id) p.voiceProfileId = undefined;
+        });
+      }
+    );
+    const [voiceProfiles, characters, personaPresets] = await Promise.all([
+      db.voiceProfiles.orderBy('updatedAt').reverse().toArray(),
+      db.characters.toArray(),
+      db.personaPresets.orderBy('updatedAt').reverse().toArray(),
+    ]);
+    set({ voiceProfiles, characters, personaPresets });
+    if (get().settings.voice.activeVoiceProfileId === id) {
+      await get().updateSettings({
+        voice: { ...get().settings.voice, activeVoiceProfileId: undefined },
+      });
+    }
   },
 
   selectSession: async (sessionId) => {
@@ -576,12 +623,20 @@ export const useAppStore = create<AppState>((set, get) => ({
             const preset = latestSess?.personaPresetId
               ? get().personaPresets.find((p) => p.id === latestSess.personaPresetId)
               : undefined;
+            const voiceProfileId =
+              roleChar?.voiceProfileId ||
+              preset?.voiceProfileId ||
+              currentSettings.voice.activeVoiceProfileId;
+            const voiceProfile = voiceProfileId
+              ? get().voiceProfiles.find((vp) => vp.id === voiceProfileId)
+              : undefined;
             const voiceOverride = roleChar?.voiceName || preset?.voiceName;
             set({ speakingMessageId: finalMsg.id });
             speakText({
               text: content,
               config: currentSettings.voice,
               providers: get().providers,
+              profile: voiceProfile,
               voiceOverride,
               onEnd: () => {
                 if (get().speakingMessageId === finalMsg.id) {

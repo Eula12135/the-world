@@ -3,7 +3,7 @@ import { isAndroidNative } from '../utils/platform';
 
 // 构建时由 vite.config.ts 的 define 注入 package.json 的 version；脱离构建环境时回退
 export const APP_VERSION: string =
-  typeof __APP_VERSION__ === 'string' && __APP_VERSION__ ? __APP_VERSION__ : '0.3.0';
+  typeof __APP_VERSION__ === 'string' && __APP_VERSION__ ? __APP_VERSION__ : '0.3.4';
 
 export const DEFAULT_UPDATE_SOURCE: string =
   (typeof import.meta !== 'undefined' &&
@@ -210,3 +210,60 @@ export async function checkForAppUpdate(
 }
 
 export const checkGithubReleaseUpdate = checkForAppUpdate;
+
+export interface ApkUpdateProgress {
+  status: 'downloading' | 'permission' | 'installing' | 'error';
+  progress: number;
+  message?: string;
+}
+
+export function canInAppAndroidUpdate(): boolean {
+  return (
+    typeof window !== 'undefined' &&
+    typeof window.TheWorldAndroid?.downloadAndInstallApk === 'function'
+  );
+}
+
+export function startInAppAndroidUpdate(
+  apkUrl: string,
+  onProgress: (ev: ApkUpdateProgress) => void
+): () => void {
+  if (!canInAppAndroidUpdate()) {
+    onProgress({
+      status: 'error',
+      progress: 0,
+      message: '当前版本或运行环境不支持 App 内自动更新，请使用外部浏览器下载安装包',
+    });
+    return () => {};
+  }
+
+  let active = true;
+  const cleanup = () => {
+    if (!active) return;
+    active = false;
+    window.removeEventListener('theworld-apk-update', handler);
+  };
+
+  const handler = (ev: Event) => {
+    const detail = (ev as CustomEvent<ApkUpdateProgress>).detail;
+    if (!detail) return;
+    onProgress(detail);
+    if (detail.status === 'installing' || detail.status === 'error') {
+      cleanup();
+    }
+  };
+
+  window.addEventListener('theworld-apk-update', handler);
+  try {
+    window.TheWorldAndroid!.downloadAndInstallApk!(apkUrl);
+  } catch (err) {
+    cleanup();
+    onProgress({
+      status: 'error',
+      progress: 0,
+      message: err instanceof Error ? err.message : '启动 App 内更新失败',
+    });
+  }
+
+  return cleanup;
+}

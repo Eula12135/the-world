@@ -1,7 +1,8 @@
-import type { ProviderConfig, VoiceConfig } from '../types';
+import type { ProviderConfig, VoiceConfig, VoiceProfile } from '../types';
 import {
   base64ToUint8Array,
   crossPlatformFetchBinary,
+  crossPlatformFetchJson,
   crossPlatformUploadMultipart,
   uint8ArrayToBase64,
 } from './llm';
@@ -13,8 +14,10 @@ export interface TtsPreset {
   description: string;
   baseUrl: string;
   model: string;
+  models?: string[];
   defaultVoice: string;
   consoleUrl: string;
+  supportsVoiceDesign?: boolean;
 }
 
 export interface SttPreset {
@@ -26,33 +29,84 @@ export interface SttPreset {
   consoleUrl: string;
 }
 
+export interface RemoteClonedVoice {
+  model: string;
+  customName: string;
+  text: string;
+  uri: string;
+}
+
 export const TTS_PRESETS: TtsPreset[] = [
   {
+    id: 'breeze',
+    name: 'Breeze TTS 2（一句话捏音色）',
+    description: '支持中文自然语言描述音色表演指令，以及使用账号内已克隆音色',
+    baseUrl: 'https://api.breeze.blue',
+    model: 'breeze-tts-2',
+    defaultVoice: '',
+    consoleUrl: 'https://docs.breezeblue.ai/',
+    supportsVoiceDesign: true,
+  },
+  {
     id: 'siliconflow_tts',
-    name: '硅基流动 CosyVoice2 / FishSpeech',
-    description: '高性价比中文拟真语音合成，可留空 Key 自动复用同域名配置',
+    name: '硅基流动（CosyVoice2 / IndexTTS）',
+    description: '高性价比中文语音、情绪控制与音色克隆，可自动复用文本 Key',
     baseUrl: 'https://api.siliconflow.cn/v1',
     model: 'FunAudioLLM/CosyVoice2-0.5B',
+    models: [
+      'FunAudioLLM/CosyVoice2-0.5B',
+      'IndexTeam/IndexTTS-2',
+      'fishaudio/fish-speech-1.5',
+    ],
     defaultVoice: 'FunAudioLLM/CosyVoice2-0.5B:alex',
     consoleUrl: 'https://cloud.siliconflow.cn/account/ak',
+    supportsVoiceDesign: true,
+  },
+  {
+    id: 'fish_audio',
+    name: 'Fish Audio',
+    description: '海量社区与二次元音色库，支持中英日多语种高质量合成',
+    baseUrl: 'https://api.fish.audio/v1',
+    model: 'speech-1.6',
+    defaultVoice: 'default',
+    consoleUrl: 'https://fish.audio/app/api-keys/',
+  },
+  {
+    id: 'minimax_tts',
+    name: 'MiniMax 海螺语音',
+    description: '中文长文本演绎与有声小说角色感极强',
+    baseUrl: 'https://api.minimaxi.com/v1',
+    model: 'speech-02-hd',
+    defaultVoice: 'male-qn-qingse',
+    consoleUrl: 'https://platform.minimaxi.com/user-center/basic-information/interface-key',
+  },
+  {
+    id: 'elevenlabs_tts',
+    name: 'ElevenLabs',
+    description: '影视级多语种人声演绎（兼容 OpenAI 协议）',
+    baseUrl: 'https://api.elevenlabs.io/v1',
+    model: 'eleven_multilingual_v2',
+    defaultVoice: 'Rachel',
+    consoleUrl: 'https://elevenlabs.io/app/settings/api-keys',
+  },
+  {
+    id: 'dashscope_tts',
+    name: '阿里云百炼 CosyVoice',
+    description: '阿里云托管版通义 CosyVoice 语音合成，可复用百炼 Key',
+    baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+    model: 'cosyvoice-v2',
+    defaultVoice: 'longxiaochun_v2',
+    consoleUrl: 'https://bailian.console.aliyun.com/?apiKey=1',
   },
   {
     id: 'openai_tts',
-    name: 'OpenAI TTS (gpt-4o-mini-tts)',
-    description: 'OpenAI 官方语音合成接口',
+    name: 'OpenAI TTS',
+    description: '官方 gpt-4o-mini-tts，支持自然语言语气指导',
     baseUrl: 'https://api.openai.com/v1',
     model: 'gpt-4o-mini-tts',
     defaultVoice: 'alloy',
     consoleUrl: 'https://platform.openai.com/api-keys',
-  },
-  {
-    id: 'local_tts',
-    name: '本地自建开源 TTS（Kokoro / GPT-SoVITS / ChatTTS）',
-    description: '完全离线免费运行的高拟真本地语音 API（OpenAI /v1/audio/speech 兼容）',
-    baseUrl: 'http://127.0.0.1:8880/v1',
-    model: 'kokoro',
-    defaultVoice: 'zf_xiaoxiao',
-    consoleUrl: '',
+    supportsVoiceDesign: true,
   },
 ];
 
@@ -129,6 +183,220 @@ export function splitSpeechChunks(text: string, maxLen = 220): string[] {
   return chunks;
 }
 
+export function resolveEffectiveVoiceConfig(
+  baseConfig: VoiceConfig,
+  profile?: VoiceProfile | null
+): VoiceConfig {
+  if (!profile) return baseConfig;
+  return {
+    ...baseConfig,
+    ttsEngine: profile.engine,
+    ttsRate: profile.rate,
+    ttsPitch: profile.pitch,
+    ttsVolume: profile.volume,
+    ttsGain: profile.gain,
+    ttsStyleInstruction: profile.styleInstruction,
+    ttsBaseUrl: profile.baseUrl?.trim() || baseConfig.ttsBaseUrl,
+    ttsModel: profile.model?.trim() || baseConfig.ttsModel,
+    ttsNativeVoice:
+      profile.engine === 'native' && profile.voiceId ? profile.voiceId : baseConfig.ttsNativeVoice,
+    ttsVoice:
+      profile.engine === 'openai_api'
+        ? profile.voiceId ||
+          (isBreezeCloudBase(profile.baseUrl?.trim() || baseConfig.ttsBaseUrl) ? '' : baseConfig.ttsVoice)
+        : baseConfig.ttsVoice,
+  };
+}
+
+export interface BreezeVoiceItem {
+  voiceId: string;
+  name: string;
+  category?: string;
+}
+
+export function isBreezeCloudBase(baseUrl: string): boolean {
+  return /api\.breeze\.blue|breezeblue\.ai/i.test(baseUrl.trim());
+}
+
+export function normalizeBreezeBaseUrl(baseUrl: string): string {
+  const trimmed = baseUrl.trim().replace(/\/+$/, '').replace(/\/v1$/i, '');
+  if (!trimmed || /breezeblue\.ai/i.test(trimmed)) {
+    return 'https://api.breeze.blue';
+  }
+  return trimmed;
+}
+
+export function buildBreezeTtsPayload(params: {
+  text: string;
+  model?: string;
+  instructions?: string;
+  guidanceScale?: number;
+  languageCode?: string;
+}): Record<string, unknown> {
+  const rawModel = params.model?.trim() || '';
+  const normalizedModel =
+    !rawModel || /^breezeblue\/breeze-tts-2$/i.test(rawModel) ? 'breeze-tts-2' : rawModel;
+  const trimmedInstructions = (params.instructions || '').trim();
+
+  // Breeze 云端接口对请求体采用严格 5 字段白名单，多余字段会触发 HTTP 422。
+  // guidance_scale 默认取 1.0：部分实现按 >= 1 校验（0.6 会直接 422），
+  // 而按 (0,1] 校验的实现中 1.0 同样是合法上界，两边都安全。
+  const payload: Record<string, unknown> = {
+    text: params.text.slice(0, 4000),
+    model_id: normalizedModel,
+    language_code: params.languageCode || 'zh',
+    voice_settings: {
+      guidance_scale: params.guidanceScale ?? 1.0,
+    },
+  };
+
+  if (trimmedInstructions) {
+    payload.instructions = trimmedInstructions;
+  }
+
+  return payload;
+}
+
+export async function listBreezeVoices(params: {
+  baseUrl: string;
+  apiKey: string;
+  providers: ProviderConfig[];
+}): Promise<BreezeVoiceItem[]> {
+  const breezeBase = normalizeBreezeBaseUrl(params.baseUrl);
+  const apiKey =
+    resolveReusableApiKey(breezeBase, params.apiKey, params.providers) ||
+    resolveReusableApiKey(params.baseUrl.trim().replace(/\/+$/, ''), params.apiKey, params.providers);
+  if (!apiKey) {
+    throw new Error('请先填写 Breeze API Key');
+  }
+
+  const resp = await crossPlatformFetchJson({
+    url: `${breezeBase}/v1/voices`,
+    method: 'GET',
+    headers: { 'xi-api-key': apiKey },
+  });
+
+  if (!resp.ok) {
+    let detail = '';
+    try {
+      const errObj = JSON.parse(resp.text);
+      detail = String(errObj?.detail || errObj?.message || errObj?.error?.message || '');
+    } catch {
+      detail = resp.text.slice(0, 140);
+    }
+    throw new Error(
+      `获取 Breeze 音色列表失败 (HTTP ${resp.status})${detail ? `: ${detail}` : ''}`
+    );
+  }
+
+  const parsed = JSON.parse(resp.text);
+  const rows: Array<Record<string, unknown>> = Array.isArray(parsed?.voices)
+    ? parsed.voices
+    : Array.isArray(parsed)
+      ? parsed
+      : Array.isArray(parsed?.data)
+        ? parsed.data
+        : [];
+
+  return rows
+    .filter((v) => Boolean(v && (v.voice_id || v.id)))
+    .map((v) => {
+      const voiceId = String(v.voice_id || v.id).trim();
+      return {
+        voiceId,
+        name: String(v.name || voiceId),
+        category: v.category ? String(v.category) : undefined,
+      };
+    });
+}
+
+export function buildTtsSpeechPayload(params: {
+  model: string;
+  text: string;
+  voice: string;
+  rate: number;
+  gain: number;
+  styleInstruction?: string;
+}): Record<string, unknown> {
+  const { model, text, voice, rate, gain, styleInstruction } = params;
+  const trimmedInstruction = (styleInstruction || '').trim();
+  const isBreeze = /breeze/i.test(model);
+  const isCosyVoice = !isBreeze && /cosyvoice/i.test(model);
+  const isOpenAiMiniTts = /gpt-4o-mini-tts/i.test(model);
+
+  const finalInput =
+    isCosyVoice && trimmedInstruction
+      ? `${trimmedInstruction} <|endofprompt|>${text.slice(0, 3800)}`
+      : text.slice(0, 4000);
+
+  const payload: Record<string, unknown> = {
+    model,
+    input: finalInput,
+    response_format: isBreeze ? 'wav' : 'mp3',
+    // 语速下限锁到 1.0：不少兼容网关对 speed 做 ge=1 校验，发 0.5 会直接 422。
+    // 慢速改由播放端 playbackRate 实现（见 speakText），听感更自然且不改变音高。
+    speed: Math.max(1, Math.min(4.0, Number(rate) || 1)),
+  };
+
+  if (voice.trim()) {
+    payload.voice = voice.trim();
+  } else if (!isBreeze) {
+    payload.voice = 'alloy';
+  }
+
+  if (isBreeze && trimmedInstruction) {
+    payload.instructions = trimmedInstruction;
+    payload.extra_params = { guidance_scale: 4.0 };
+  }
+
+  if (isCosyVoice) {
+    payload.gain = Math.max(-10, Math.min(10, Number(gain) || 0));
+  }
+  if (isOpenAiMiniTts && trimmedInstruction) {
+    payload.instructions = trimmedInstruction;
+  }
+
+  return payload;
+}
+
+/**
+ * 把上游返回的 JSON 错误体压成一句人话。
+ * 422 通常是「参数取值越界」（例如 speed / guidance_scale 要求 >= 1），
+ * 原文只是一串 JSON，直接丢给用户只会更困惑。
+ */
+export function formatTtsHttpError(status: number, errorText: string): string {
+  const pick = (v: unknown): string => (typeof v === 'string' ? v.trim() : '');
+  let detail = '';
+  try {
+    const parsed = JSON.parse(errorText);
+    detail =
+      pick(parsed?.detail) ||
+      pick(parsed?.error?.message) ||
+      pick(parsed?.error) ||
+      pick(parsed?.message);
+  } catch {
+    detail = errorText.trim().slice(0, 160);
+  }
+
+  const head = `TTS 接口失败 (HTTP ${status})${detail ? `：${detail}` : ''}`;
+  if (status === 422) {
+    return `${head}\n\n服务端判定参数不合法。请先把语速调回 1.00x、清空音色描述再试一次；若仍然 422，说明该接口不支持当前「模型 + 参数」组合，建议换用硅基流动或 OpenAI 官方语音接口。`;
+  }
+  if (status === 401 || status === 403) {
+    return `${head}\n\n鉴权失败：请检查「模型 → 语音」里的 TTS API Key 是否正确、是否已过期。`;
+  }
+  return head;
+}
+
+export function sanitizeCloneCustomName(rawName: string): string {
+  const asciiOnly = rawName
+    .trim()
+    .replace(/[^a-zA-Z0-9_-]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .slice(0, 48);
+  return asciiOnly || `voice_${Date.now().toString(36)}`;
+}
+
 export function listNativeVoices(): SpeechSynthesisVoice[] {
   if (typeof window === 'undefined' || !('speechSynthesis' in window)) return [];
   try {
@@ -177,11 +445,13 @@ export async function speakText(params: {
   text: string;
   config: VoiceConfig;
   providers: ProviderConfig[];
+  profile?: VoiceProfile | null;
   voiceOverride?: string;
   onEnd?: () => void;
   onError?: (msg: string) => void;
 }): Promise<void> {
-  const { text, config, providers, voiceOverride, onEnd, onError } = params;
+  const { text, config, providers, profile, voiceOverride, onEnd, onError } = params;
+  const effective = resolveEffectiveVoiceConfig(config, profile);
   const cleanText = stripMarkdownForSpeech(text);
   if (!cleanText) {
     onEnd?.();
@@ -190,12 +460,13 @@ export async function speakText(params: {
 
   stopSpeaking();
   const token = ++speechGenerationId;
-  const rate = Math.max(0.5, Math.min(2.0, config.ttsRate || 1));
+  const rate = Math.max(0.5, Math.min(2.0, effective.ttsRate || 1));
+  const pitch = Math.max(0.5, Math.min(2.0, effective.ttsPitch || 1));
+  const volume = Math.max(0.1, Math.min(1.0, effective.ttsVolume ?? 1));
 
-  if (config.ttsEngine === 'native') {
+  if (effective.ttsEngine === 'native') {
     if (typeof window !== 'undefined' && window.TheWorldAndroid?.speak) {
-      window.TheWorldAndroid.speak(cleanText.slice(0, 3800), rate);
-      // Native TextToSpeech handles playback asynchronously on device
+      window.TheWorldAndroid.speak(cleanText.slice(0, 3800), rate, pitch);
       onEnd?.();
       return;
     }
@@ -203,7 +474,7 @@ export async function speakText(params: {
     if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
       const chunks = splitSpeechChunks(cleanText, 220);
       const voices = listNativeVoices();
-      const targetVoiceName = voiceOverride || config.ttsNativeVoice;
+      const targetVoiceName = voiceOverride || effective.ttsNativeVoice;
       const chosenVoice =
         (targetVoiceName && voices.find((v) => v.name === targetVoiceName)) ||
         voices.find((v) => v.lang.toLowerCase().startsWith('zh')) ||
@@ -219,6 +490,8 @@ export async function speakText(params: {
         const utter = new SpeechSynthesisUtterance(chunks[idx++]);
         utter.lang = chosenVoice?.lang || 'zh-CN';
         utter.rate = rate;
+        utter.pitch = pitch;
+        utter.volume = volume;
         if (chosenVoice) utter.voice = chosenVoice;
         utter.onend = () => speakNext();
         utter.onerror = () => {
@@ -236,49 +509,107 @@ export async function speakText(params: {
     return;
   }
 
-  // OpenAI-compatible TTS API
-  const cleanBase = config.ttsBaseUrl.trim().replace(/\/+$/, '');
-  const model = config.ttsModel.trim();
-  const voice = (voiceOverride || config.ttsVoice || '').trim() || 'alloy';
+  const cleanBase = effective.ttsBaseUrl.trim().replace(/\/+$/, '');
+  const isBreezeCloud = isBreezeCloudBase(cleanBase);
+  const model = effective.ttsModel.trim() || (isBreezeCloud ? 'breeze-tts-2' : '');
+  const isBreeze = /breeze/i.test(model) || isBreezeCloud;
   if (!cleanBase || !model) {
     onError?.('请先配置 TTS API 的 Base URL 与模型名称');
     return;
   }
 
-  const apiKey = resolveReusableApiKey(cleanBase, config.ttsApiKey, providers);
+  const breezeBase = isBreezeCloud ? normalizeBreezeBaseUrl(cleanBase) : cleanBase;
+  const apiKey =
+    resolveReusableApiKey(breezeBase, effective.ttsApiKey, providers) ||
+    resolveReusableApiKey(cleanBase, effective.ttsApiKey, providers);
   if (!apiKey && !isLocalEndpointUrl(cleanBase)) {
     onError?.('请先在「模型 → 语音」配置 TTS API Key');
     return;
   }
 
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-  if (apiKey) headers.Authorization = `Bearer ${apiKey}`;
-
   try {
-    const bin = await crossPlatformFetchBinary({
-      url: `${cleanBase}/audio/speech`,
-      method: 'POST',
-      headers,
-      body: JSON.stringify({
+    let bin: {
+      ok: boolean;
+      status: number;
+      contentType: string;
+      base64: string;
+      errorText: string;
+    };
+
+    if (isBreezeCloud) {
+      let voiceId = (voiceOverride || effective.ttsVoice || '').trim();
+      if (!voiceId) {
+        const voices = await listBreezeVoices({
+          baseUrl: breezeBase,
+          apiKey,
+          providers,
+        });
+        if (token !== speechGenerationId) return;
+        if (voices.length === 0) {
+          onError?.('Breeze 账号下暂无可用音色，请先在 Breeze 控制台创建音色或点击同步音色');
+          return;
+        }
+        voiceId = voices[0].voiceId;
+      }
+      const breezePayload = buildBreezeTtsPayload({
+        text: cleanText,
         model,
-        input: cleanText.slice(0, 4000),
+        instructions: effective.ttsStyleInstruction,
+      });
+      bin = await crossPlatformFetchBinary({
+        url: `${breezeBase}/v1/text-to-speech/${encodeURIComponent(voiceId)}?output_format=mp3_44100_128`,
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'xi-api-key': apiKey,
+        },
+        body: JSON.stringify(breezePayload),
+      });
+    } else {
+      const voice = (voiceOverride || effective.ttsVoice || '').trim() || (isBreeze ? '' : 'alloy');
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (apiKey) headers.Authorization = `Bearer ${apiKey}`;
+
+      const payload = buildTtsSpeechPayload({
+        model,
+        text: cleanText,
         voice,
-        response_format: 'mp3',
-        speed: rate,
-      }),
-    });
+        rate,
+        gain: effective.ttsGain ?? 0,
+        styleInstruction: effective.ttsStyleInstruction,
+      });
+
+      bin = await crossPlatformFetchBinary({
+        url: `${cleanBase}/audio/speech`,
+        method: 'POST',
+        headers,
+        body: JSON.stringify(payload),
+      });
+    }
 
     if (token !== speechGenerationId) return;
     if (!bin.ok || !bin.base64) {
-      onError?.(`TTS 接口失败 (HTTP ${bin.status})${bin.errorText ? `: ${bin.errorText.slice(0, 100)}` : ''}`);
+      onError?.(formatTtsHttpError(bin.status, bin.errorText));
       return;
     }
 
     const bytes = base64ToUint8Array(bin.base64);
-    const mime = bin.contentType?.startsWith('audio/') ? bin.contentType : 'audio/mpeg';
+    const mime = bin.contentType?.startsWith('audio/')
+      ? bin.contentType
+      : !isBreezeCloud && isBreeze
+        ? 'audio/wav'
+        : 'audio/mpeg';
     const blob = new Blob([bytes.buffer as ArrayBuffer], { type: mime });
     activeAudioUrl = URL.createObjectURL(blob);
     activeAudio = new Audio(activeAudioUrl);
+    activeAudio.volume = volume;
+    // 语速补偿：只有「非 Breeze 云端 且 rate >= 1」时服务端才真的按用户语速合成。
+    // 其余情况（rate < 1 会被 ge=1 校验挡下；Breeze 云端根本没有 speed 字段）
+    // 改在播放端用 playbackRate 减速/加速——它只拉伸时间轴、保持音高，更适合人声。
+    const speedHandledByServer = !isBreezeCloud && rate >= 1;
+    if (!speedHandledByServer && Math.abs(rate - 1) > 0.001) {
+      activeAudio.playbackRate = rate;
+    }
     activeAudio.onended = () => {
       if (token === speechGenerationId) {
         stopSpeaking();
@@ -297,6 +628,141 @@ export async function speakText(params: {
       onError?.(err instanceof Error ? err.message : 'TTS 合成失败');
     }
   }
+}
+
+export async function audioBlobToDataUrl(blob: Blob): Promise<string> {
+  const bytes = new Uint8Array(await blob.arrayBuffer());
+  const mime = blob.type || 'audio/mpeg';
+  return `data:${mime};base64,${uint8ArrayToBase64(bytes)}`;
+}
+
+export async function uploadClonedVoice(params: {
+  baseUrl: string;
+  apiKey: string;
+  providers: ProviderConfig[];
+  model: string;
+  customName: string;
+  text: string;
+  audioDataUrl: string;
+}): Promise<{ uri: string }> {
+  const cleanBase = params.baseUrl.trim().replace(/\/+$/, '');
+  const apiKey = resolveReusableApiKey(cleanBase, params.apiKey, params.providers);
+  if (!cleanBase) throw new Error('请先填写 TTS Base URL');
+  if (!apiKey && !isLocalEndpointUrl(cleanBase)) {
+    throw new Error('请先填写 TTS API Key（或配置同域名文本厂商 Key 自动复用）');
+  }
+  if (!params.text.trim()) {
+    throw new Error('请填写参考音频里说话的准确文字内容');
+  }
+  if (!params.audioDataUrl.startsWith('data:')) {
+    throw new Error('参考音频格式无效');
+  }
+
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (apiKey) headers.Authorization = `Bearer ${apiKey}`;
+
+  const resp = await crossPlatformFetchJson({
+    url: `${cleanBase}/uploads/audio/voice`,
+    method: 'POST',
+    headers,
+    body: JSON.stringify({
+      model: params.model.trim() || 'FunAudioLLM/CosyVoice2-0.5B',
+      customName: sanitizeCloneCustomName(params.customName),
+      text: params.text.trim(),
+      audio: params.audioDataUrl,
+    }),
+  });
+
+  if (!resp.ok) {
+    let msg = `音色克隆上传失败 (HTTP ${resp.status})`;
+    try {
+      const errObj = JSON.parse(resp.text);
+      if (errObj?.message) msg = errObj.message;
+      else if (errObj?.error?.message) msg = errObj.error.message;
+    } catch {
+      if (resp.text) msg = `${msg}: ${resp.text.slice(0, 140)}`;
+    }
+    throw new Error(msg);
+  }
+
+  const parsed = JSON.parse(resp.text);
+  const uri = String(parsed?.uri || '').trim();
+  if (!uri) {
+    throw new Error('接口成功返回但未包含音色 uri');
+  }
+  return { uri };
+}
+
+export async function listRemoteClonedVoices(params: {
+  baseUrl: string;
+  apiKey: string;
+  providers: ProviderConfig[];
+}): Promise<RemoteClonedVoice[]> {
+  const cleanBase = params.baseUrl.trim().replace(/\/+$/, '');
+  if (!cleanBase) throw new Error('请先填写 TTS Base URL');
+
+  if (isBreezeCloudBase(cleanBase)) {
+    const voices = await listBreezeVoices(params);
+    return voices.map((v) => ({
+      model: 'breeze-tts-2',
+      customName: v.name,
+      text: v.category || 'Breeze 音色',
+      uri: v.voiceId,
+    }));
+  }
+
+  const apiKey = resolveReusableApiKey(cleanBase, params.apiKey, params.providers);
+  if (!apiKey && !isLocalEndpointUrl(cleanBase)) {
+    throw new Error('请先填写 TTS API Key');
+  }
+
+  const headers: Record<string, string> = {};
+  if (apiKey) headers.Authorization = `Bearer ${apiKey}`;
+
+  const resp = await crossPlatformFetchJson({
+    url: `${cleanBase}/audio/voice/list`,
+    method: 'GET',
+    headers,
+  });
+
+  if (!resp.ok) {
+    throw new Error(`同步账号克隆音色列表失败 (HTTP ${resp.status})`);
+  }
+  const parsed = JSON.parse(resp.text);
+  const rows = Array.isArray(parsed?.results)
+    ? parsed.results
+    : Array.isArray(parsed?.result)
+      ? parsed.result
+      : [];
+  return rows
+    .filter((r: Record<string, unknown>) => Boolean(r && r.uri))
+    .map((r: Record<string, unknown>) => ({
+      model: String(r.model || ''),
+      customName: String(r.customName || r.uri),
+      text: String(r.text || ''),
+      uri: String(r.uri),
+    }));
+}
+
+export async function deleteRemoteClonedVoice(params: {
+  baseUrl: string;
+  apiKey: string;
+  providers: ProviderConfig[];
+  uri: string;
+}): Promise<void> {
+  const cleanBase = params.baseUrl.trim().replace(/\/+$/, '');
+  const apiKey = resolveReusableApiKey(cleanBase, params.apiKey, params.providers);
+  if (!cleanBase || (!apiKey && !isLocalEndpointUrl(cleanBase))) return;
+
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (apiKey) headers.Authorization = `Bearer ${apiKey}`;
+
+  await crossPlatformFetchJson({
+    url: `${cleanBase}/audio/voice/deletions`,
+    method: 'POST',
+    headers,
+    body: JSON.stringify({ uri: params.uri }),
+  });
 }
 
 export interface VoiceCaptureHandle {
@@ -415,7 +881,6 @@ export function startVoiceCapture(params: {
     };
   }
 
-  // OpenAI-compatible /audio/transcriptions via MediaRecorder
   const cleanBase = config.sttBaseUrl.trim().replace(/\/+$/, '');
   const model = config.sttModel.trim();
   const apiKey = resolveReusableApiKey(cleanBase, config.sttApiKey, providers);

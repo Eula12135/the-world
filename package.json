@@ -1,6 +1,6 @@
 {
   "name": "the-world",
-  "version": "0.3.0",
+  "version": "0.3.4",
   "description": "Local-first, BYOK open-source AI chat & novel worldbuilding studio for Desktop (Electron) and Android (Capacitor).",
   "private": false,
   "license": "MIT",
