@@ -25,7 +25,9 @@ GET https://api.github.com/repos/Eula12135/the-world/releases/latest
 
 ## 1. 升版本号
 
-只改 `package.json` 里的 `version` 一处，例如 `0.3.4` → `0.3.5`。
+只改 `package.json` 里的 `version` 一处，例如 `0.3.7` → `0.3.8`。
+
+Android 的 `versionCode` / `versionName` 由 `android/app/build.gradle` 从 `package.json` **自动派生**（`major*10000 + minor*100 + patch`，0.3.7 → 307），不再需要手动同步。
 
 ---
 
@@ -64,19 +66,33 @@ npm run dist:linux   # 需 Linux 或 Docker
 
 ## 4. 发布 Release
 
+**主源是 Gitee（国内免代理）**，GitHub 只作兜底。
+
 ```powershell
-# 小文件用命令行传（快、可靠）
-gh release create v0.3.5 `
-  "release/The World Setup 0.3.5.exe.blockmap" `
-  "android/app/build/outputs/apk/debug/app-debug.apk#The-World-0.3.5-android.apk" `
-  --title "The World v0.3.5" `
-  --notes-file .\notes.md
+# 需要 Gitee 私人令牌（勾选 projects 权限）
+$env:GITEE_TOKEN="你的私人令牌"
+npm run release:gitee
 ```
 
-**90 MB 级的 `Setup.exe` 走浏览器上传**，原因见「已知问题」：
+`scripts/publish-gitee.mjs` 会一次做完：
 
-打开 `https://github.com/Eula12135/the-world/releases/edit/v0.3.5`，
-把 `release/The World Setup 0.3.5.exe` 拖到页面下方附件区保存。
+- 检查安装包体积（**超过 100 MB 直接报错**，Gitee 单文件上限）
+- 创建 Release（已存在则复用）
+- 上传 Windows 安装包 + blockmap + Android APK
+- **只保留最近 2 个版本**，更早的自动删除（免费仓库容量约 500 MB，一个版本占 ~94 MB）
+
+GitHub 兜底源照旧：
+
+```powershell
+gh release create v0.3.8 `
+  "release/The World Setup 0.3.8.exe" `
+  "release/The World Setup 0.3.8.exe.blockmap" `
+  "$env:TEMP\The-World-0.3.8-android.apk" `
+  --title "The World v0.3.8" --notes-file .\notes.md
+```
+
+> 历史备注：0.3.5 及更早发版时，90 MB 文件经代理上传会卡死，只能走浏览器；
+> 配好「Gitee/上传域名直连」覆写后，命令行 22 秒即可完成（见文末）。
 
 ---
 

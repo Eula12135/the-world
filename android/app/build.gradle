@@ -1,5 +1,14 @@
 apply plugin: 'com.android.application'
 
+import groovy.json.JsonSlurper
+
+// 版本号唯一来源：根目录 package.json（避免 package.json 与 build.gradle 两处不同步）
+def pkgJson = new JsonSlurper().parseText(file('../../package.json').text)
+def appVersion = pkgJson.version.toString()
+def vParts = appVersion.tokenize('.')
+// 0.3.7 -> 0*10000 + 3*100 + 7 = 307（只需单调递增）
+def vCode = (vParts[0] as int) * 10000 + ((vParts.size() > 1 ? vParts[1] : '0') as int) * 100 + ((vParts.size() > 2 ? vParts[2] : '0') as int)
+
 android {
     namespace "io.github.theworld.app"
     compileSdk rootProject.ext.compileSdkVersion
@@ -7,8 +16,8 @@ android {
         applicationId "io.github.theworld.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 11
-        versionName "0.3.7"
+        versionCode vCode
+        versionName appVersion
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
