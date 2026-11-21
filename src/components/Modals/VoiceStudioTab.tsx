@@ -96,6 +96,7 @@ export const VoiceStudioTab: React.FC<VoiceStudioTabProps> = ({
   const [designPreviews, setDesignPreviews] = useState<BreezeVoicePreview[]>([]);
   const [designing, setDesigning] = useState(false);
   const [savingDesignId, setSavingDesignId] = useState<string | null>(null);
+  const [designVoiceName, setDesignVoiceName] = useState('');
 
   const [previewingVoice, setPreviewingVoice] = useState(false);
   const [previewText, setPreviewText] = useState('你好，今天想让我用怎样的声音陪你聊天？');
@@ -239,7 +240,10 @@ export const VoiceStudioTab: React.FC<VoiceStudioTabProps> = ({
         apiKey: draftVoice.ttsApiKey,
         providers,
         generatedVoiceId: preview.generatedVoiceId,
-        name: newProfileName.trim() || draftVoice.ttsStyleInstruction.trim().slice(0, 20) || '我的自定义音色',
+        name:
+          designVoiceName.trim() ||
+          draftVoice.ttsStyleInstruction.trim().slice(0, 20) ||
+          '我的自定义音色',
         description: draftVoice.ttsStyleInstruction.trim() || undefined,
       });
       setDraftVoice((prev) => ({ ...prev, ttsVoice: saved.voiceId }));
@@ -249,6 +253,7 @@ export const VoiceStudioTab: React.FC<VoiceStudioTabProps> = ({
           : [{ voiceId: saved.voiceId, name: saved.name, category: 'designed' }, ...prev]
       );
       setDesignPreviews([]);
+      setDesignVoiceName('');
       showToast(`已保存并设为当前音色：${saved.name}`, 'success');
     } catch (err) {
       showToast(err instanceof Error ? err.message : '保存音色失败', 'error');
@@ -891,6 +896,12 @@ export const VoiceStudioTab: React.FC<VoiceStudioTabProps> = ({
               </div>
               {draftVoice.ttsEngine === 'openai_api' && activeCloudPreset?.id === 'breeze' && (
                 <div className="space-y-2 pt-2">
+                  <input
+                    value={designVoiceName}
+                    onChange={(e) => setDesignVoiceName(e.target.value)}
+                    placeholder="先给这个音色起个名字（如「慵懒御姐」），保存后在下拉列表里就能直接认出来"
+                    className="w-full px-3 py-2 rounded-xl bg-canvas border border-line text-ink text-[12.5px] outline-none focus:border-accent"
+                  />
                   <button
                     type="button"
                     onClick={handleGenerateDesignVoice}

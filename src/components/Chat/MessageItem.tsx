@@ -90,7 +90,11 @@ export const MessageItem: React.FC<MessageItemProps> = ({
       config: settings.voice,
       providers,
       profile: voiceProfile,
-      voiceOverride: roleCharacter?.voiceName || personaPreset?.voiceName,
+      // 绑定了音色档案时以档案为准；只有在没有档案时才用旧的自定义音色 ID 兜底，
+      // 否则角色卡上残留的 voiceName 会盖掉用户精心调好的档案。
+      voiceOverride: voiceProfile
+        ? undefined
+        : roleCharacter?.voiceName || personaPreset?.voiceName,
       onEnd: () => {
         if (useAppStore.getState().speakingMessageId === message.id) {
           setSpeakingMessageId(null);

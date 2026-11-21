@@ -630,7 +630,10 @@ export const useAppStore = create<AppState>((set, get) => ({
             const voiceProfile = voiceProfileId
               ? get().voiceProfiles.find((vp) => vp.id === voiceProfileId)
               : undefined;
-            const voiceOverride = roleChar?.voiceName || preset?.voiceName;
+            // 绑定了音色档案时以档案为准；旧的自定义音色 ID 只在没有档案时兜底
+            const voiceOverride = voiceProfile
+              ? undefined
+              : roleChar?.voiceName || preset?.voiceName;
             set({ speakingMessageId: finalMsg.id });
             speakText({
               text: content,
