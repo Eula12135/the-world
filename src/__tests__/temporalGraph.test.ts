@@ -102,4 +102,10 @@ describe('temporalGraph', () => {
     expect(getEventsUpToPoint(ordered, 'ev2').map((e) => e.id)).toEqual(['ev1', 'ev2']);
     expect(getEventsUpToPoint(ordered, undefined)).toHaveLength(3);
   });
+
+  it('fails closed when the anchor event no longer exists (anti-spoiler regression)', () => {
+    const ordered = sortEventsChronologically(events);
+    // 锚点被删除后不得回退成「返回全部事件」，否则会把后续剧情泄露给模型
+    expect(getEventsUpToPoint(ordered, 'ev-deleted')).toEqual([]);
+  });
 });

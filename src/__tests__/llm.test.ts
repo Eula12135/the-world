@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   createSseLineProcessor,
   fetchProviderModels,
+  normalizeAnthropicMessages,
   splitInlineThinkTags,
   streamChat,
   testProviderConnection,
@@ -72,6 +73,22 @@ describe('llm service helpers & streaming', () => {
     proc.finish();
 
     expect(final).toEqual({ content: '回复内容', reasoning: '分析中' });
+  });
+
+  it('normalizes Anthropic history to start with user and alternate roles', () => {
+    const normalized = normalizeAnthropicMessages([
+      { role: 'assistant', content: '被前情摘要截断后残留的旧回复' },
+      { role: 'user', content: '问题一' },
+      { role: 'user', content: '补充一句' },
+      { role: 'system', content: '这条应被过滤' },
+      { role: 'assistant', content: '回复一' },
+    ]);
+
+    expect(normalized[0]).toEqual({ role: 'user', content: '问题一\n\n补充一句' });
+    expect(normalized[1]).toEqual({ role: 'assistant', content: '回复一' });
+    expect(normalized).toHaveLength(2);
+    expect(normalized.some((m) => m.content.includes('旧回复'))).toBe(false);
+    expect(normalized.some((m) => m.content.includes('应被过滤'))).toBe(false);
   });
 
   it('streams via fetch and handles HTTP error responses', async () => {

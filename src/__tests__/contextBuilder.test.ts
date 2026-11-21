@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { buildSessionSystemPrompt, estimateTokens } from '../services/contextBuilder';
-import { getRecommendedTemplateId, parseDocumentSections } from '../data/worldTemplates';
+import { getRecommendedTemplateId, parseDocumentSections, PREAMBLE_HEADING } from '../data/worldTemplates';
 import { DEFAULT_SETTINGS } from '../db/database';
 import type { Character, CharacterRelation, TimelineEvent, WorldProject } from '../types';
 
@@ -40,6 +40,38 @@ describe('worldTemplates & parseDocumentSections', () => {
     expect(getRecommendedTemplateId('科幻')).toBe('scifi');
     expect(getRecommendedTemplateId('仙侠')).toBe('xianxia');
     expect(getRecommendedTemplateId('悬疑')).toBe('mystery');
+  });
+
+  it('keeps content before the first heading instead of silently dropping it', () => {
+    const doc = `星海余烬 · 卷一
+本书讲述双星系统边缘一座殖民空间站的兴衰。
+
+## 一、世界概述
+空间站漂浮在拉格朗日点，靠采集恒星风维持运转。`;
+
+    const sections = parseDocumentSections(doc);
+    expect(sections).toHaveLength(2);
+    expect(sections[0].heading).toBe(PREAMBLE_HEADING);
+    expect(sections[0].body).toContain('双星系统边缘');
+    expect(sections[0].charCount).toBe(sections[0].body.length);
+    expect(sections[1].heading).toBe('一、世界概述');
+  });
+
+  it('treats single-hash headings as sections and keeps deeper ones as body', () => {
+    const sections = parseDocumentSections(
+      `# 世界概述
+概述正文
+
+### 一个三级小标题
+三级标题下的正文
+
+## 一、势力格局
+势力正文`
+    );
+
+    expect(sections.map((s) => s.heading)).toEqual(['世界概述', '一、势力格局']);
+    expect(sections[0].body).toContain('### 一个三级小标题');
+    expect(sections[0].body).toContain('三级标题下的正文');
   });
 });
 

@@ -33,6 +33,38 @@ export function splitInlineThinkTags(
   return { content: contentBody, reasoning: thinkBody };
 }
 
+/**
+ * Anthropic Messages API 要求角色严格交替、且第一条必须是 user。
+ * 开启「前情摘要」后历史是按 summarizedCount 切片的，可能以 assistant 开头，
+ * 原样发送会被上游以 400 拒绝，所以这里做一次规范化。
+ */
+export function normalizeAnthropicMessages(
+  messages: Array<{ role: string; content: string }>
+): Array<{ role: 'user' | 'assistant'; content: string }> {
+  const mapped = messages
+    .filter((m) => m.role === 'user' || m.role === 'assistant')
+    .filter((m) => typeof m.content === 'string' && m.content.trim().length > 0)
+    .map((m) => ({
+      role: m.role as 'user' | 'assistant',
+      content: m.content,
+    }));
+
+  while (mapped.length > 0 && mapped[0].role === 'assistant') {
+    mapped.shift();
+  }
+
+  const merged: Array<{ role: 'user' | 'assistant'; content: string }> = [];
+  for (const m of mapped) {
+    const last = merged[merged.length - 1];
+    if (last && last.role === m.role) {
+      last.content = `${last.content}\n\n${m.content}`;
+    } else {
+      merged.push({ ...m });
+    }
+  }
+  return merged;
+}
+
 function buildRequestPayload(
   provider: ProviderConfig,
   model: string,
@@ -56,10 +88,12 @@ function buildRequestPayload(
       max_tokens: settings.maxTokens,
       temperature: settings.temperature,
       stream,
-      messages: recent.map((m) => ({
-        role: m.role === 'assistant' ? 'assistant' : 'user',
-        content: m.content,
-      })),
+      messages: normalizeAnthropicMessages(
+        recent.map((m) => ({
+          role: m.role === 'assistant' ? 'assistant' : 'user',
+          content: m.content,
+        }))
+      ),
     };
     if (systemPrompt.trim()) payload.system = systemPrompt.trim();
     return { url: `${cleanBase}/messages`, headers, payload };

@@ -255,12 +255,24 @@ export function getRecommendedTemplateId(genre: string): string {
   return hit ? hit.id : 'general';
 }
 
+/**
+ * 第一个标题之前的内容（卷名、简介、卷首语）会被归到这个合成章节，
+ * 否则它既进不了目录索引也进不了提示词，属于静默丢数据。
+ */
+export const PREAMBLE_HEADING = '（前言）';
+
+/**
+ * 把世界观长文按 markdown 标题切成章节。
+ * - 支持 `#` 与 `##` 两级标题（`###` 及更深视为正文内容）
+ * - 第一个标题之前的内容作为「（前言）」章节保留
+ */
 export function parseDocumentSections(doc: string): DocSection[] {
   const lines = (doc || '').split(/\r?\n/);
   const sections: DocSection[] = [];
   let currentHeading: string | null = null;
   let currentStart = 0;
   let buffer: string[] = [];
+  const preambleLines: string[] = [];
 
   const flush = () => {
     if (currentHeading !== null) {
@@ -275,17 +287,29 @@ export function parseDocumentSections(doc: string): DocSection[] {
   };
 
   lines.forEach((line, idx) => {
-    const match = line.match(/^##\s+(.+)$/);
+    const match = line.match(/^(#{1,2})\s+(.+)$/);
     if (match) {
       flush();
-      currentHeading = match[1].trim();
+      currentHeading = match[2].trim();
       currentStart = idx;
       buffer = [];
     } else if (currentHeading !== null) {
       buffer.push(line);
+    } else {
+      preambleLines.push(line);
     }
   });
   flush();
+
+  const preamble = preambleLines.join('\n').trim();
+  if (preamble) {
+    sections.unshift({
+      heading: PREAMBLE_HEADING,
+      body: preamble,
+      charCount: preamble.length,
+      lineStart: 0,
+    });
+  }
 
   return sections;
 }

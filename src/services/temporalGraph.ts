@@ -91,6 +91,7 @@ export function getEventsUpToPoint(
   if (pointEventId === INITIAL_STORY_POINT) return [];
   if (!pointEventId) return orderedEvents;
   const idx = orderedEvents.findIndex((e) => e.id === pointEventId);
-  if (idx === -1) return orderedEvents;
+  // 锚点事件已不存在时必须失败关闭：早先返回全部事件会把后续剧情泄露给模型
+  if (idx === -1) return [];
   return orderedEvents.slice(0, idx + 1);
 }

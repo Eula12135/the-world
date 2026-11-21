@@ -501,6 +501,32 @@ export const useAppStore = create<AppState>((set, get) => ({
     const historyForApi = [...recentSlice, userMsg];
     const startedAt = Date.now();
 
+    // 流式过程中每个 token 都写一次 IndexedDB 会产生数千次写事务（手机端明显卡顿）。
+    // 这里改成「最多每 400ms 落盘一次最新快照」，结束时再写终值。
+    let persistTimer: ReturnType<typeof setTimeout> | null = null;
+    let latestSnapshot: { content: string; reasoning?: string } | null = null;
+
+    const cancelPendingPersist = () => {
+      if (persistTimer) {
+        clearTimeout(persistTimer);
+        persistTimer = null;
+      }
+      latestSnapshot = null;
+    };
+
+    const persistThrottled = (snapshot: { content: string; reasoning?: string }) => {
+      latestSnapshot = snapshot;
+      if (persistTimer) return;
+      persistTimer = setTimeout(() => {
+        persistTimer = null;
+        const snapshotToWrite = latestSnapshot;
+        latestSnapshot = null;
+        if (snapshotToWrite) {
+          db.messages.update(assistantMsg.id, snapshotToWrite).catch(() => {});
+        }
+      }, 400);
+    };
+
     const abort = streamChat(
       {
         provider,
@@ -518,11 +544,10 @@ export const useAppStore = create<AppState>((set, get) => ({
               ),
             }));
           }
-          db.messages
-            .update(assistantMsg.id, { content, reasoning: reasoning || undefined })
-            .catch(() => {});
+          persistThrottled({ content, reasoning: reasoning || undefined });
         },
         onComplete: async ({ content, reasoning }) => {
+          cancelPendingPersist();
           const duration = reasoning
             ? Math.round(((Date.now() - startedAt) / 1000) * 10) / 10
             : undefined;
@@ -578,6 +603,7 @@ export const useAppStore = create<AppState>((set, get) => ({
           }
         },
         onError: async (err) => {
+          cancelPendingPersist();
           const latest = await db.messages.get(assistantMsg.id);
           if (latest && !latest.content && !latest.reasoning) {
             await db.messages.delete(assistantMsg.id);
