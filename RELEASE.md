@@ -118,9 +118,34 @@ curl.exe -sSI -L "https://github.com/Eula12135/the-world/releases/download/v0.3.
 
 已确认与欠费无关（账单 $0、免费版、无失败发票），属于账号级限制，只能走客服人工复核。
 
-### 大文件上传卡住
+### 大文件上传卡住（已解决）
 
-本机网络经 TUN 代理，上传 90 MB 以上文件时 `gh release upload` 与 `curl` 都会卡死（小文件正常：4.4 MB 约 30 秒）。因此大文件统一用浏览器上传。
+**根因**：本机网络经 TUN 代理，上传 90 MB 以上文件时 `gh release upload` 与 `curl` 都会卡死（小文件正常：4.4 MB 约 30 秒）。浏览器上传虽然能成，但 82 MB 要 20 分钟。
+
+**解决办法**：在 Clash Party（Mihomo Party）里加一条覆写，只让上传/下载相关的 GitHub 子域名直连：
+
+```yaml
++rules:
+  - "DOMAIN,uploads.github.com,DIRECT"
+  - "DOMAIN,api.github.com,DIRECT"
+  - "DOMAIN-SUFFIX,githubusercontent.com,DIRECT"
+  - "DOMAIN-SUFFIX,github-releases.githubusercontent.com,DIRECT"
+```
+
+注意 **不要**用 `DOMAIN-SUFFIX,github.com,DIRECT` —— 实测本机线路下 `github.com` 本体直连会 TLS 握手失败，`git push/pull` 会挂；而 `api.github.com` 和 `uploads.github.com` 直连正常。
+
+效果：`gh release create` 上传 90 MB 安装包耗时 **22 秒**（约 3.5 MB/s，比走代理快 24 倍）。
+
+覆写文件位置（Clash Party 会把它复制成 `<id>.yaml`，**改原始文件无效，要改副本或重新导入**）：
+
+```
+%APPDATA%\mihomo-party\override\github-direct.yaml     ← 源文件
+%APPDATA%\mihomo-party\override\<id>.yaml              ← 实际生效的副本
+```
+
+### 发版顺序的一个坑
+
+`gh release create` 会在**当前 HEAD** 上打 tag。所以务必**先提交版本号变更再发版**，否则 tag 指向的上一个 commit 不含 version bump（v0.3.5 就踩了这个坑，功能无影响，但 tag 与 `package.json` 不同步）。
 
 ### 未做代码签名
 
