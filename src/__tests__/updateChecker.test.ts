@@ -12,6 +12,23 @@ import {
 } from '../services/updateChecker';
 
 describe('updateChecker', () => {
+  it('never picks auto-generated source archives as the download', () => {
+    // Gitee/GitHub 会附赠 v0.3.8.zip / .tar.gz，它们是源码不是安装包
+    const assets = [
+      { name: 'v0.3.8.zip', browser_download_url: 'https://x/v0.3.8.zip' },
+      { name: 'v0.3.8.tar.gz', browser_download_url: 'https://x/v0.3.8.tar.gz' },
+      { name: 'The-World-Setup-0.3.8.exe', browser_download_url: 'https://x/setup.exe' },
+      { name: 'The-World-0.3.8-android.apk', browser_download_url: 'https://x/app.apk' },
+    ];
+    expect(pickAssetDownloadUrl(assets, false)).toBe('https://x/setup.exe');
+    expect(pickAssetDownloadUrl(assets, true)).toBe('https://x/app.apk');
+
+    // 只有源码包时不能返回 zip，应回落到空串（调用方会退回发布页）
+    expect(
+      pickAssetDownloadUrl([{ name: 'v1.zip', browser_download_url: 'https://x/v1.zip' }], false)
+    ).toBe('');
+  });
+
   it('splits multiple update sources and falls back in order', async () => {
     expect(
       splitUpdateSources('https://a.example/latest.json, Eula12135/the-world\ngitee:me/repo')

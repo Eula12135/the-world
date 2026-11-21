@@ -41,7 +41,14 @@ export function pickAssetDownloadUrl(
   assets: Array<{ name?: string; browser_download_url?: string }>,
   preferAndroid: boolean
 ): string {
-  const valid = assets.filter((a) => a.browser_download_url && a.name);
+  // 排除源码归档：Gitee/GitHub 会自动生成 v0.3.8.zip / .tar.gz，
+  // 它们不是安装包，被选中会让用户下到一个压缩包源码。
+  const valid = assets.filter(
+    (a) =>
+      a.browser_download_url &&
+      a.name &&
+      !/\.(zip|tar\.gz|tgz|tar\.bz2)$/i.test(a.name)
+  );
   if (preferAndroid) {
     const apk = valid.find((a) => a.name!.toLowerCase().endsWith('.apk'));
     if (apk?.browser_download_url) return apk.browser_download_url;
@@ -236,7 +243,13 @@ async function checkSingleSource(
   const latestVersion = String(data.tag_name || data.name || APP_VERSION)
     .trim()
     .replace(/^v/i, '');
-  const releaseUrl = String(data.html_url || fallbackReleasePage);
+  const releaseTag = String(data.tag_name || '').trim();
+  // Gitee 的 release 接口不返回 html_url，直接用 tag 页面，避免落到「版本列表页」
+  const releaseUrl =
+    String(data.html_url || '') ||
+    (detected.kind === 'gitee' && releaseTag
+      ? `https://gitee.com/${detected.normalized}/releases/tag/${encodeURIComponent(releaseTag)}`
+      : fallbackReleasePage);
   const assets = Array.isArray(data.assets) ? data.assets : [];
   const downloadUrl = pickAssetDownloadUrl(assets, preferAndroid) || releaseUrl;
 

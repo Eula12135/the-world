@@ -130,24 +130,24 @@ export const App: React.FC = () => {
               </button>
             ) : (
               <>
-                <button
-                  onClick={() =>
-                    openExternalUrl(updateNotice.pageUrl || updateNotice.releaseUrl)
-                  }
-                  className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-accent text-white font-medium cursor-pointer"
-                >
-                  <ExternalLink className="w-3 h-3" />
-                  <span>查看更新</span>
-                </button>
                 {updateNotice.downloadUrl && (
                   <button
                     onClick={() => openExternalUrl(updateNotice.downloadUrl)}
-                    className="flex items-center gap-1 px-2.5 py-1 rounded-lg border border-line text-ink font-medium cursor-pointer"
+                    className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-accent text-white font-medium cursor-pointer"
                   >
                     <Download className="w-3 h-3" />
                     <span>直接下载</span>
                   </button>
                 )}
+                <button
+                  onClick={() =>
+                    openExternalUrl(updateNotice.pageUrl || updateNotice.releaseUrl)
+                  }
+                  className="flex items-center gap-1 px-2.5 py-1 rounded-lg border border-line text-ink font-medium cursor-pointer"
+                >
+                  <ExternalLink className="w-3 h-3" />
+                  <span>查看更新</span>
+                </button>
               </>
             )}
             <button
