@@ -19,8 +19,16 @@ import {
 import { openExternalUrl } from './utils/platform';
 
 export const App: React.FC = () => {
-  const { initialized, activeView, settings, updateNotice, setUpdateNotice, showToast, init } =
-    useAppStore();
+  const {
+    initialized,
+    activeView,
+    settings,
+    updateNotice,
+    setUpdateNotice,
+    showToast,
+    updateSettings,
+    init,
+  } = useAppStore();
   const [apkProgress, setApkProgress] = useState<ApkUpdateProgress | null>(null);
   const apkCleanupRef = useRef<(() => void) | null>(null);
 
@@ -41,10 +49,19 @@ export const App: React.FC = () => {
     if (!initialized || !settings.autoCheckUpdates || !source) return;
     checkForAppUpdate(source)
       .then((res) => {
-        if (res.hasUpdate) setUpdateNotice(res);
+        // 用户点过「忽略此版本」就不再对同一个版本重复提示；出现更高版本会重新提示
+        if (res.hasUpdate && res.latestVersion !== settings.ignoredVersion) {
+          setUpdateNotice(res);
+        }
       })
       .catch(() => {});
-  }, [initialized, settings.autoCheckUpdates, settings.updateRepo, setUpdateNotice]);
+  }, [
+    initialized,
+    settings.autoCheckUpdates,
+    settings.updateRepo,
+    settings.ignoredVersion,
+    setUpdateNotice,
+  ]);
 
   useEffect(() => {
     const root = document.documentElement;
@@ -151,11 +168,14 @@ export const App: React.FC = () => {
               </>
             )}
             <button
-              onClick={() => openExternalUrl(updateNotice.pageUrl || updateNotice.releaseUrl)}
-              className="px-1.5 py-1 text-[11.5px] text-accent hover:underline cursor-pointer"
-              aria-label="打开更新页面"
+              onClick={() => {
+                updateSettings({ ignoredVersion: updateNotice.latestVersion });
+                setUpdateNotice(null);
+              }}
+              className="px-1.5 py-1 text-[11.5px] text-dim hover:text-ink cursor-pointer shrink-0"
+              aria-label="忽略此版本"
             >
-              查看更新
+              忽略此版本
             </button>
             <button
               onClick={() => {

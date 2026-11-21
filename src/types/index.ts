@@ -209,6 +209,8 @@ export interface AppSettings {
   defaultProviderId: string;
   updateRepo: string;
   autoCheckUpdates: boolean;
+  /** 用户选择「忽略此版本」时记录的版本号；只对它完全相等的新版本生效 */
+  ignoredVersion?: string;
   imageGen: ImageGenConfig;
   voice: VoiceConfig;
 }
