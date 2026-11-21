@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Check, ChevronDown, KeyRound, Search, X } from 'lucide-react';
 import { useAppStore } from '../../store/useAppStore';
 
@@ -12,6 +12,27 @@ export const ModelPicker: React.FC<ModelPickerProps> = ({ providerId, model, onS
   const { providers, setActiveModal } = useAppStore();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
+  const rootRef = useRef<HTMLDivElement>(null);
+
+  // 关闭逻辑不能用「全屏遮罩 + fixed」：TopBar 的 header 带 backdrop-blur，
+  // 会给 fixed 子元素创建包含块，遮罩实际只有 header 那么高，点正文区域关不掉。
+  useEffect(() => {
+    if (!open) return;
+    const onPointerDown = (e: PointerEvent) => {
+      if (rootRef.current && !rootRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false);
+    };
+    document.addEventListener('pointerdown', onPointerDown);
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown);
+      document.removeEventListener('keydown', onKeyDown);
+    };
+  }, [open]);
 
   const currentProvider = providers.find((p) => p.id === providerId);
   const isReady = currentProvider
@@ -35,7 +56,7 @@ export const ModelPicker: React.FC<ModelPickerProps> = ({ providerId, model, onS
   }, [providers, query]);
 
   return (
-    <div className="relative">
+    <div className="relative" ref={rootRef}>
       <button
         onClick={() => {
           setQuery('');
@@ -55,8 +76,6 @@ export const ModelPicker: React.FC<ModelPickerProps> = ({ providerId, model, onS
 
       {open && (
         <>
-          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-
           <div className="absolute left-1/2 top-full z-50 mt-2 w-[min(92vw,22rem)] -translate-x-1/2 rounded-2xl bg-card border border-line shadow-2xl overflow-hidden flex flex-col max-h-[60vh]">
             <div className="flex items-center justify-between px-4 py-2.5 border-b border-line">
               <span className="text-[13px] font-semibold text-ink">选择模型</span>
