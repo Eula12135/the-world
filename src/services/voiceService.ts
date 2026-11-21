@@ -655,7 +655,7 @@ export async function speakText(params: {
   }
 
   try {
-    let bin: {
+    type SynthBin = {
       ok: boolean;
       status: number;
       contentType: string;
@@ -663,93 +663,133 @@ export async function speakText(params: {
       errorText: string;
     };
 
+    // Breeze 的 voiceId 与文本无关，先解析一次（可能触发拉取音色列表）
+    let breezeVoiceId = '';
     if (isBreezeCloud) {
-      let voiceId = (voiceOverride || effective.ttsVoice || '').trim();
-      if (!voiceId) {
-        const voices = await listBreezeVoices({
-          baseUrl: breezeBase,
-          apiKey,
-          providers,
-        });
+      breezeVoiceId = (voiceOverride || effective.ttsVoice || '').trim();
+      if (!breezeVoiceId) {
+        const voices = await listBreezeVoices({ baseUrl: breezeBase, apiKey, providers });
         if (token !== speechGenerationId) return;
         if (voices.length === 0) {
           onError?.('Breeze 账号下暂无可用音色，请先在 Breeze 控制台创建音色或点击同步音色');
           return;
         }
-        voiceId = voices[0].voiceId;
+        breezeVoiceId = voices[0].voiceId;
       }
-      const breezePayload = buildBreezeTtsPayload({
-        text: cleanText,
-        model,
-        instructions: effective.ttsStyleInstruction,
-      });
-      bin = await crossPlatformFetchBinary({
-        url: `${breezeBase}/v1/text-to-speech/${encodeURIComponent(voiceId)}?output_format=mp3_44100_128`,
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'xi-api-key': apiKey,
-        },
-        body: JSON.stringify(breezePayload),
-      });
-    } else {
-      const voice = (voiceOverride || effective.ttsVoice || '').trim() || (isBreeze ? '' : 'alloy');
-      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-      if (apiKey) headers.Authorization = `Bearer ${apiKey}`;
+    }
 
-      const payload = buildTtsSpeechPayload({
-        model,
-        text: cleanText,
-        voice,
-        rate,
-        gain: effective.ttsGain ?? 0,
-        styleInstruction: effective.ttsStyleInstruction,
-      });
+    const ttsVoice =
+      (voiceOverride || effective.ttsVoice || '').trim() || (isBreeze ? '' : 'alloy');
+    const openAiHeaders: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (apiKey) openAiHeaders.Authorization = `Bearer ${apiKey}`;
 
-      bin = await crossPlatformFetchBinary({
+    const synthesize = async (chunkText: string): Promise<SynthBin> => {
+      if (isBreezeCloud) {
+        return crossPlatformFetchBinary({
+          url: `${breezeBase}/v1/text-to-speech/${encodeURIComponent(breezeVoiceId)}?output_format=mp3_44100_128`,
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'xi-api-key': apiKey,
+          },
+          body: JSON.stringify(
+            buildBreezeTtsPayload({
+              text: chunkText,
+              model,
+              instructions: effective.ttsStyleInstruction,
+            })
+          ),
+        });
+      }
+      return crossPlatformFetchBinary({
         url: `${cleanBase}/audio/speech`,
         method: 'POST',
-        headers,
-        body: JSON.stringify(payload),
+        headers: openAiHeaders,
+        body: JSON.stringify(
+          buildTtsSpeechPayload({
+            model,
+            text: chunkText,
+            voice: ttsVoice,
+            rate,
+            gain: effective.ttsGain ?? 0,
+            styleInstruction: effective.ttsStyleInstruction,
+          })
+        ),
       });
-    }
+    };
 
-    if (token !== speechGenerationId) return;
-    if (!bin.ok || !bin.base64) {
-      onError?.(formatTtsHttpError(bin.status, bin.errorText));
-      return;
-    }
-
-    const bytes = base64ToUint8Array(bin.base64);
-    const mime = bin.contentType?.startsWith('audio/')
-      ? bin.contentType
-      : !isBreezeCloud && isBreeze
-        ? 'audio/wav'
-        : 'audio/mpeg';
-    const blob = new Blob([bytes.buffer as ArrayBuffer], { type: mime });
-    activeAudioUrl = URL.createObjectURL(blob);
-    activeAudio = new Audio(activeAudioUrl);
-    activeAudio.volume = volume;
     // 语速补偿：只有「非 Breeze 云端 且 rate >= 1」时服务端才真的按用户语速合成。
     // 其余情况（rate < 1 会被 ge=1 校验挡下；Breeze 云端根本没有 speed 字段）
     // 改在播放端用 playbackRate 减速/加速——它只拉伸时间轴、保持音高，更适合人声。
     const speedHandledByServer = !isBreezeCloud && rate >= 1;
-    if (!speedHandledByServer && Math.abs(rate - 1) > 0.001) {
-      activeAudio.playbackRate = rate;
+    const playbackRate = !speedHandledByServer && Math.abs(rate - 1) > 0.001 ? rate : 1;
+
+    const playOne = (bin: SynthBin) =>
+      new Promise<void>((resolve, reject) => {
+        const bytes = base64ToUint8Array(bin.base64);
+        const mime = bin.contentType?.startsWith('audio/')
+          ? bin.contentType
+          : !isBreezeCloud && isBreeze
+            ? 'audio/wav'
+            : 'audio/mpeg';
+        const blob = new Blob([bytes.buffer as ArrayBuffer], { type: mime });
+        const url = URL.createObjectURL(blob);
+        const audio = new Audio(url);
+        let settled = false;
+        const finish = () => {
+          if (settled) return;
+          settled = true;
+          URL.revokeObjectURL(url);
+          if (activeAudio === audio) {
+            activeAudio = null;
+            activeAudioUrl = null;
+          }
+        };
+        audio.volume = volume;
+        if (playbackRate !== 1) audio.playbackRate = playbackRate;
+        activeAudio = audio;
+        activeAudioUrl = url;
+        audio.onended = () => {
+          finish();
+          resolve();
+        };
+        // 被 stopSpeaking() 打断时不会触发 onended，用 onpause 让 await 及时返回
+        audio.onpause = () => {
+          finish();
+          resolve();
+        };
+        audio.onerror = () => {
+          finish();
+          reject(new Error('音频播放失败'));
+        };
+        audio.play().catch((err) => {
+          finish();
+          reject(err instanceof Error ? err : new Error('音频播放失败'));
+        });
+      });
+
+    // 长文本按句切开：播第一句的同时合成下一句，首字延迟从「整段合成」降到「一句合成」
+    const chunks = cleanText.length > 260 ? splitSpeechChunks(cleanText, 220) : [cleanText];
+    let prefetched: Promise<SynthBin> | null = null;
+
+    for (let i = 0; i < chunks.length; i++) {
+      const current = prefetched ?? synthesize(chunks[i]);
+      prefetched = i + 1 < chunks.length ? synthesize(chunks[i + 1]) : null;
+      // 中途被停止时预取请求仍会返回，提前挂 catch 避免 unhandled rejection
+      prefetched?.catch(() => undefined);
+
+      const bin = await current;
+      if (token !== speechGenerationId) return;
+      if (!bin.ok || !bin.base64) {
+        onError?.(formatTtsHttpError(bin.status, bin.errorText));
+        return;
+      }
+      await playOne(bin);
+      if (token !== speechGenerationId) return;
     }
-    activeAudio.onended = () => {
-      if (token === speechGenerationId) {
-        stopSpeaking();
-        onEnd?.();
-      }
-    };
-    activeAudio.onerror = () => {
-      if (token === speechGenerationId) {
-        stopSpeaking();
-        onError?.('音频播放失败');
-      }
-    };
-    await activeAudio.play();
+
+    stopSpeaking();
+    onEnd?.();
   } catch (err) {
     if (token === speechGenerationId) {
       onError?.(err instanceof Error ? err.message : 'TTS 合成失败');
