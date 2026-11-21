@@ -1,9 +1,9 @@
 {
-  "version": "0.3.11",
-  "name": "The World v0.3.11",
-  "pageUrl": "https://gitee.com/qiutonger/the-world/releases/tag/v0.3.11",
-  "releaseUrl": "https://gitee.com/qiutonger/the-world/releases/tag/v0.3.11",
-  "windowsUrl": "https://gitee.com/qiutonger/the-world/releases/download/v0.3.11/The-World-Setup-0.3.11.exe",
-  "androidUrl": "https://github.com/Eula12135/the-world/releases/download/v0.3.11/The-World-0.3.11-android.apk",
-  "notes": "v0.3.11"
+  "version": "0.4.0",
+  "name": "The World v0.4.0",
+  "pageUrl": "https://gitee.com/qiutonger/the-world/releases/tag/v0.4.0",
+  "releaseUrl": "https://gitee.com/qiutonger/the-world/releases/tag/v0.4.0",
+  "windowsUrl": "https://gitee.com/qiutonger/the-world/releases/download/v0.4.0/The-World-Setup-0.4.0.exe",
+  "androidUrl": "https://github.com/Eula12135/the-world/releases/download/v0.4.0/The-World-0.4.0-android.apk",
+  "notes": "## v0.4.0\n\n### 语音\n- **多厂商语音凭证**：TTS / STT 可以为不同厂商分别保存 baseUrl、apiKey、模型与默认音色，切换厂商不再互相覆盖\n- 原生 TTS 桥增强（`speakWithId`），支持逐句朗读与精确的朗读状态回调\n\n### 生图\n- 生图同样改为独立厂商凭证（`MediaProviderCredential`），与文本模型的 Key 解耦\n- 预置多家生图服务，可在设置里单独配置\n\n### 稳定性与安全\n- 全量稳定性与安全修复（含会话/世界观级联删除、导入导出、错误处理）\n- 修复 Android 构建阻塞：`MainActivity.onSaveInstanceState` 的可见性必须为 `public`（Capacitor 父类声明为 public）\n\n### 更新机制（沿用 0.3.10 起）\n- 更新源：`latest.json` 清单 → GitHub 兜底\n- Android 只保留「App 内一键更新」；支持「忽略此版本」\n\n## 安装\n- **Android**：`The-World-0.4.0-android.apk`（release 签名，versionCode 400）\n- **Windows**：`The-World-Setup-0.4.0.exe`\n- 从 0.3.x 可**直接覆盖安装**（同一签名，数据保留）"
 }
