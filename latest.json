@@ -1,9 +1,9 @@
 {
-  "version": "0.5.0",
-  "name": "The World v0.5.0",
-  "pageUrl": "https://gitee.com/qiutonger/the-world/releases/tag/v0.5.0",
-  "releaseUrl": "https://gitee.com/qiutonger/the-world/releases/tag/v0.5.0",
-  "windowsUrl": "https://gitee.com/qiutonger/the-world/releases/download/v0.5.0/The-World-Setup-0.5.0.exe",
-  "androidUrl": "https://github.com/Eula12135/the-world/releases/download/v0.5.0/The-World-0.5.0-android.apk",
-  "notes": "## v0.5.0\n\n- 新增「独立角色库」：角色可脱离作品存在，删除作品时可选择保留角色\n- 修复独立角色/跨作品角色对话实际使用通用助手提示词的问题\n- 角色扮演内容剧情化排版（动作独立成块、语气提示内联），朗读只念台词\n- 设定文档改为章节化编辑器，支持增删排序与自动保存\n- 数据库升级 v7（人设并入角色表），备份导入自动归一化脏数据\n- 新增错误边界与初始化失败兜底，不再白屏或卡在加载页\n- 新装不再误判「模型已就绪」，首页配 Key 引导正常显示\n- 角色立绘支持大图预览并保存到系统相册（Android）\n- 已知限制：Android 端填 http:// 局域网模型地址会走非流式兜底"
+  "version": "0.5.1",
+  "name": "The World v0.5.1",
+  "pageUrl": "https://gitee.com/qiutonger/the-world/releases/tag/v0.5.1",
+  "releaseUrl": "https://gitee.com/qiutonger/the-world/releases/tag/v0.5.1",
+  "windowsUrl": "https://gitee.com/qiutonger/the-world/releases/download/v0.5.1/The-World-Setup-0.5.1.exe",
+  "androidUrl": "https://github.com/Eula12135/the-world/releases/download/v0.5.1/The-World-0.5.1-android.apk",
+  "notes": "## v0.5.1\n\n- 新增「停止朗读」按钮；切换页面、发送新消息时自动中断朗读，修复停止后仍在响\n- 修复思考模型生成音色描述返回空：max_tokens 提到 2048，剥离 <think>，兼容 reasoning_content\n- 语音工作室支持「从角色卡生成语气指令」\n- 手机端显示「返回对话」按钮\n- 滑动切换页面不再被图标拦截（仅在表单/代码/表格等交互区屏蔽）\n- 关系图谱：播放演进到末尾自动停止，头部控件紧凑化，未放大时可直接横滑切页"
 }
