@@ -60,7 +60,12 @@
     "files": [
       "dist/**/*",
       "dist-electron/**/*",
-      "build/**/*"
+      "build/**/*",
+      "!node_modules/**/*"
+    ],
+    "electronLanguages": [
+      "zh-CN",
+      "en-US"
     ],
     "win": {
       "icon": "build/icon.ico",

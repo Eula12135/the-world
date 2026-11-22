@@ -65,19 +65,66 @@ jobs:
         with:
           distribution: temurin
           java-version: 21
+      # 注意：不要用默认的 "tools platform-tools"。
+      # Google 已废弃 legacy "tools" 包（由 cmdline-tools 取代），sdkmanager 会以
+      # "Failed to find package 'tools'" 退出 1，导致整个 job 失败。
       - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
       - run: pnpm install --frozen-lockfile || pnpm install
       - name: Sync Android Web Bundle
         env:
           VITE_UPDATE_REPO: ${{ vars.VITE_UPDATE_REPO || github.repository }}
         run: npm run android:sync
-      - name: Build Android Debug APK
+
+      # 有 release keystore 就打正式签名包；没有则退回 debug，且不发布为正式版
+      - name: Detect release keystore
+        id: keystore
+        run: |
+          if [ -n "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" ]; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+            echo "已检测到 release keystore，将构建正式签名包"
+          else
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::未配置 ANDROID_KEYSTORE_BASE64，本次只构建 debug 包，不会作为正式版发布"
+          fi
+
+      - name: Prepare release signing
+        if: steps.keystore.outputs.available == 'true'
+        working-directory: android
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          mkdir -p keystore
+          printf '%s' "$KEYSTORE_BASE64" | base64 -d > keystore/the-world-release.jks
+          cat > keystore.properties <<EOF
+          storeFile=keystore/the-world-release.jks
+          storePassword=${STORE_PASSWORD}
+          keyAlias=${KEY_ALIAS}
+          keyPassword=${KEY_PASSWORD}
+          EOF
+          chmod 600 keystore.properties keystore/the-world-release.jks
+
+      - name: Build Android Release APK
+        if: steps.keystore.outputs.available == 'true'
+        working-directory: android
+        run: chmod +x gradlew && ./gradlew assembleRelease
+
+      - name: Build Android Debug APK (未配置签名，仅供内部测试)
+        if: steps.keystore.outputs.available != 'true'
         working-directory: android
         run: chmod +x gradlew && ./gradlew assembleDebug
+
       - uses: actions/upload-artifact@v4
         with:
           name: android-apk
-          path: android/app/build/outputs/apk/debug/*.apk
+          path: |
+            android/app/build/outputs/apk/release/*.apk
+            android/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
 
   publish-release:
     needs: [build-desktop, build-android]
@@ -94,8 +141,14 @@ jobs:
           VERSION="${GITHUB_REF_NAME#v}"
           mkdir -p release-assets
           find raw-artifacts -type f \( -name "*.exe" -o -name "*.dmg" -o -name "*.AppImage" -o -name "*.deb" -o -name "*.zip" \) -exec cp {} release-assets/ \;
-          if [ -f raw-artifacts/android-apk/app-debug.apk ]; then
-            cp raw-artifacts/android-apk/app-debug.apk "release-assets/The-World-${VERSION}-android.apk"
+
+          # 只接受 release 签名包：debug 包绝不能当正式版发出去（签名不一致会导致老用户无法覆盖安装）
+          RELEASE_APK=$(find raw-artifacts -type f -name "app-release.apk" | head -n1)
+          if [ -n "$RELEASE_APK" ]; then
+            cp "$RELEASE_APK" "release-assets/The-World-${VERSION}-android.apk"
+            echo "已附带 release 签名 APK"
+          else
+            echo "::warning::未找到 release 签名 APK（缺少 keystore secret），本次发布不附 Android 安装包"
           fi
           BASE_DL="https://github.com/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}"
           APK_PATH=$(find release-assets -maxdepth 1 -type f -name "*.apk" | head -n1)

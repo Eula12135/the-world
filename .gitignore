@@ -15,3 +15,7 @@ android/keystore.properties
 
 # 可选：本地发布说明（由 publish-gitee.mjs 读取）
 release-notes.md
+
+# 调试产物
+*.log
+npm-debug.log*

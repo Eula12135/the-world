@@ -1,5 +1,9 @@
 # 发版流程（Release）
 
+> **⚠️ 发版由项目所有者决定。**
+> 改代码、本地构建、预览都可以随时做；但升版本号、发 Release、更新 `latest.json`
+> **必须等所有者明确说"可以发了"**。详见 [AGENTS.md](./AGENTS.md)。
+
 > **当前状态**：GitHub Actions 因账号限制暂不可用（Actions 被锁、Packages 被禁），发版先按本文手动执行。
 > 账号恢复后，直接 `git tag vX.Y.Z && git push origin vX.Y.Z` 即可由 `.github/workflows/build.yml` 全自动构建并发布。
 
@@ -116,6 +120,29 @@ gh release create v0.3.8 `
 
 > 历史备注：0.3.5 及更早发版时，90 MB 文件经代理上传会卡死，只能走浏览器；
 > 配好「Gitee/上传域名直连」覆写后，命令行 22 秒即可完成（见文末）。
+
+### GitHub Actions 自动发版（可选，需先配密钥）
+
+`.github/workflows/build.yml` 在 push `v*` tag 时会自动构建并发布。Android 签名行为：
+
+| 是否配置 `ANDROID_KEYSTORE_BASE64` | 行为 |
+|---|---|
+| **已配置** | 解码 keystore → `assembleRelease` → 发布**正式签名 APK** |
+| **未配置** | 只构建 debug APK，**不会作为正式版发布**（仅上传为构建产物） |
+
+这避免了「debug 签名包发出去 → 老用户无法覆盖安装」的事故。
+
+需要在仓库 **Settings → Secrets and variables → Actions** 配置 4 个 secret：
+
+| Secret | 内容 |
+|---|---|
+| `ANDROID_KEYSTORE_BASE64` | keystore 文件的 base64：`[Convert]::ToBase64String([IO.File]::ReadAllBytes("android\keystore\the-world-release.jks"))` |
+| `ANDROID_KEYSTORE_PASSWORD` | `keystore.properties` 里的 `storePassword` |
+| `ANDROID_KEY_ALIAS` | `keyAlias` |
+| `ANDROID_KEY_PASSWORD` | `keyPassword` |
+
+> CI 生成的 `keystore.properties` 里 `storeFile=keystore/the-world-release.jks`（相对 `android/`），
+> 与本地布局一致，Gradle 无需任何改动。
 
 ---
 
