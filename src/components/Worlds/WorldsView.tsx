@@ -2,6 +2,8 @@ import React, { useMemo, useState } from 'react';
 import {
   ArrowLeft,
   BookOpen,
+  Check,
+  ChevronDown,
   Clock,
   Download,
   FileText,
@@ -42,6 +44,8 @@ export const WorldsView: React.FC = () => {
     updateWorld,
     deleteWorld,
     startNewDraft,
+    worldStudioMode,
+    setWorldStudioMode,
     requestConfirm,
     showToast,
   } = useAppStore();
@@ -53,10 +57,16 @@ export const WorldsView: React.FC = () => {
   const [newGenre, setNewGenre] = useState<string>('玄幻');
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>('xianxia');
   const [menuOpen, setMenuOpen] = useState(false);
+  const [worldPickerOpen, setWorldPickerOpen] = useState(false);
   const [renaming, setRenaming] = useState(false);
   const [renameValue, setRenameValue] = useState('');
 
   const activeWorld = worlds.find((w) => w.id === activeWorldId) ?? null;
+
+  const standaloneCharsCount = useMemo(
+    () => characters.filter((c) => !c.worldId).length,
+    [characters]
+  );
 
   const worldChars = useMemo(
     () => (activeWorld ? characters.filter((c) => c.worldId === activeWorld.id) : []),
@@ -127,17 +137,35 @@ export const WorldsView: React.FC = () => {
   const handleDeleteWorld = () => {
     if (!activeWorld) return;
     setMenuOpen(false);
+    if (worldChars.length > 0) {
+      requestConfirm({
+        title: '删除作品',
+        message: `《${activeWorld.name}》下包含 ${worldChars.length} 张角色卡。删除作品时，这些角色卡要如何处理？`,
+        secondaryLabel: '保留角色为独立角色',
+        onSecondary: async () => {
+          await deleteWorld(activeWorld.id, { keepCharacters: true });
+          showToast('作品已删除，角色已保留至独立角色库');
+        },
+        confirmLabel: '连同角色一起删除',
+        onConfirm: async () => {
+          await deleteWorld(activeWorld.id, { keepCharacters: false });
+          showToast('作品与角色已删除');
+        },
+      });
+      return;
+    }
+
     requestConfirm({
       title: '删除作品',
-      message: `确定要删除《${activeWorld.name}》吗？设定文档、所有角色卡、跨时间关系与时间线将被永久删除，无法恢复。`,
+      message: `确定要删除《${activeWorld.name}》吗？设定文档、跨时间关系与时间线将被永久删除，无法恢复。`,
       onConfirm: async () => {
-        await deleteWorld(activeWorld.id);
+        await deleteWorld(activeWorld.id, { keepCharacters: false });
         showToast('作品已删除');
       },
     });
   };
 
-  if (creating || (!activeWorld && worlds.length === 0)) {
+  if (creating || (worldStudioMode !== 'standalone_characters' && !activeWorld && worlds.length === 0)) {
     return (
       <div className="flex-1 overflow-y-auto p-4 md:p-8">
         <div className="max-w-2xl mx-auto space-y-6">
@@ -150,7 +178,17 @@ export const WorldsView: React.FC = () => {
                 只需填好名称与题材，可选参考模板或直接导入你已有的设定文档。
               </p>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
+              {!creating && (
+                <button
+                  type="button"
+                  onClick={() => setWorldStudioMode('standalone_characters')}
+                  className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-line bg-card text-[13px] font-medium text-ink hover:border-accent cursor-pointer"
+                >
+                  <Users className="w-4 h-4 text-accent" />
+                  <span>独立角色库 ({standaloneCharsCount})</span>
+                </button>
+              )}
               <button
                 onClick={() => setImportOpen(true)}
                 className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-accent/50 bg-accent-soft text-[13px] font-medium text-accent hover:opacity-90 cursor-pointer"
@@ -158,7 +196,7 @@ export const WorldsView: React.FC = () => {
                 <Upload className="w-4 h-4" />
                 <span>导入已有设定</span>
               </button>
-              {creating && worlds.length > 0 && (
+              {creating && (worlds.length > 0 || worldStudioMode === 'standalone_characters') && (
                 <button
                   onClick={() => setCreating(false)}
                   className="flex items-center gap-1 px-3 py-2 rounded-xl border border-line text-[13px] text-secondary hover:bg-hover cursor-pointer"
@@ -270,12 +308,14 @@ export const WorldsView: React.FC = () => {
     );
   }
 
+  const inStandaloneMode = worldStudioMode === 'standalone_characters';
+
   return (
-    <div className="flex-1 flex flex-col min-h-0 p-3 md:p-6 gap-4">
-      {/* Studio Top Bar */}
-      <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-line">
-        <div className="flex flex-wrap items-center gap-2 min-w-0">
-          {renaming && activeWorld ? (
+    <div className="flex-1 flex flex-col min-h-0 p-2.5 md:p-5 gap-3">
+      {/* Compact Studio Top Bar */}
+      <div className="flex items-center justify-between gap-2 pb-2.5 border-b border-line">
+        <div className="relative min-w-0 flex-1">
+          {!inStandaloneMode && renaming && activeWorld ? (
             <input
               autoFocus
               value={renameValue}
@@ -291,58 +331,135 @@ export const WorldsView: React.FC = () => {
                 if (e.key === 'Enter' && !isImeComposing(e)) e.currentTarget.blur();
                 if (e.key === 'Escape') setRenaming(false);
               }}
-              className="px-3 py-1.5 rounded-xl bg-card border border-accent text-[14px] font-semibold text-ink outline-none"
+              className="w-full max-w-xs px-3 py-1.5 rounded-xl bg-card border border-accent text-[14px] font-semibold text-ink outline-none"
             />
           ) : (
-            <div className="flex items-center gap-1.5 flex-wrap">
-              {worlds.map((w) => (
-                <button
-                  key={w.id}
-                  onClick={() => selectWorld(w.id)}
-                  className={`px-3 py-1.5 rounded-xl text-[13px] border transition cursor-pointer ${
-                    w.id === activeWorld?.id
-                      ? 'bg-accent-soft border-accent text-accent font-semibold'
-                      : 'bg-card border-line text-secondary hover:bg-hover hover:text-ink'
-                  }`}
-                >
-                  《{w.name}》
-                  <span className="ml-1 text-[11px] opacity-75">{w.genre}</span>
-                </button>
-              ))}
-            </div>
+            <>
+              <button
+                type="button"
+                onClick={() => setWorldPickerOpen((v) => !v)}
+                className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-card border border-line hover:border-accent text-[13.5px] font-semibold text-ink max-w-full cursor-pointer transition"
+              >
+                {inStandaloneMode ? (
+                  <>
+                    <Users className="w-3.5 h-3.5 text-accent shrink-0" />
+                    <span className="truncate">独立角色库</span>
+                    <span className="text-[11px] font-normal px-1.5 py-0.5 rounded bg-muted text-secondary shrink-0">
+                      {standaloneCharsCount} 人
+                    </span>
+                  </>
+                ) : activeWorld ? (
+                  <>
+                    <span className="truncate">《{activeWorld.name}》</span>
+                    <span className="text-[11px] font-normal px-1.5 py-0.5 rounded bg-muted text-secondary shrink-0">
+                      {activeWorld.genre}
+                    </span>
+                  </>
+                ) : (
+                  <span>选择作品或独立角色库</span>
+                )}
+                <ChevronDown className="w-3.5 h-3.5 text-dim shrink-0" />
+              </button>
+
+              {worldPickerOpen && (
+                <>
+                  <div className="fixed inset-0 z-30" onClick={() => setWorldPickerOpen(false)} />
+                  <div className="absolute left-0 top-full mt-1.5 z-40 w-64 max-w-[85vw] rounded-2xl bg-card border border-line shadow-xl overflow-hidden text-[13px]">
+                    <div className="max-h-60 overflow-y-auto p-1.5 space-y-0.5">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setWorldStudioMode('standalone_characters');
+                          setWorldPickerOpen(false);
+                        }}
+                        className={`w-full flex items-center justify-between gap-2 px-3 py-2 rounded-xl text-left cursor-pointer transition ${
+                          inStandaloneMode
+                            ? 'bg-accent-soft text-accent font-medium'
+                            : 'text-ink hover:bg-hover'
+                        }`}
+                      >
+                        <span className="flex items-center gap-1.5 truncate">
+                          <Users className="w-3.5 h-3.5 shrink-0" />
+                          <span>独立角色库（不绑定作品）</span>
+                        </span>
+                        <span className="flex items-center gap-1.5 shrink-0">
+                          <span className="text-[11px] text-dim">{standaloneCharsCount}</span>
+                          {inStandaloneMode && <Check className="w-3.5 h-3.5" />}
+                        </span>
+                      </button>
+
+                      {worlds.length > 0 && <div className="my-1 border-t border-line/70" />}
+
+                      {worlds.map((w) => {
+                        const selected = !inStandaloneMode && w.id === activeWorld?.id;
+                        return (
+                          <button
+                            key={w.id}
+                            type="button"
+                            onClick={() => {
+                              selectWorld(w.id);
+                              setWorldPickerOpen(false);
+                            }}
+                            className={`w-full flex items-center justify-between gap-2 px-3 py-2 rounded-xl text-left cursor-pointer transition ${
+                              selected
+                                ? 'bg-accent-soft text-accent font-medium'
+                                : 'text-ink hover:bg-hover'
+                            }`}
+                          >
+                            <span className="truncate">《{w.name}》</span>
+                            <span className="flex items-center gap-1.5 shrink-0">
+                              <span className="text-[11px] text-dim">{w.genre}</span>
+                              {selected && <Check className="w-3.5 h-3.5" />}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <div className="p-1.5 border-t border-line bg-sidebar grid grid-cols-2 gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setWorldPickerOpen(false);
+                          openCreator();
+                        }}
+                        className="flex items-center justify-center gap-1 px-2.5 py-1.5 rounded-xl bg-card border border-line text-[12px] text-ink hover:border-accent cursor-pointer"
+                      >
+                        <Plus className="w-3.5 h-3.5 text-accent" />
+                        <span>新建作品</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setWorldPickerOpen(false);
+                          setImportOpen(true);
+                        }}
+                        className="flex items-center justify-center gap-1 px-2.5 py-1.5 rounded-xl bg-card border border-line text-[12px] text-ink hover:border-accent cursor-pointer"
+                      >
+                        <Upload className="w-3.5 h-3.5 text-accent" />
+                        <span>导入设定</span>
+                      </button>
+                    </div>
+                  </div>
+                </>
+              )}
+            </>
           )}
-
-          <button
-            onClick={openCreator}
-            className="flex items-center gap-1 px-3 py-1.5 rounded-xl border border-dashed border-line text-[13px] text-secondary hover:border-accent hover:text-accent cursor-pointer"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            <span>新建作品</span>
-          </button>
-
-          <button
-            onClick={() => setImportOpen(true)}
-            className="flex items-center gap-1 px-3 py-1.5 rounded-xl border border-line bg-card text-[13px] text-secondary hover:border-accent hover:text-accent cursor-pointer"
-          >
-            <Upload className="w-3.5 h-3.5" />
-            <span>导入设定</span>
-          </button>
         </div>
 
-        {activeWorld && (
-          <div className="flex items-center gap-2">
+        {!inStandaloneMode && activeWorld && (
+          <div className="flex items-center gap-1.5 shrink-0">
             <button
               onClick={() => startNewDraft({ worldId: activeWorld.id })}
-              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-[13px] font-medium bg-accent text-white hover:opacity-95 cursor-pointer"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[12.5px] font-medium bg-accent text-white hover:opacity-95 cursor-pointer"
             >
-              <MessageSquarePlus className="w-4 h-4" />
-              <span>开始创作对话</span>
+              <MessageSquarePlus className="w-3.5 h-3.5" />
+              <span>开始创作</span>
             </button>
 
             <div className="relative">
               <button
                 onClick={() => setMenuOpen((v) => !v)}
-                className="p-2 rounded-xl border border-line text-secondary hover:bg-hover hover:text-ink cursor-pointer"
+                className="p-2 rounded-xl border border-line bg-card text-secondary hover:bg-hover hover:text-ink cursor-pointer"
                 title="作品操作"
                 aria-label="作品操作"
               >
@@ -351,28 +468,48 @@ export const WorldsView: React.FC = () => {
               {menuOpen && (
                 <>
                   <div className="fixed inset-0 z-30" onClick={() => setMenuOpen(false)} />
-                  <div className="absolute right-0 top-full mt-1 z-40 w-44 rounded-xl bg-card border border-line shadow-xl py-1 text-[13px]">
+                  <div className="absolute right-0 top-full mt-1.5 z-40 w-44 rounded-2xl bg-card border border-line shadow-xl py-1.5 text-[13px]">
+                    <button
+                      onClick={() => {
+                        setMenuOpen(false);
+                        openCreator();
+                      }}
+                      className="w-full flex items-center gap-2 px-3.5 py-2 text-left text-ink hover:bg-hover cursor-pointer"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>新建作品</span>
+                    </button>
+                    <button
+                      onClick={() => {
+                        setMenuOpen(false);
+                        setImportOpen(true);
+                      }}
+                      className="w-full flex items-center gap-2 px-3.5 py-2 text-left text-ink hover:bg-hover cursor-pointer"
+                    >
+                      <Upload className="w-3.5 h-3.5" />
+                      <span>导入设定</span>
+                    </button>
                     <button
                       onClick={() => {
                         setMenuOpen(false);
                         setRenameValue(activeWorld.name);
                         setRenaming(true);
                       }}
-                      className="w-full flex items-center gap-2 px-3 py-2 text-left text-ink hover:bg-hover cursor-pointer"
+                      className="w-full flex items-center gap-2 px-3.5 py-2 text-left text-ink hover:bg-hover cursor-pointer"
                     >
                       <BookOpen className="w-3.5 h-3.5" />
                       <span>重命名作品</span>
                     </button>
                     <button
                       onClick={handleExportMd}
-                      className="w-full flex items-center gap-2 px-3 py-2 text-left text-ink hover:bg-hover cursor-pointer"
+                      className="w-full flex items-center gap-2 px-3.5 py-2 text-left text-ink hover:bg-hover cursor-pointer"
                     >
                       <Download className="w-3.5 h-3.5" />
                       <span>导出设定集 (.md)</span>
                     </button>
                     <button
                       onClick={handleDeleteWorld}
-                      className="w-full flex items-center gap-2 px-3 py-2 text-left text-red-500 hover:bg-red-500/10 cursor-pointer"
+                      className="w-full flex items-center gap-2 px-3.5 py-2 text-left text-red-500 hover:bg-red-500/10 cursor-pointer"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
                       <span>删除此作品</span>
@@ -385,16 +522,19 @@ export const WorldsView: React.FC = () => {
         )}
       </div>
 
-      {/* Sub Tabs */}
-      {activeWorld && (
+      {/* Content: Standalone Character Library or World Sub-Tabs */}
+      {inStandaloneMode ? (
+        <CharactersPanel key="standalone" worldId="" />
+      ) : (
+        activeWorld && (
         <>
-          <div className="flex flex-wrap items-center gap-1.5">
+          <div className="grid grid-cols-4 md:inline-grid md:grid-cols-4 gap-1 p-1 rounded-xl bg-muted border border-line shrink-0">
             {(
               [
-                { id: 'doc', label: '设定文档', icon: FileText },
-                { id: 'characters', label: `角色卡 (${worldChars.length})`, icon: Users },
-                { id: 'timeline', label: `时间线 (${worldEvents.length})`, icon: Clock },
-                { id: 'relations', label: `关系图谱 (${worldRels.length})`, icon: GitBranch },
+                { id: 'doc', label: '设定', count: null, icon: FileText },
+                { id: 'characters', label: '角色', count: worldChars.length, icon: Users },
+                { id: 'timeline', label: '时间线', count: worldEvents.length, icon: Clock },
+                { id: 'relations', label: '关系', count: worldRels.length, icon: GitBranch },
               ] as const
             ).map((item) => {
               const Icon = item.icon;
@@ -403,14 +543,23 @@ export const WorldsView: React.FC = () => {
                 <button
                   key={item.id}
                   onClick={() => setTab(item.id)}
-                  className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-[13px] font-medium transition cursor-pointer whitespace-nowrap ${
+                  className={`flex items-center justify-center gap-1 px-2 md:px-3.5 py-1.5 rounded-lg text-[12px] md:text-[13px] font-medium transition cursor-pointer whitespace-nowrap ${
                     active
-                      ? 'bg-accent text-white'
-                      : 'bg-muted text-secondary hover:bg-hover hover:text-ink'
+                      ? 'bg-card text-accent shadow-xs'
+                      : 'text-secondary hover:text-ink'
                   }`}
                 >
                   <Icon className="w-3.5 h-3.5 shrink-0" />
                   <span>{item.label}</span>
+                  {item.count !== null && (
+                    <span
+                      className={`text-[10.5px] leading-tight px-1.5 py-0.5 rounded-full ${
+                        active ? 'bg-accent-soft text-accent' : 'bg-canvas/70 text-dim'
+                      }`}
+                    >
+                      {item.count}
+                    </span>
+                  )}
                 </button>
               );
             })}
@@ -421,7 +570,7 @@ export const WorldsView: React.FC = () => {
           {tab === 'timeline' && <TimelinePanel key={activeWorld.id} worldId={activeWorld.id} />}
           {tab === 'relations' && <TemporalRelationGraph key={activeWorld.id} worldId={activeWorld.id} />}
         </>
-      )}
+      ))}
 
       <WorldImportModal
         open={importOpen}

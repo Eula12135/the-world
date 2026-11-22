@@ -292,6 +292,63 @@ export class TheWorldDatabase extends Dexie {
             };
           });
       });
+
+    this.version(7)
+      .stores({
+        providers: 'id, enabled, isCustom',
+        sessions: 'id, updatedAt, pinned, worldId, sourceId',
+        messages: 'id, sessionId, createdAt, [sessionId+createdAt]',
+        worlds: 'id, updatedAt',
+        characters: 'id, worldId, updatedAt',
+        relations: 'id, worldId, sourceId, targetId',
+        timelineEvents: 'id, worldId, orderIndex',
+        personaPresets: 'id, updatedAt',
+        voiceProfiles: 'id, updatedAt',
+        settings: 'id',
+      })
+      .upgrade(async (tx) => {
+        const oldPresets = await tx.table('personaPresets').toArray().catch(() => []);
+        if (oldPresets.length === 0) return;
+
+        const migratedIds = new Set<string>();
+        for (const p of oldPresets as PersonaPreset[]) {
+          const existingChar = await tx.table('characters').get(p.id);
+          if (!existingChar) {
+            await tx.table('characters').put({
+              id: p.id,
+              worldId: '',
+              name: p.name || '未命名人设',
+              identity: p.description || '',
+              personality: '',
+              status: '',
+              relationsNote: '',
+              notes: '',
+              systemPrompt: p.systemPrompt || '',
+              avatarImage: p.avatarImage,
+              avatarColor: p.avatarColor || '#4d6bfe',
+              voiceName: p.voiceName,
+              voiceProfileId: p.voiceProfileId,
+              updatedAt: p.updatedAt || Date.now(),
+            } satisfies Character);
+          }
+          migratedIds.add(p.id);
+        }
+
+        await tx
+          .table('sessions')
+          .toCollection()
+          .modify((s: Record<string, unknown>) => {
+            if (
+              s.chatMode === 'custom_persona' &&
+              typeof s.personaPresetId === 'string' &&
+              migratedIds.has(s.personaPresetId)
+            ) {
+              s.chatMode = 'character_role';
+              s.roleCharacterId = s.personaPresetId;
+              s.personaPresetId = undefined;
+            }
+          });
+      });
   }
 }
 
@@ -536,12 +593,26 @@ export async function deleteSessionCascade(sessionId: string): Promise<void> {
   });
 }
 
-export async function deleteWorldCascade(worldId: string): Promise<void> {
+export async function deleteWorldCascade(
+  worldId: string,
+  options?: { keepCharacters?: boolean }
+): Promise<void> {
+  const keepChars = Boolean(options?.keepCharacters);
   await db.transaction(
     'rw',
     [db.worlds, db.characters, db.relations, db.timelineEvents, db.sessions],
     async () => {
-      await db.characters.where('worldId').equals(worldId).delete();
+      if (keepChars) {
+        await db.characters
+          .where('worldId')
+          .equals(worldId)
+          .modify((c) => {
+            c.worldId = '';
+            c.updatedAt = Date.now();
+          });
+      } else {
+        await db.characters.where('worldId').equals(worldId).delete();
+      }
       await db.relations.where('worldId').equals(worldId).delete();
       await db.timelineEvents.where('worldId').equals(worldId).delete();
       await db.sessions
@@ -551,7 +622,7 @@ export async function deleteWorldCascade(worldId: string): Promise<void> {
           s.worldId = undefined;
           s.enableWorldContext = false;
           s.storyPointEventId = undefined;
-          if (s.chatMode === 'character_role') {
+          if (!keepChars && s.chatMode === 'character_role') {
             s.chatMode = 'assistant';
             s.roleCharacterId = undefined;
           }
@@ -570,12 +641,14 @@ export async function deleteCharacterCascade(characterId: string): Promise<void>
       if (!char) return;
       await db.relations.where('sourceId').equals(characterId).delete();
       await db.relations.where('targetId').equals(characterId).delete();
-      const events = await db.timelineEvents.where('worldId').equals(char.worldId).toArray();
-      for (const ev of events) {
-        if (ev.characterIds.includes(characterId)) {
-          await db.timelineEvents.update(ev.id, {
-            characterIds: ev.characterIds.filter((id) => id !== characterId),
-          });
+      if (char.worldId) {
+        const events = await db.timelineEvents.where('worldId').equals(char.worldId).toArray();
+        for (const ev of events) {
+          if (ev.characterIds.includes(characterId)) {
+            await db.timelineEvents.update(ev.id, {
+              characterIds: ev.characterIds.filter((id) => id !== characterId),
+            });
+          }
         }
       }
       await db.sessions

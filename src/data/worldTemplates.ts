@@ -24,6 +24,13 @@ export interface DocSection {
   lineStart: number;
 }
 
+export interface EditableDocSection {
+  id: string;
+  heading: string;
+  body: string;
+  isPreamble?: boolean;
+}
+
 export const WORLD_TEMPLATES: WorldTemplate[] = [
   {
     id: 'general',
@@ -312,4 +319,30 @@ export function parseDocumentSections(doc: string): DocSection[] {
   }
 
   return sections;
+}
+
+export function parseEditableSections(doc: string): EditableDocSection[] {
+  return parseDocumentSections(doc).map((s, idx) => ({
+    id: `sec-${idx}`,
+    heading: s.heading,
+    body: s.body,
+    isPreamble: s.heading === PREAMBLE_HEADING,
+  }));
+}
+
+export function serializeEditableSections(sections: EditableDocSection[]): string {
+  const parts = sections
+    .map((s) => {
+      if (s.isPreamble && s.heading === PREAMBLE_HEADING) {
+        return s.body.trim();
+      }
+      const title = s.heading.trim() || '未命名章节';
+      const body = s.body.trimEnd();
+      return body ? `## ${title}\n${body}` : `## ${title}`;
+    })
+    .filter(Boolean);
+
+  if (parts.length === 0) return '';
+  const joined = parts.join('\n\n');
+  return joined.endsWith('\n') ? joined : `${joined}\n`;
 }

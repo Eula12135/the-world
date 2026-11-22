@@ -284,7 +284,26 @@ export async function importFullBackupJson(rawText: string): Promise<{
     ],
     async () => {
       if (encryptedProviders) await db.providers.bulkPut(encryptedProviders);
-      if (Array.isArray(d.sessions)) await db.sessions.bulkPut(d.sessions);
+      const importedPresetIds = new Set(
+        Array.isArray(d.personaPresets)
+          ? (d.personaPresets as PersonaPreset[]).map((p) => p.id).filter(Boolean)
+          : []
+      );
+      if (Array.isArray(d.sessions)) {
+        const normalizedSessions = (d.sessions as ChatSession[]).map((s) =>
+          s.chatMode === 'custom_persona' &&
+          s.personaPresetId &&
+          importedPresetIds.has(s.personaPresetId)
+            ? {
+                ...s,
+                chatMode: 'character_role' as const,
+                roleCharacterId: s.personaPresetId,
+                personaPresetId: undefined,
+              }
+            : s
+        );
+        await db.sessions.bulkPut(normalizedSessions);
+      }
       if (Array.isArray(d.messages)) await db.messages.bulkPut(d.messages);
       if (Array.isArray(d.worlds)) {
         for (const w of d.worlds) {
@@ -306,11 +325,59 @@ export async function importFullBackupJson(rawText: string): Promise<{
           });
         }
       }
-      if (Array.isArray(d.characters)) await db.characters.bulkPut(d.characters);
+      if (Array.isArray(d.characters)) {
+        const normalizedChars = d.characters
+          .filter(
+            (c: any) => c && typeof c === 'object' && typeof c.id === 'string' && c.id.trim()
+          )
+          .map((c: any) => ({
+            id: c.id,
+            worldId: typeof c.worldId === 'string' ? c.worldId : '',
+            name: typeof c.name === 'string' && c.name.trim() ? c.name : '未命名角色',
+            identity: typeof c.identity === 'string' ? c.identity : '',
+            personality: typeof c.personality === 'string' ? c.personality : '',
+            status: typeof c.status === 'string' ? c.status : '',
+            relationsNote: typeof c.relationsNote === 'string' ? c.relationsNote : '',
+            notes: typeof c.notes === 'string' ? c.notes : '',
+            systemPrompt: typeof c.systemPrompt === 'string' ? c.systemPrompt : undefined,
+            avatarImage: typeof c.avatarImage === 'string' ? c.avatarImage : undefined,
+            avatarPrompt: typeof c.avatarPrompt === 'string' ? c.avatarPrompt : undefined,
+            avatarColor:
+              typeof c.avatarColor === 'string' && c.avatarColor ? c.avatarColor : '#4d6bfe',
+            voiceName: typeof c.voiceName === 'string' ? c.voiceName : undefined,
+            voiceProfileId: typeof c.voiceProfileId === 'string' ? c.voiceProfileId : undefined,
+            updatedAt: typeof c.updatedAt === 'number' ? c.updatedAt : Date.now(),
+          }));
+        if (normalizedChars.length > 0) {
+          await db.characters.bulkPut(normalizedChars);
+        }
+      }
       if (Array.isArray(d.relations)) await db.relations.bulkPut(d.relations);
       if (Array.isArray(d.timelineEvents)) await db.timelineEvents.bulkPut(d.timelineEvents);
       if (Array.isArray(d.personaPresets)) {
-        await db.personaPresets.bulkPut(d.personaPresets as PersonaPreset[]);
+        const presets = d.personaPresets as PersonaPreset[];
+        await db.personaPresets.bulkPut(presets);
+        for (const p of presets) {
+          const existing = await db.characters.get(p.id);
+          if (!existing) {
+            await db.characters.put({
+              id: p.id,
+              worldId: '',
+              name: p.name || '未命名人设',
+              identity: p.description || '',
+              personality: '',
+              status: '',
+              relationsNote: '',
+              notes: '',
+              systemPrompt: p.systemPrompt || '',
+              avatarImage: p.avatarImage,
+              avatarColor: p.avatarColor || '#4d6bfe',
+              voiceName: p.voiceName,
+              voiceProfileId: p.voiceProfileId,
+              updatedAt: p.updatedAt || Date.now(),
+            });
+          }
+        }
       }
       if (Array.isArray(d.voiceProfiles)) {
         await db.voiceProfiles.bulkPut(d.voiceProfiles as VoiceProfile[]);

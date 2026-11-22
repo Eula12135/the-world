@@ -151,6 +151,7 @@ export interface WorldProject {
 
 export interface Character {
   id: string;
+  /** 所属作品 ID；为空字符串 '' 表示不绑定任何作品的独立角色 */
   worldId: string;
   name: string;
   identity: string;
@@ -158,6 +159,8 @@ export interface Character {
   status: string;
   relationsNote: string;
   notes: string;
+  /** 可选自定义完整系统提示词（适合工具型人设或完全自由发挥的角色） */
+  systemPrompt?: string;
   avatarColor: string;
   avatarImage?: string;
   voiceName?: string;
@@ -290,6 +293,8 @@ declare global {
       ) => void;
       stopSpeaking?: () => void;
       startNativeStt?: (lang: string) => void;
+      /** 把 data URL 图片写入系统相册 */
+      saveImageToGallery?: (dataUrl: string, filename: string) => void;
       downloadAndInstallApk?: (apkUrl: string) => void;
       exportTextFile?: (filename: string, content: string, mimeType: string) => void;
       uploadMultipart?: (reqId: string, jsonSpec: string) => void;

@@ -183,7 +183,7 @@ export const BUILTIN_PROVIDERS: ProviderConfig[] = [
     docsUrl: 'https://github.com/ollama/ollama/blob/main/docs/api.md',
     websiteUrl: 'https://ollama.com/',
     requiresKey: false,
-    enabled: true,
+    enabled: false,
     isCustom: false,
   },
 ];

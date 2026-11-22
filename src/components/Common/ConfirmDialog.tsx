@@ -12,13 +12,19 @@ export const ConfirmDialog: React.FC = () => {
     await fn();
   };
 
+  const handleSecondary = async () => {
+    const fn = confirmRequest.onSecondary;
+    requestConfirm(null);
+    if (fn) await fn();
+  };
+
   return (
     <div
       className="fixed inset-0 z-50 bg-black/55 backdrop-blur-[2px] flex items-center justify-center p-4"
       onClick={() => requestConfirm(null)}
     >
       <div
-        className="w-full max-w-sm rounded-2xl bg-card border border-line shadow-2xl p-5 space-y-4"
+        className="w-full max-w-md rounded-2xl bg-card border border-line shadow-2xl p-5 space-y-4"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-start justify-between gap-3">
@@ -40,13 +46,21 @@ export const ConfirmDialog: React.FC = () => {
 
         <p className="text-[13px] leading-relaxed text-secondary">{confirmRequest.message}</p>
 
-        <div className="flex justify-end gap-2 pt-1">
+        <div className="flex flex-wrap justify-end gap-2 pt-1">
           <button
             onClick={() => requestConfirm(null)}
             className="px-4 py-2 rounded-xl text-[13px] font-medium border border-line text-secondary hover:bg-hover cursor-pointer"
           >
             取消
           </button>
+          {confirmRequest.secondaryLabel && confirmRequest.onSecondary && (
+            <button
+              onClick={handleSecondary}
+              className="px-4 py-2 rounded-xl text-[13px] font-medium border border-accent/40 bg-accent-soft text-accent hover:opacity-90 cursor-pointer"
+            >
+              {confirmRequest.secondaryLabel}
+            </button>
+          )}
           <button
             onClick={handleConfirm}
             className={`px-4 py-2 rounded-xl text-[13px] font-medium text-white cursor-pointer ${

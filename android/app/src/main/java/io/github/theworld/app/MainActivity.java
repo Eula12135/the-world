@@ -2,16 +2,20 @@ package io.github.theworld.app;
 
 import android.app.Activity;
 import android.content.ActivityNotFoundException;
+import android.content.ContentValues;
 import android.content.Intent;
 import android.graphics.Color;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Environment;
+import android.provider.MediaStore;
 import android.provider.Settings;
 import android.speech.RecognizerIntent;
 import android.speech.tts.TextToSpeech;
 import android.speech.tts.UtteranceProgressListener;
 import android.util.Base64;
+import android.util.Log;
 import android.view.View;
 import android.view.ViewGroup;
 import android.webkit.JavascriptInterface;
@@ -461,6 +465,115 @@ public class MainActivity extends BridgeActivity {
                     }
                 }
             });
+        }
+
+        @JavascriptInterface
+        public void saveImageToGallery(String dataUrl, String filename) {
+            final String requested = (filename == null || filename.trim().isEmpty())
+                ? "the-world-" + System.currentTimeMillis()
+                : sanitizeExportFilename(filename);
+
+            // Base64 解码与写盘一律放在后台线程，避免大图卡住主线程（ANR）
+            new Thread(() -> {
+                boolean ok;
+                String message;
+                try {
+                    String base64 = dataUrl == null ? "" : dataUrl;
+                    String mime = "image/png";
+                    String ext = "png";
+
+                    // 从 data URL 头部解析真实类型，不要硬编码 png
+                    if (base64.startsWith("data:")) {
+                        int comma = base64.indexOf(',');
+                        int semi = base64.indexOf(';');
+                        if (semi > 5) {
+                            String declared = base64.substring(5, semi).trim().toLowerCase(Locale.ROOT);
+                            if (declared.equals("image/jpeg") || declared.equals("image/jpg")) {
+                                mime = "image/jpeg";
+                                ext = "jpg";
+                            } else if (declared.equals("image/webp")) {
+                                mime = "image/webp";
+                                ext = "webp";
+                            } else if (declared.equals("image/gif")) {
+                                mime = "image/gif";
+                                ext = "gif";
+                            }
+                        }
+                        if (comma > 0) {
+                            base64 = base64.substring(comma + 1);
+                        }
+                    }
+
+                    byte[] bytes = Base64.decode(base64, Base64.DEFAULT);
+                    if (bytes.length == 0) {
+                        throw new IllegalArgumentException("图片数据为空");
+                    }
+
+                    // 扩展名与实际类型保持一致，避免相册/第三方应用识别错误
+                    String displayName = requested;
+                    int dot = displayName.lastIndexOf('.');
+                    if (dot > 0) {
+                        displayName = displayName.substring(0, dot);
+                    }
+                    displayName = displayName + "." + ext;
+
+                    ContentValues values = new ContentValues();
+                    values.put(MediaStore.Images.Media.DISPLAY_NAME, displayName);
+                    values.put(MediaStore.Images.Media.MIME_TYPE, mime);
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                        values.put(
+                            MediaStore.Images.Media.RELATIVE_PATH,
+                            Environment.DIRECTORY_PICTURES + "/The World");
+                        values.put(MediaStore.Images.Media.IS_PENDING, 1);
+                    }
+
+                    Uri uri = getContentResolver()
+                        .insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values);
+                    if (uri == null) {
+                        throw new IllegalStateException("系统相册拒绝写入");
+                    }
+
+                    try (OutputStream os = getContentResolver().openOutputStream(uri)) {
+                        if (os == null) {
+                            throw new IllegalStateException("无法打开相册文件");
+                        }
+                        os.write(bytes);
+                        os.flush();
+                    }
+
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                        ContentValues done = new ContentValues();
+                        done.put(MediaStore.Images.Media.IS_PENDING, 0);
+                        getContentResolver().update(uri, done, null, null);
+                    }
+
+                    ok = true;
+                    message = "已保存到相册：Pictures/The World/" + displayName;
+                } catch (Throwable t) {
+                    ok = false;
+                    Log.e("TheWorld", "saveImageToGallery failed", t);
+                    message = "保存失败："
+                        + (t.getMessage() == null ? t.getClass().getSimpleName() : t.getMessage());
+                }
+                final boolean okFinal = ok;
+                final String messageFinal = message;
+                runOnUiThread(() -> dispatchImageSaved(okFinal, messageFinal));
+            }).start();
+        }
+
+        private void dispatchImageSaved(boolean ok, String message) {
+            try {
+                JSONObject detail = new JSONObject();
+                detail.put("ok", ok);
+                detail.put("message", message);
+                String js = "window.dispatchEvent(new CustomEvent('theworld-image-saved',{detail:"
+                    + detail.toString() + "}));";
+                if (getBridge() != null && getBridge().getWebView() != null) {
+                    getBridge().getWebView().evaluateJavascript(js, null);
+                }
+            } catch (Exception ignored) {
+                // 回调失败不影响保存结果本身
+            }
         }
 
         @JavascriptInterface

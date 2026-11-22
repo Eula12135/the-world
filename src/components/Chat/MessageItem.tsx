@@ -19,6 +19,7 @@ import {
 import type { Character, ChatMessage, PersonaPreset } from '../../types';
 import { useAppStore } from '../../store/useAppStore';
 import { speakText, stopSpeaking } from '../../services/voiceService';
+import { parseRoleplayContent, stripActionsForSpeech } from '../../utils/dialogueParser';
 import { openExternalUrl } from '../../utils/platform';
 
 interface MessageItemProps {
@@ -101,8 +102,10 @@ export const MessageItem: React.FC<MessageItemProps> = React.memo(({
     const voiceProfile = voiceProfileId
       ? voiceProfiles.find((vp) => vp.id === voiceProfileId)
       : undefined;
+    const isRoleplay = Boolean(roleCharacter || personaPreset);
+    const textToSpeak = isRoleplay ? stripActionsForSpeech(message.content) : message.content;
     await speakText({
-      text: message.content,
+      text: textToSpeak,
       config: voiceSettings,
       providers,
       profile: voiceProfile,
@@ -226,6 +229,13 @@ export const MessageItem: React.FC<MessageItemProps> = React.memo(({
   const avatarImg = roleCharacter?.avatarImage || personaPreset?.avatarImage;
   const avatarLabel = roleCharacter?.name || personaPreset?.name;
   const avatarColor = roleCharacter?.avatarColor || personaPreset?.avatarColor || 'var(--accent)';
+  const roleplayParsed =
+    (roleCharacter || personaPreset) && message.content
+      ? parseRoleplayContent(message.content)
+      : null;
+  const useRoleplayView = Boolean(
+    roleplayParsed && (roleplayParsed.hasActions || roleplayParsed.hasTones)
+  );
 
   return (
     <div className="flex gap-3">
@@ -287,33 +297,60 @@ export const MessageItem: React.FC<MessageItemProps> = React.memo(({
         )}
 
         {message.content ? (
-          <div className="markdown-body">
-            <ReactMarkdown
-              remarkPlugins={[remarkGfm]}
-              urlTransform={(url) => (/^(https?:|mailto:)/i.test(url) ? url : '')}
-              components={{
-                a: ({ href, children, ...props }) => {
-                  const safeHref = href && /^(https?:|mailto:)/i.test(href) ? href : undefined;
-                  if (!safeHref) return <span>{children}</span>;
-                  return (
-                    <a
-                      {...props}
-                      href={safeHref}
-                      rel="noopener noreferrer"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        openExternalUrl(safeHref).catch(() => {});
-                      }}
-                    >
-                      {children}
-                    </a>
-                  );
-                },
-              }}
-            >
-              {message.content}
-            </ReactMarkdown>
-          </div>
+          useRoleplayView && roleplayParsed ? (
+            <div className="space-y-1.5">
+              {roleplayParsed.blocks.map((block, idx) =>
+                block.kind === 'action' ? (
+                  <div
+                    key={idx}
+                    className="my-1.5 px-3 py-1.5 rounded-xl bg-muted/55 border-l-2 border-accent/45 text-[13.5px] leading-relaxed text-secondary italic"
+                  >
+                    {block.text}
+                  </div>
+                ) : (
+                  <p key={idx} className="text-[15px] leading-relaxed text-ink whitespace-pre-wrap">
+                    {block.segments.map((seg, sIdx) =>
+                      seg.kind === 'tone' ? (
+                        <span key={sIdx} className="text-[12.5px] text-accent/85 italic mx-0.5">
+                          {seg.text}
+                        </span>
+                      ) : (
+                        <React.Fragment key={sIdx}>{seg.text}</React.Fragment>
+                      )
+                    )}
+                  </p>
+                )
+              )}
+            </div>
+          ) : (
+            <div className="markdown-body">
+              <ReactMarkdown
+                remarkPlugins={[remarkGfm]}
+                urlTransform={(url) => (/^(https?:|mailto:)/i.test(url) ? url : '')}
+                components={{
+                  a: ({ href, children, ...props }) => {
+                    const safeHref = href && /^(https?:|mailto:)/i.test(href) ? href : undefined;
+                    if (!safeHref) return <span>{children}</span>;
+                    return (
+                      <a
+                        {...props}
+                        href={safeHref}
+                        rel="noopener noreferrer"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          openExternalUrl(safeHref).catch(() => {});
+                        }}
+                      >
+                        {children}
+                      </a>
+                    );
+                  },
+                }}
+              >
+                {message.content}
+              </ReactMarkdown>
+            </div>
+          )
         ) : (
           isSessionStreaming &&
           isLastAssistant && (

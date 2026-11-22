@@ -1,8 +1,5 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
-  Check,
-  ChevronDown,
-  ChevronRight,
   ExternalLink,
   Eye,
   EyeOff,
@@ -11,12 +8,7 @@ import {
   Mic,
   Plus,
   RefreshCw,
-  ShieldAlert,
-  Sliders,
-  Sparkles,
   Square,
-  Trash2,
-  Upload,
   UserCheck,
   Volume2,
   Wand2,
@@ -25,102 +17,34 @@ import { useAppStore } from '../../store/useAppStore';
 import type { MediaProviderCredential, VoiceConfig, VoiceProfile } from '../../types';
 import { resolveMediaApiKey } from '../../services/imageGenService';
 import {
-  audioBlobToDataUrl,
   type BreezeVoiceItem,
   type BreezeVoicePreview,
   deleteRemoteClonedVoice,
-  designBreezeVoice,
   extractSiliconFlowShortVoice,
-  fetchSttModels,
   fetchTtsModels,
-  findSttPresetByBaseUrl,
   findTtsPresetByBaseUrl,
   formatSiliconFlowSystemVoice,
   isBreezeCloudBase,
-  listBreezeVoices,
   listNativeVoices,
-  listRemoteClonedVoices,
   pickMatchingBuiltinVoiceForGender,
   type RemoteClonedVoice,
   rewriteSiliconFlowVoiceForModel,
-  saveBreezeVoiceDesign,
   speakText,
   stopSpeaking,
-  STT_PRESETS,
   TTS_BUILTIN_VOICES,
   TTS_PRESETS,
-  uploadClonedVoice,
 } from '../../services/voiceService';
 import { createId, openExternalUrl } from '../../utils/platform';
+import { type InspirationChip, VOICE_INSPIRATION_CHIPS } from './voice/constants';
+import { VoiceLibrarySubTab } from './voice/VoiceLibrarySubTab';
+import { VoiceSttSubTab } from './voice/VoiceSttSubTab';
+import { VoiceBreezeDesignSection } from './voice/VoiceBreezeDesignSection';
+import { VoiceCloneSection } from './voice/VoiceCloneSection';
 
 interface VoiceStudioTabProps {
   draftVoice: VoiceConfig;
   setDraftVoice: React.Dispatch<React.SetStateAction<VoiceConfig>>;
   onSaveVoice: (options?: { keepActiveProfile?: boolean }) => Promise<void>;
-}
-
-interface InspirationChip {
-  label: string;
-  gender: 'female' | 'male' | 'neutral';
-  sfVoice: string;
-  prompt: string;
-}
-
-const VOICE_INSPIRATION_CHIPS: InspirationChip[] = [
-  {
-    label: '慵懒御姐',
-    gender: 'female',
-    sfVoice: 'anna',
-    prompt: '成熟优雅御姐女声，语调慵懒从容，略带磁性与低微气声',
-  },
-  {
-    label: '温柔清冷女声',
-    gender: 'female',
-    sfVoice: 'claire',
-    prompt: '年轻女性，温柔清冷、声线清澈柔和，带有一丝克制感',
-  },
-  {
-    label: '元气活力少女',
-    gender: 'female',
-    sfVoice: 'diana',
-    prompt: '年轻活泼少女，声音清亮甜美，带有轻快笑意',
-  },
-  {
-    label: '御姐烈焰女声',
-    gender: 'female',
-    sfVoice: 'bella',
-    prompt: '富有张力与戏剧表现力的女声，情绪饱满清晰',
-  },
-  {
-    label: '低沉磁性男声',
-    gender: 'male',
-    sfVoice: 'benjamin',
-    prompt: '成熟男性，声音低沉富有磁性，语速沉稳从容',
-  },
-  {
-    label: '温润少年男声',
-    gender: 'male',
-    sfVoice: 'charles',
-    prompt: '清朗温润的青年男声，语调真诚自然',
-  },
-  {
-    label: '沉稳叙事旁白',
-    gender: 'male',
-    sfVoice: 'alex',
-    prompt: '专业有声书旁白腔，沉稳有力、吐字清晰、富有画面感',
-  },
-];
-
-const MAX_CLONE_AUDIO_BYTES = 10 * 1024 * 1024;
-
-function getProviderDisplayName(vp: VoiceProfile): string {
-  if (vp.engine === 'native') return '系统原生';
-  const byId = vp.providerId ? TTS_PRESETS.find((p) => p.id === vp.providerId) : undefined;
-  const preset = byId || (vp.baseUrl ? findTtsPresetByBaseUrl(vp.baseUrl) : undefined);
-  if (preset) {
-    return preset.name.split('（')[0].trim();
-  }
-  return '外部 API';
 }
 
 export const VoiceStudioTab: React.FC<VoiceStudioTabProps> = ({
@@ -144,7 +68,6 @@ export const VoiceStudioTab: React.FC<VoiceStudioTabProps> = ({
   } = useAppStore();
 
   const [showVoiceKey, setShowVoiceKey] = useState(false);
-  const [showSttKey, setShowSttKey] = useState(false);
   const [nativeVoices, setNativeVoices] = useState<SpeechSynthesisVoice[]>(() => listNativeVoices());
 
   // Library audition tracking
@@ -152,42 +75,18 @@ export const VoiceStudioTab: React.FC<VoiceStudioTabProps> = ({
   const [previewingDraft, setPreviewingDraft] = useState(false);
   const [previewText, setPreviewText] = useState('你好，今天想让我用怎样的声音陪你聊天？');
 
-  // Model list refresh loading
   const [fetchingTtsModels, setFetchingTtsModels] = useState(false);
-  const [fetchingSttModels, setFetchingSttModels] = useState(false);
 
   // Create/save voice profile form
   const [newProfileName, setNewProfileName] = useState('');
   const [editingProfileId, setEditingProfileId] = useState<string | null>(null);
 
-  // Breeze Voice Design state
+  // Shared across Breeze Design & provider switching / inspiration chips
   const [designPrompt, setDesignPrompt] = useState('');
   const [designPreviews, setDesignPreviews] = useState<BreezeVoicePreview[]>([]);
-  const [designing, setDesigning] = useState(false);
-  const [savingDesignId, setSavingDesignId] = useState<string | null>(null);
   const [designVoiceName, setDesignVoiceName] = useState('');
   const [breezeVoices, setBreezeVoices] = useState<BreezeVoiceItem[]>([]);
-  const [fetchingBreezeVoices, setFetchingBreezeVoices] = useState(false);
-
-  // SiliconFlow / Remote Voice Cloning state
-  const [cloneSectionOpen, setCloneSectionOpen] = useState(false);
-  const [cloneName, setCloneName] = useState('');
-  const [cloneText, setCloneText] = useState('');
-  const [cloneAudioDataUrl, setCloneAudioDataUrl] = useState('');
-  const [cloneAudioPreviewUrl, setCloneAudioPreviewUrl] = useState('');
-  const [cloneAudioLabel, setCloneAudioLabel] = useState('');
-  const [cloneConsent, setCloneConsent] = useState(false);
-  const [cloning, setCloning] = useState(false);
   const [remoteCloned, setRemoteCloned] = useState<RemoteClonedVoice[]>([]);
-  const [syncingRemote, setSyncingRemote] = useState(false);
-
-  // Mic sample recording refs & state (timers kept outside React state updaters for StrictMode safety)
-  const [recordingSample, setRecordingSample] = useState(false);
-  const [recordSeconds, setRecordSeconds] = useState(0);
-  const sampleRecRef = useRef<MediaRecorder | null>(null);
-  const sampleStreamRef = useRef<MediaStream | null>(null);
-  const sampleTimerRef = useRef<number | null>(null);
-  const cloneFileInputRef = useRef<HTMLInputElement>(null);
 
   // Subscribe to browser speechSynthesis voiceschanged so native voices populate reliably
   useEffect(() => {
@@ -214,23 +113,10 @@ export const VoiceStudioTab: React.FC<VoiceStudioTabProps> = ({
     }
   }, [pendingVoiceBindTarget]);
 
-  // Clean up preview playback and active recording streams on unmount
+  // Clean up preview playback on unmount
   useEffect(() => {
     return () => {
       stopSpeaking();
-      if (sampleTimerRef.current !== null) {
-        window.clearInterval(sampleTimerRef.current);
-        sampleTimerRef.current = null;
-      }
-      if (sampleRecRef.current && sampleRecRef.current.state !== 'inactive') {
-        try {
-          sampleRecRef.current.stop();
-        } catch {
-          // ignore cleanup failure
-        }
-      }
-      sampleStreamRef.current?.getTracks().forEach((t) => t.stop());
-      sampleStreamRef.current = null;
     };
   }, []);
 
@@ -272,40 +158,6 @@ export const VoiceStudioTab: React.FC<VoiceStudioTabProps> = ({
       providers,
     });
   }, [activeTtsProviderId, draftVoice.ttsApiKey, draftVoice.ttsBaseUrl, draftVoice.ttsProviderConfigs, providers]);
-
-  // Active STT Provider ID
-  const activeSttProviderId = useMemo(() => {
-    if (draftVoice.sttEngine === 'native') return 'native';
-    if (draftVoice.sttProviderId && draftVoice.sttProviderId !== 'native') {
-      return draftVoice.sttProviderId;
-    }
-    return findSttPresetByBaseUrl(draftVoice.sttBaseUrl)?.id || 'custom_stt';
-  }, [draftVoice.sttEngine, draftVoice.sttProviderId, draftVoice.sttBaseUrl]);
-
-  const activeSttPreset = useMemo(
-    () =>
-      activeSttProviderId === 'native'
-        ? null
-        : STT_PRESETS.find((p) => p.id === activeSttProviderId) || null,
-    [activeSttProviderId]
-  );
-
-  const availableSttModels = useMemo(() => {
-    const savedModels = draftVoice.sttProviderConfigs?.[activeSttProviderId]?.models || [];
-    const presetModels = activeSttPreset?.models || [];
-    return Array.from(new Set([...savedModels, ...presetModels].filter(Boolean)));
-  }, [draftVoice.sttProviderConfigs, activeSttProviderId, activeSttPreset]);
-
-  const resolvedSttReusableKey = useMemo(() => {
-    if (activeSttProviderId === 'native' || draftVoice.sttApiKey.trim()) return '';
-    return resolveMediaApiKey({
-      providerId: activeSttProviderId,
-      baseUrl: draftVoice.sttBaseUrl,
-      explicitKey: '',
-      providerConfigs: draftVoice.sttProviderConfigs,
-      providers,
-    });
-  }, [activeSttProviderId, draftVoice.sttApiKey, draftVoice.sttBaseUrl, draftVoice.sttProviderConfigs, providers]);
 
   const activeDefaultProfile = useMemo(
     () =>
@@ -405,86 +257,6 @@ export const VoiceStudioTab: React.FC<VoiceStudioTabProps> = ({
     setRemoteCloned([]);
   };
 
-  const updateSttField = (patch: Partial<VoiceConfig>) => {
-    setDraftVoice((prev) => {
-      const pid =
-        prev.sttEngine === 'native'
-          ? 'native'
-          : prev.sttProviderId && prev.sttProviderId !== 'native'
-            ? prev.sttProviderId
-            : findSttPresetByBaseUrl(prev.sttBaseUrl)?.id || 'custom_stt';
-      const next = { ...prev, ...patch };
-      if (pid === 'native') return next;
-      const existingCred = prev.sttProviderConfigs?.[pid] || {};
-      return {
-        ...next,
-        sttProviderConfigs: {
-          ...(prev.sttProviderConfigs || {}),
-          [pid]: {
-            ...existingCred,
-            baseUrl: next.sttBaseUrl,
-            apiKey: next.sttApiKey,
-            model: next.sttModel,
-          },
-        },
-      };
-    });
-  };
-
-  const switchSttProvider = (nextId: string) => {
-    setDraftVoice((prev) => {
-      const curId =
-        prev.sttEngine === 'native'
-          ? 'native'
-          : prev.sttProviderId && prev.sttProviderId !== 'native'
-            ? prev.sttProviderId
-            : findSttPresetByBaseUrl(prev.sttBaseUrl)?.id || 'custom_stt';
-      const nextConfigs: Record<string, MediaProviderCredential> = {
-        ...(prev.sttProviderConfigs || {}),
-      };
-      if (curId !== 'native') {
-        nextConfigs[curId] = {
-          ...(nextConfigs[curId] || {}),
-          baseUrl: prev.sttBaseUrl,
-          apiKey: prev.sttApiKey,
-          model: prev.sttModel,
-        };
-      }
-
-      if (nextId === 'native') {
-        return {
-          ...prev,
-          sttProviderId: 'native',
-          sttEngine: 'native',
-          sttProviderConfigs: nextConfigs,
-        };
-      }
-
-      const preset = STT_PRESETS.find((p) => p.id === nextId);
-      const saved = nextConfigs[nextId];
-      const nextBaseUrl = saved?.baseUrl ?? preset?.baseUrl ?? prev.sttBaseUrl;
-      const nextApiKey = saved?.apiKey ?? '';
-      const nextModel = saved?.model ?? preset?.model ?? '';
-      return {
-        ...prev,
-        sttProviderId: nextId,
-        sttEngine: 'openai_api',
-        sttProviderConfigs: {
-          ...nextConfigs,
-          [nextId]: {
-            ...(saved || {}),
-            baseUrl: nextBaseUrl,
-            apiKey: nextApiKey,
-            model: nextModel,
-          },
-        },
-        sttBaseUrl: nextBaseUrl,
-        sttApiKey: nextApiKey,
-        sttModel: nextModel,
-      };
-    });
-  };
-
   const handleToggleQuickSetting = async (field: 'ttsEnabled' | 'ttsAutoPlay', checked: boolean) => {
     setDraftVoice((prev) => ({ ...prev, [field]: checked }));
     const savedVoice = useAppStore.getState().settings.voice;
@@ -532,43 +304,6 @@ export const VoiceStudioTab: React.FC<VoiceStudioTabProps> = ({
       showToast(err instanceof Error ? err.message : '拉取语音模型失败', 'error');
     } finally {
       setFetchingTtsModels(false);
-    }
-  };
-
-  const handleRefreshSttModels = async () => {
-    setFetchingSttModels(true);
-    try {
-      const list = await fetchSttModels({
-        providerId: activeSttProviderId,
-        baseUrl: draftVoice.sttBaseUrl,
-        apiKey: draftVoice.sttApiKey,
-        providerConfigs: draftVoice.sttProviderConfigs,
-        providers,
-      });
-      const currentModel = draftVoice.sttModel.trim();
-      const nextModel = list.includes(currentModel) ? currentModel : list[0] || currentModel;
-      setDraftVoice((prev) => {
-        const curCred = prev.sttProviderConfigs?.[activeSttProviderId] || {};
-        return {
-          ...prev,
-          sttModel: nextModel,
-          sttProviderConfigs: {
-            ...(prev.sttProviderConfigs || {}),
-            [activeSttProviderId]: {
-              ...curCred,
-              baseUrl: prev.sttBaseUrl,
-              apiKey: prev.sttApiKey,
-              model: nextModel,
-              models: list,
-            },
-          },
-        };
-      });
-      showToast(`已刷新 ${list.length} 个识别模型`, 'success');
-    } catch (err) {
-      showToast(err instanceof Error ? err.message : '拉取识别模型失败', 'error');
-    } finally {
-      setFetchingSttModels(false);
     }
   };
 
@@ -838,296 +573,6 @@ export const VoiceStudioTab: React.FC<VoiceStudioTabProps> = ({
     });
   };
 
-  // Breeze Voice Design handlers
-  const handleDesignBreezeVoice = async () => {
-    const desc = designPrompt.trim() || draftVoice.ttsStyleInstruction.trim();
-    if (!desc) {
-      showToast('请先描述想要的音色（例如：慵懒御姐，慢速，略带沙哑气声）', 'error');
-      return;
-    }
-    setDesigning(true);
-    setDesignPreviews([]);
-    try {
-      const previews = await designBreezeVoice({
-        baseUrl: draftVoice.ttsBaseUrl,
-        apiKey: draftVoice.ttsApiKey,
-        providers,
-        providerConfigs: draftVoice.ttsProviderConfigs,
-        description: desc,
-        text: previewText.trim() || '你好，这就是我为你捏好的新声线，听起来还满意吗？',
-        model: draftVoice.ttsModel,
-        previewCount: 2,
-      });
-      if (previews.length === 0) {
-        showToast('接口未返回音频预览，请调整描述后重试', 'error');
-      } else {
-        setDesignPreviews(previews);
-        if (!designVoiceName.trim()) {
-          setDesignVoiceName(newProfileName.trim() || desc.slice(0, 12));
-        }
-        showToast(`已生成 ${previews.length} 条音色预览`, 'success');
-      }
-    } catch (err) {
-      showToast(err instanceof Error ? err.message : '音色预览失败', 'error');
-    } finally {
-      setDesigning(false);
-    }
-  };
-
-  const handleSaveBreezeDesignPreview = async (preview: BreezeVoicePreview) => {
-    const label = designVoiceName.trim() || newProfileName.trim() || 'Breeze 捏制声线';
-    setSavingDesignId(preview.generatedVoiceId);
-    try {
-      const saved = await saveBreezeVoiceDesign({
-        baseUrl: draftVoice.ttsBaseUrl,
-        apiKey: draftVoice.ttsApiKey,
-        providers,
-        providerConfigs: draftVoice.ttsProviderConfigs,
-        generatedVoiceId: preview.generatedVoiceId,
-        name: label,
-        description: designPrompt.trim() || draftVoice.ttsStyleInstruction,
-      });
-      const profile = buildVoiceProfileFromDraft({
-        overrideName: saved.name || label,
-        overrideVoiceId: saved.voiceId,
-        overrideModel: draftVoice.ttsModel.trim() || 'breeze-tts-2',
-      });
-      await upsertVoiceProfile(profile);
-
-      const nextCreds: Record<string, MediaProviderCredential> = {
-        ...(draftVoice.ttsProviderConfigs || {}),
-        breeze: {
-          ...(draftVoice.ttsProviderConfigs?.breeze || {}),
-          baseUrl: draftVoice.ttsBaseUrl.trim() || 'https://api.breeze.blue',
-          apiKey: draftVoice.ttsApiKey.trim(),
-          model: draftVoice.ttsModel.trim() || 'breeze-tts-2',
-          defaultVoice: saved.voiceId,
-        },
-      };
-      const nextVoice: VoiceConfig = {
-        ...draftVoice,
-        ttsProviderId: 'breeze',
-        ttsEngine: 'openai_api',
-        ttsVoice: saved.voiceId,
-        ttsProviderConfigs: nextCreds,
-        activeVoiceProfileId: pendingVoiceBindTarget ? draftVoice.activeVoiceProfileId : profile.id,
-      };
-      setDraftVoice(nextVoice);
-      await updateSettings({ voice: nextVoice });
-      setDesignPreviews([]);
-      setDesignVoiceName('');
-
-      if (pendingVoiceBindTarget) {
-        await completePendingVoiceBind(profile.id);
-      } else {
-        showToast(`已保存并启用「${profile.name}」`, 'success');
-        setVoiceStudioSubTab('library');
-      }
-    } catch (err) {
-      showToast(err instanceof Error ? err.message : '保存音色失败', 'error');
-    } finally {
-      setSavingDesignId(null);
-    }
-  };
-
-  const handleFetchBreezeVoices = async () => {
-    setFetchingBreezeVoices(true);
-    try {
-      const list = await listBreezeVoices({
-        baseUrl: draftVoice.ttsBaseUrl,
-        apiKey: draftVoice.ttsApiKey,
-        providers,
-        providerConfigs: draftVoice.ttsProviderConfigs,
-      });
-      setBreezeVoices(list);
-      showToast(list.length > 0 ? `已获取 ${list.length} 个 Breeze 音色` : '账号下暂无已保存音色', 'success');
-    } catch (err) {
-      showToast(err instanceof Error ? err.message : '获取 Breeze 音色列表失败', 'error');
-    } finally {
-      setFetchingBreezeVoices(false);
-    }
-  };
-
-  // Cloning handlers (audio file or microphone)
-  const handleSelectCloneAudio = async (file: File) => {
-    if (file.size > MAX_CLONE_AUDIO_BYTES) {
-      showToast('参考音频不能超过 10MB', 'error');
-      return;
-    }
-    try {
-      const dataUrl = await audioBlobToDataUrl(file);
-      setCloneAudioDataUrl(dataUrl);
-      setCloneAudioPreviewUrl(dataUrl);
-      setCloneAudioLabel(file.name);
-      showToast('参考音频已载入', 'success');
-    } catch (err) {
-      showToast(err instanceof Error ? err.message : '读取音频失败', 'error');
-    }
-  };
-
-  const stopSampleRecording = () => {
-    if (sampleTimerRef.current !== null) {
-      window.clearInterval(sampleTimerRef.current);
-      sampleTimerRef.current = null;
-    }
-    if (sampleRecRef.current && sampleRecRef.current.state !== 'inactive') {
-      sampleRecRef.current.stop();
-    }
-    setRecordingSample(false);
-  };
-
-  const startSampleRecording = async () => {
-    if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
-      showToast('当前环境不支持直接录制音频样本，请点击「上传音频文件」', 'error');
-      return;
-    }
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      sampleStreamRef.current = stream;
-      const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
-        ? 'audio/webm;codecs=opus'
-        : MediaRecorder.isTypeSupported('audio/webm')
-          ? 'audio/webm'
-          : '';
-      const recorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
-      const chunks: BlobPart[] = [];
-      recorder.ondataavailable = (ev) => {
-        if (ev.data.size > 0) chunks.push(ev.data);
-      };
-      recorder.onstop = async () => {
-        stream.getTracks().forEach((t) => t.stop());
-        sampleStreamRef.current = null;
-        if (sampleTimerRef.current !== null) {
-          window.clearInterval(sampleTimerRef.current);
-          sampleTimerRef.current = null;
-        }
-        setRecordingSample(false);
-        const blob = new Blob(chunks, { type: recorder.mimeType || 'audio/webm' });
-        if (blob.size > 0) {
-          const dataUrl = await audioBlobToDataUrl(blob);
-          setCloneAudioDataUrl(dataUrl);
-          setCloneAudioPreviewUrl(dataUrl);
-          setCloneAudioLabel(`现场录音 (${blob.type.split(';')[0] || 'audio'})`);
-          showToast('录音样本已截取完成', 'success');
-        }
-      };
-
-      sampleRecRef.current = recorder;
-      recorder.start();
-      setRecordingSample(true);
-      setRecordSeconds(0);
-      if (sampleTimerRef.current !== null) {
-        window.clearInterval(sampleTimerRef.current);
-      }
-      sampleTimerRef.current = window.setInterval(() => {
-        setRecordSeconds((prev) => {
-          const next = prev + 1;
-          if (next >= 25) {
-            if (sampleTimerRef.current !== null) {
-              window.clearInterval(sampleTimerRef.current);
-              sampleTimerRef.current = null;
-            }
-            if (sampleRecRef.current && sampleRecRef.current.state !== 'inactive') {
-              sampleRecRef.current.stop();
-            }
-          }
-          return next;
-        });
-      }, 1000);
-    } catch (err) {
-      showToast(err instanceof Error ? err.message : '无法开启麦克风', 'error');
-    }
-  };
-
-  const handleUploadCloneAndCreateProfile = async () => {
-    if (!cloneConsent) {
-      showToast('请先勾选合规确认（仅使用已获授权的声音样本）', 'error');
-      return;
-    }
-    if (!cloneName.trim() || !cloneText.trim() || !cloneAudioDataUrl) {
-      showToast('请填完整声音名称、参考音频台词并上传参考音频', 'error');
-      return;
-    }
-    setCloning(true);
-    try {
-      const targetModel = draftVoice.ttsModel.trim() || 'FunAudioLLM/CosyVoice2-0.5B';
-      const { uri } = await uploadClonedVoice({
-        baseUrl: draftVoice.ttsBaseUrl,
-        apiKey: draftVoice.ttsApiKey,
-        providers,
-        providerConfigs: draftVoice.ttsProviderConfigs,
-        model: targetModel,
-        customName: cloneName.trim(),
-        text: cloneText.trim(),
-        audioDataUrl: cloneAudioDataUrl,
-      });
-
-      const profile = buildVoiceProfileFromDraft({
-        overrideName: cloneName.trim(),
-        overrideVoiceId: uri,
-        overrideModel: targetModel,
-        isCloned: true,
-      });
-      await upsertVoiceProfile(profile);
-
-      const nextVoice: VoiceConfig = {
-        ...draftVoice,
-        ttsVoice: uri,
-        ttsModel: targetModel,
-        ttsProviderConfigs: {
-          ...(draftVoice.ttsProviderConfigs || {}),
-          [activeTtsProviderId]: {
-            ...(draftVoice.ttsProviderConfigs?.[activeTtsProviderId] || {}),
-            baseUrl: draftVoice.ttsBaseUrl,
-            apiKey: draftVoice.ttsApiKey,
-            model: targetModel,
-            defaultVoice: uri,
-          },
-        },
-      };
-      setDraftVoice(nextVoice);
-      await updateSettings({ voice: nextVoice });
-
-      setCloneName('');
-      setCloneText('');
-      setCloneAudioDataUrl('');
-      setCloneAudioPreviewUrl('');
-      setCloneAudioLabel('');
-
-      if (pendingVoiceBindTarget) {
-        await completePendingVoiceBind(profile.id);
-      } else {
-        showToast(`声音克隆完成并已存入声音库`, 'success');
-        setVoiceStudioSubTab('library');
-      }
-    } catch (err) {
-      showToast(err instanceof Error ? err.message : '声音克隆失败', 'error');
-    } finally {
-      setCloning(false);
-    }
-  };
-
-  const handleSyncRemoteCloned = async () => {
-    setSyncingRemote(true);
-    try {
-      const rows = await listRemoteClonedVoices({
-        baseUrl: draftVoice.ttsBaseUrl,
-        apiKey: draftVoice.ttsApiKey,
-        providers,
-        providerConfigs: draftVoice.ttsProviderConfigs,
-      });
-      setRemoteCloned(rows);
-      showToast(
-        rows.length > 0 ? `已拉取 ${rows.length} 个云端克隆音色` : '云端账号暂无克隆音色',
-        'success'
-      );
-    } catch (err) {
-      showToast(err instanceof Error ? err.message : '同步云端音色失败', 'error');
-    } finally {
-      setSyncingRemote(false);
-    }
-  };
-
   return (
     <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-4 text-[13px]">
       {/* Pending character / persona bind banner */}
@@ -1225,166 +670,25 @@ export const VoiceStudioTab: React.FC<VoiceStudioTabProps> = ({
 
       {/* SUBTAB 1: Saved Voice Library */}
       {voiceStudioSubTab === 'library' && (
-        <div className="space-y-4">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div>
-              <h3 className="text-[14px] font-semibold text-ink">已保存的声音档案</h3>
-              <p className="text-[12px] text-dim">
-                切换厂商或调整参数后可保存为独立声音档案；在角色卡或人设里可直接下拉选用。
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={() => {
-                setEditingProfileId(null);
-                setNewProfileName('');
-                setVoiceStudioSubTab('create');
-              }}
-              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-accent text-white text-[12.5px] font-medium hover:opacity-95 cursor-pointer"
-            >
-              <Plus className="w-4 h-4" />
-              <span>新建声音</span>
-            </button>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2 p-2.5 rounded-xl bg-canvas border border-line">
-            <span className="text-[12px] text-dim shrink-0">试听台词：</span>
-            <input
-              value={previewText}
-              onChange={(e) => setPreviewText(e.target.value)}
-              className="flex-1 min-w-[180px] bg-transparent text-[12.5px] text-ink outline-none"
-              placeholder="输入试听语句..."
-            />
-          </div>
-
-          {voiceProfiles.length === 0 ? (
-            <div className="py-12 px-4 text-center rounded-2xl border border-dashed border-line space-y-3">
-              <Volume2 className="w-9 h-9 mx-auto text-dim" />
-              <div className="text-[14px] font-medium text-ink">还没有保存任何声音档案</div>
-              <p className="text-[12px] text-dim max-w-md mx-auto">
-                去「制作声音」选择硅基流动、Breeze、OpenAI 或系统原生语音，选好女声/男声底色并保存，就能在所有角色和会话里一键切换了。
-              </p>
-              <button
-                type="button"
-                onClick={() => setVoiceStudioSubTab('create')}
-                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-accent text-white text-[12.5px] font-medium cursor-pointer"
-              >
-                <Plus className="w-4 h-4" />
-                <span>立即制作第一个声音</span>
-              </button>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {voiceProfiles.map((vp) => {
-                const isDefault = draftVoice.activeVoiceProfileId === vp.id;
-                const isPlaying = playingProfileId === vp.id;
-                const providerLabel = getProviderDisplayName(vp);
-                const shortSf = extractSiliconFlowShortVoice(vp.voiceId || '');
-                const voiceSummary = vp.isCloned
-                  ? '克隆音色'
-                  : shortSf
-                    ? `底色 ${shortSf}`
-                    : vp.voiceId || '默认音色';
-                return (
-                  <div
-                    key={vp.id}
-                    className={`p-4 rounded-2xl border flex flex-col justify-between gap-3 transition ${
-                      isDefault ? 'border-accent bg-accent-soft/40' : 'border-line bg-sidebar'
-                    }`}
-                  >
-                    <div className="space-y-1.5">
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="min-w-0">
-                          <div className="flex flex-wrap items-center gap-1.5">
-                            <span className="font-semibold text-ink text-[14px] truncate">
-                              {vp.name}
-                            </span>
-                            {isDefault && (
-                              <span className="px-2 py-0.5 rounded-full text-[10.5px] font-medium bg-accent text-white">
-                                全局默认
-                              </span>
-                            )}
-                            {vp.isCloned && (
-                              <span className="px-2 py-0.5 rounded-full text-[10.5px] bg-purple-500/15 text-purple-400">
-                                克隆
-                              </span>
-                            )}
-                          </div>
-                          <div className="text-[11.5px] text-dim mt-1 truncate">
-                            {providerLabel}
-                            {vp.model ? ` · ${vp.model}` : ''} · {voiceSummary}
-                          </div>
-                        </div>
-                      </div>
-                      {vp.styleInstruction && (
-                        <div className="text-[11.5px] text-secondary line-clamp-2 bg-canvas/80 px-2.5 py-1.5 rounded-lg border border-line/60">
-                          语气：{vp.styleInstruction}
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-line/70">
-                      <div className="flex flex-wrap items-center gap-1.5">
-                        <button
-                          type="button"
-                          onClick={() => handlePlayLibraryProfile(vp)}
-                          className="flex items-center gap-1 px-2.5 py-1 rounded-lg border border-line bg-canvas text-[12px] text-ink hover:border-accent cursor-pointer"
-                        >
-                          {isPlaying ? (
-                            <Square className="w-3 h-3 text-accent" />
-                          ) : (
-                            <Volume2 className="w-3.5 h-3.5 text-accent" />
-                          )}
-                          <span>{isPlaying ? '停止' : '试听'}</span>
-                        </button>
-
-                        {pendingVoiceBindTarget ? (
-                          <button
-                            type="button"
-                            onClick={() => completePendingVoiceBind(vp.id)}
-                            className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-accent text-white text-[12px] font-medium hover:opacity-95 cursor-pointer"
-                          >
-                            <Check className="w-3.5 h-3.5" />
-                            <span>选用并绑定</span>
-                          </button>
-                        ) : (
-                          !isDefault && (
-                            <button
-                              type="button"
-                              onClick={() => handleSetDefaultProfile(vp)}
-                              className="px-2.5 py-1 rounded-lg border border-line bg-canvas text-[12px] text-secondary hover:text-accent hover:border-accent cursor-pointer"
-                            >
-                              设为默认
-                            </button>
-                          )
-                        )}
-                      </div>
-
-                      <div className="flex items-center gap-1">
-                        <button
-                          type="button"
-                          onClick={() => handleLoadProfileIntoEditor(vp)}
-                          className="p-1.5 rounded-lg text-secondary hover:text-ink hover:bg-hover cursor-pointer"
-                          title="加载参数并编辑"
-                        >
-                          <Sliders className="w-3.5 h-3.5" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleDeleteProfile(vp)}
-                          className="p-1.5 rounded-lg text-dim hover:text-red-500 hover:bg-red-500/10 cursor-pointer"
-                          title="删除此声音"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
+        <VoiceLibrarySubTab
+          draftVoice={draftVoice}
+          voiceProfiles={voiceProfiles}
+          pendingVoiceBindTarget={pendingVoiceBindTarget}
+          previewText={previewText}
+          setPreviewText={setPreviewText}
+          playingProfileId={playingProfileId}
+          onCreateNew={() => {
+            setEditingProfileId(null);
+            setNewProfileName('');
+            setVoiceStudioSubTab('create');
+          }}
+          onGoToCreate={() => setVoiceStudioSubTab('create')}
+          onPlayProfile={handlePlayLibraryProfile}
+          onBindProfile={(id) => void completePendingVoiceBind(id)}
+          onSetDefaultProfile={handleSetDefaultProfile}
+          onEditProfile={handleLoadProfileIntoEditor}
+          onDeleteProfile={handleDeleteProfile}
+        />
       )}
 
       {/* SUBTAB 2: Create / Edit Voice */}
@@ -1660,142 +964,24 @@ export const VoiceStudioTab: React.FC<VoiceStudioTabProps> = ({
               </div>
             </div>
           ) : isBreezeActive ? (
-            <div className="p-4 rounded-2xl bg-sidebar border border-line space-y-4">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div>
-                  <div className="font-semibold text-ink">2. Breeze 一句话 AI 捏音色</div>
-                  <div className="text-[11.5px] text-dim mt-0.5">
-                    输入外貌/声线描述即可凭空生成候选声线；满意后点击保存，将直接存入云端并加入「我的声音库」。
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={handleFetchBreezeVoices}
-                  disabled={fetchingBreezeVoices}
-                  className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-line bg-canvas text-[12px] text-secondary hover:text-ink cursor-pointer disabled:opacity-50"
-                >
-                  {fetchingBreezeVoices ? (
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  ) : (
-                    <RefreshCw className="w-3.5 h-3.5" />
-                  )}
-                  <span>同步账号已保存音色</span>
-                </button>
-              </div>
-
-              <div className="flex flex-wrap gap-1.5">
-                {VOICE_INSPIRATION_CHIPS.map((chip) => (
-                  <button
-                    key={chip.label}
-                    type="button"
-                    onClick={() => handleApplyInspirationChip(chip)}
-                    className="px-2.5 py-1 rounded-full bg-canvas border border-line text-[11.5px] text-secondary hover:border-accent hover:text-accent cursor-pointer"
-                  >
-                    + {chip.label}
-                  </button>
-                ))}
-              </div>
-
-              <div className="space-y-2">
-                <textarea
-                  rows={2}
-                  value={designPrompt}
-                  onChange={(e) => setDesignPrompt(e.target.value)}
-                  placeholder="描述音色、性别、气质、语速（例如：成熟慵懒的御姐女声，略带笑意与沙哑质感）"
-                  className="w-full px-3 py-2 rounded-xl bg-canvas border border-line text-ink outline-none focus:border-accent"
-                />
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <input
-                    value={designVoiceName}
-                    onChange={(e) => setDesignVoiceName(e.target.value)}
-                    placeholder="保存后的声音名称（如：慵懒御姐）"
-                    className="flex-1 min-w-[180px] px-3 py-1.5 rounded-xl bg-canvas border border-line text-[12.5px] text-ink outline-none focus:border-accent"
-                  />
-                  <button
-                    type="button"
-                    onClick={handleDesignBreezeVoice}
-                    disabled={designing}
-                    className="flex items-center gap-1.5 px-4 py-1.5 rounded-xl bg-accent text-white text-[12.5px] font-medium hover:opacity-95 cursor-pointer disabled:opacity-50"
-                  >
-                    {designing ? (
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    ) : (
-                      <Sparkles className="w-3.5 h-3.5" />
-                    )}
-                    <span>生成音色预览</span>
-                  </button>
-                </div>
-              </div>
-
-              {designPreviews.length > 0 && (
-                <div className="space-y-2 pt-2 border-t border-line">
-                  <div className="text-[12px] font-medium text-secondary">候选预览（听感满意后点击保存）：</div>
-                  {designPreviews.map((pv, i) => (
-                    <div
-                      key={pv.generatedVoiceId}
-                      className="flex flex-wrap items-center gap-3 p-2.5 rounded-xl bg-canvas border border-line"
-                    >
-                      <span className="text-[12px] font-medium text-ink">方案 {i + 1}</span>
-                      <audio
-                        controls
-                        src={`data:${pv.mediaType};base64,${pv.audioBase64}`}
-                        className="h-8 flex-1 min-w-[180px]"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => handleSaveBreezeDesignPreview(pv)}
-                        disabled={savingDesignId === pv.generatedVoiceId}
-                        className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-accent text-white text-[12px] font-medium cursor-pointer disabled:opacity-50"
-                      >
-                        {savingDesignId === pv.generatedVoiceId ? (
-                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                        ) : (
-                          <Check className="w-3.5 h-3.5" />
-                        )}
-                        <span>{pendingVoiceBindTarget ? '保存并绑定' : '保存到声音库'}</span>
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {breezeVoices.length > 0 && (
-                <div className="space-y-1.5 pt-2 border-t border-line">
-                  <div className="text-[12px] font-medium text-secondary">账号内已有的 Breeze 音色：</div>
-                  <div className="flex flex-wrap gap-1.5">
-                    {breezeVoices.map((bv) => (
-                      <button
-                        key={bv.voiceId}
-                        type="button"
-                        onClick={() => {
-                          updateTtsField({ ttsVoice: bv.voiceId });
-                          setNewProfileName(bv.name);
-                        }}
-                        className={`px-2.5 py-1 rounded-lg border text-[12px] cursor-pointer ${
-                          draftVoice.ttsVoice === bv.voiceId
-                            ? 'border-accent bg-accent-soft text-accent font-medium'
-                            : 'border-line bg-canvas text-ink hover:bg-hover'
-                        }`}
-                      >
-                        {bv.name}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              <div>
-                <label className="block mb-1 text-[12px] font-medium text-secondary">
-                  Breeze Voice ID（直接填入已有音色 ID，或由上方生成后自动填入）
-                </label>
-                <input
-                  value={draftVoice.ttsVoice}
-                  onChange={(e) => updateTtsField({ ttsVoice: e.target.value })}
-                  placeholder="voice_id..."
-                  className="w-full px-3 py-2 rounded-xl bg-canvas border border-line text-ink font-mono text-[12px] outline-none focus:border-accent"
-                />
-              </div>
-            </div>
+            <VoiceBreezeDesignSection
+              draftVoice={draftVoice}
+              setDraftVoice={setDraftVoice}
+              previewText={previewText}
+              newProfileName={newProfileName}
+              setNewProfileName={setNewProfileName}
+              designPrompt={designPrompt}
+              setDesignPrompt={setDesignPrompt}
+              designVoiceName={designVoiceName}
+              setDesignVoiceName={setDesignVoiceName}
+              designPreviews={designPreviews}
+              setDesignPreviews={setDesignPreviews}
+              breezeVoices={breezeVoices}
+              setBreezeVoices={setBreezeVoices}
+              updateTtsField={updateTtsField}
+              onApplyInspirationChip={handleApplyInspirationChip}
+              buildVoiceProfileFromDraft={buildVoiceProfileFromDraft}
+            />
           ) : (
             <div className="p-4 rounded-2xl bg-sidebar border border-line space-y-4">
               <div>
@@ -1955,151 +1141,16 @@ export const VoiceStudioTab: React.FC<VoiceStudioTabProps> = ({
 
               {/* SiliconFlow Voice Cloning Collapsible */}
               {isSiliconFlowActive && (
-                <div className="rounded-xl border border-line bg-canvas/60 overflow-hidden">
-                  <button
-                    type="button"
-                    onClick={() => setCloneSectionOpen((v) => !v)}
-                    className="w-full flex items-center justify-between px-3 py-2.5 text-[12.5px] font-medium text-ink hover:bg-hover cursor-pointer"
-                  >
-                    <span className="flex items-center gap-1.5">
-                      {cloneSectionOpen ? (
-                        <ChevronDown className="w-4 h-4 text-accent" />
-                      ) : (
-                        <ChevronRight className="w-4 h-4 text-dim" />
-                      )}
-                      <span>参考音频克隆（上传/录制 5~15 秒人声定制专属音色）</span>
-                    </span>
-                    <span className="text-[11px] text-dim">CosyVoice2</span>
-                  </button>
-
-                  {cloneSectionOpen && (
-                    <div className="p-3 border-t border-line space-y-3">
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <label className="flex items-center gap-1.5 text-[12px] text-secondary cursor-pointer">
-                          <ShieldAlert className="w-3.5 h-3.5 text-amber-500 shrink-0" />
-                          <input
-                            type="checkbox"
-                            checked={cloneConsent}
-                            onChange={(e) => setCloneConsent(e.target.checked)}
-                            className="accent-[var(--accent)]"
-                          />
-                          <span>我确认已取得音频本人授权或使用原创配音样本</span>
-                        </label>
-                        <button
-                          type="button"
-                          onClick={handleSyncRemoteCloned}
-                          disabled={syncingRemote}
-                          className="flex items-center gap-1 text-[12px] text-accent hover:underline cursor-pointer disabled:opacity-50"
-                        >
-                          {syncingRemote ? (
-                            <Loader2 className="w-3 h-3 animate-spin" />
-                          ) : (
-                            <RefreshCw className="w-3 h-3" />
-                          )}
-                          <span>同步云端已克隆音色</span>
-                        </button>
-                      </div>
-
-                      {remoteCloned.length > 0 && (
-                        <div className="flex flex-wrap gap-1.5">
-                          {remoteCloned.map((rc) => (
-                            <button
-                              key={rc.uri}
-                              type="button"
-                              onClick={() => {
-                                updateTtsField({ ttsVoice: rc.uri });
-                                setNewProfileName(rc.customName);
-                              }}
-                              className={`px-2.5 py-1 rounded-lg border text-[12px] cursor-pointer ${
-                                draftVoice.ttsVoice === rc.uri
-                                  ? 'border-accent bg-accent-soft text-accent font-medium'
-                                  : 'border-line bg-sidebar text-ink'
-                              }`}
-                            >
-                              {rc.customName}
-                            </button>
-                          ))}
-                        </div>
-                      )}
-
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                        <input
-                          value={cloneName}
-                          onChange={(e) => setCloneName(e.target.value)}
-                          placeholder="克隆音色名称（支持中文，如：清冷师姐）"
-                          className="px-3 py-2 rounded-xl bg-sidebar border border-line text-[12.5px] text-ink outline-none focus:border-accent"
-                        />
-                        <input
-                          value={cloneText}
-                          onChange={(e) => setCloneText(e.target.value)}
-                          placeholder="参考音频里实际念的文字台词（必填）"
-                          className="px-3 py-2 rounded-xl bg-sidebar border border-line text-[12.5px] text-ink outline-none focus:border-accent"
-                        />
-                      </div>
-
-                      <div className="flex flex-wrap items-center gap-2">
-                        <input
-                          ref={cloneFileInputRef}
-                          type="file"
-                          accept="audio/*"
-                          className="hidden"
-                          onChange={(e) => {
-                            const f = e.target.files?.[0];
-                            if (f) handleSelectCloneAudio(f);
-                            e.target.value = '';
-                          }}
-                        />
-                        <button
-                          type="button"
-                          onClick={() => cloneFileInputRef.current?.click()}
-                          className="flex items-center gap-1 px-3 py-1.5 rounded-xl border border-line bg-sidebar text-[12px] text-ink hover:bg-hover cursor-pointer"
-                        >
-                          <Upload className="w-3.5 h-3.5" />
-                          <span>上传音频文件</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={recordingSample ? stopSampleRecording : startSampleRecording}
-                          className={`flex items-center gap-1 px-3 py-1.5 rounded-xl border text-[12px] cursor-pointer ${
-                            recordingSample
-                              ? 'border-red-500 bg-red-500/15 text-red-500'
-                              : 'border-line bg-sidebar text-ink hover:bg-hover'
-                          }`}
-                        >
-                          {recordingSample ? (
-                            <Square className="w-3.5 h-3.5" />
-                          ) : (
-                            <Mic className="w-3.5 h-3.5" />
-                          )}
-                          <span>{recordingSample ? `停止录音 (${recordSeconds}s)` : '现场录制样本'}</span>
-                        </button>
-                        {cloneAudioLabel && (
-                          <span className="text-[11.5px] text-emerald-500">{cloneAudioLabel}</span>
-                        )}
-                      </div>
-
-                      {cloneAudioPreviewUrl && (
-                        <audio controls src={cloneAudioPreviewUrl} className="w-full h-8" />
-                      )}
-
-                      <div className="flex justify-end">
-                        <button
-                          type="button"
-                          onClick={handleUploadCloneAndCreateProfile}
-                          disabled={cloning}
-                          className="flex items-center gap-1.5 px-4 py-1.5 rounded-xl bg-accent text-white text-[12.5px] font-medium cursor-pointer disabled:opacity-50"
-                        >
-                          {cloning ? (
-                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                          ) : (
-                            <Check className="w-3.5 h-3.5" />
-                          )}
-                          <span>上传并加入声音库</span>
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </div>
+                <VoiceCloneSection
+                  draftVoice={draftVoice}
+                  setDraftVoice={setDraftVoice}
+                  activeTtsProviderId={activeTtsProviderId}
+                  remoteCloned={remoteCloned}
+                  setRemoteCloned={setRemoteCloned}
+                  updateTtsField={updateTtsField}
+                  setNewProfileName={setNewProfileName}
+                  buildVoiceProfileFromDraft={buildVoiceProfileFromDraft}
+                />
               )}
             </div>
           )}
@@ -2178,161 +1229,11 @@ export const VoiceStudioTab: React.FC<VoiceStudioTabProps> = ({
 
       {/* SUBTAB 3: Speech-to-Text (STT) */}
       {voiceStudioSubTab === 'stt' && (
-        <div className="p-4 rounded-2xl bg-sidebar border border-line space-y-4">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div>
-              <div className="font-semibold text-ink">语音输入 (Speech-to-Text / 语音转文字)</div>
-              <p className="text-[11.5px] text-dim mt-0.5">
-                在聊天输入框点击麦克风即可说话转文字；各语音识别厂商的 API Key 同样独立保存。
-              </p>
-            </div>
-            {activeSttPreset?.consoleUrl && (
-              <button
-                type="button"
-                onClick={() => openExternalUrl(activeSttPreset.consoleUrl).catch(() => {})}
-                className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-accent-soft text-accent text-[11.5px] font-medium hover:underline cursor-pointer"
-              >
-                <span>去官网拿 Key</span>
-                <ExternalLink className="w-3 h-3" />
-              </button>
-            )}
-          </div>
-
-          <div className="flex flex-wrap gap-1.5">
-            <button
-              type="button"
-              onClick={() => switchSttProvider('native')}
-              className={`px-3 py-1.5 rounded-xl border text-[12px] cursor-pointer ${
-                activeSttProviderId === 'native'
-                  ? 'border-accent bg-accent-soft text-accent font-medium'
-                  : 'border-line bg-canvas text-secondary hover:bg-hover'
-              }`}
-            >
-              浏览器原生语音识别
-            </button>
-            {STT_PRESETS.map((preset) => (
-              <button
-                key={preset.id}
-                type="button"
-                onClick={() => switchSttProvider(preset.id)}
-                className={`px-3 py-1.5 rounded-xl border text-[12px] cursor-pointer ${
-                  activeSttProviderId === preset.id
-                    ? 'border-accent bg-accent-soft text-accent font-medium'
-                    : 'border-line bg-canvas text-secondary hover:bg-hover'
-                }`}
-              >
-                {preset.name.split('（')[0]}
-              </button>
-            ))}
-          </div>
-
-          {activeSttPreset && <p className="text-[11.5px] text-dim">{activeSttPreset.description}</p>}
-
-          {draftVoice.sttEngine === 'openai_api' && (
-            <div className="space-y-3">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block mb-1 text-[12px] font-medium text-secondary">
-                    STT Base URL
-                  </label>
-                  <input
-                    value={draftVoice.sttBaseUrl}
-                    onChange={(e) => updateSttField({ sttBaseUrl: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl bg-canvas border border-line text-ink font-mono text-[12px] outline-none focus:border-accent"
-                  />
-                </div>
-                <div>
-                  <label className="block mb-1 text-[12px] font-medium text-secondary">
-                    API Key（{resolvedSttReusableKey ? '留空自动复用同域名 Key' : '当前厂商独立保存'}）
-                  </label>
-                  <div className="flex items-center rounded-xl bg-canvas border border-line px-3 focus-within:border-accent">
-                    <input
-                      type={showSttKey ? 'text' : 'password'}
-                      value={draftVoice.sttApiKey}
-                      onChange={(e) => updateSttField({ sttApiKey: e.target.value })}
-                      placeholder={resolvedSttReusableKey ? '已检测到同域名 Key' : 'sk-...'}
-                      className="flex-1 py-2 bg-transparent text-ink font-mono text-[12px] outline-none"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowSttKey((v) => !v)}
-                      className="p-1 text-dim hover:text-ink cursor-pointer"
-                    >
-                      {showSttKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              <div className="space-y-1.5">
-                <div className="flex items-center justify-between gap-2">
-                  <label className="text-[12px] font-medium text-secondary">识别模型 ID</label>
-                  <button
-                    type="button"
-                    onClick={handleRefreshSttModels}
-                    disabled={fetchingSttModels}
-                    className="flex items-center gap-1 text-[12px] text-accent hover:underline cursor-pointer disabled:opacity-50"
-                  >
-                    {fetchingSttModels ? (
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    ) : (
-                      <RefreshCw className="w-3.5 h-3.5" />
-                    )}
-                    <span>刷新可用模型</span>
-                  </button>
-                </div>
-                <input
-                  value={draftVoice.sttModel}
-                  onChange={(e) => updateSttField({ sttModel: e.target.value })}
-                  className="w-full px-3 py-2 rounded-xl bg-canvas border border-line text-ink font-mono text-[12px] outline-none focus:border-accent"
-                />
-                {availableSttModels.length > 0 && (
-                  <div className="flex flex-wrap gap-1.5 pt-1">
-                    {availableSttModels.map((m) => (
-                      <button
-                        key={m}
-                        type="button"
-                        onClick={() => updateSttField({ sttModel: m })}
-                        className={`px-2 py-0.5 rounded-lg border text-[11px] font-mono cursor-pointer ${
-                          draftVoice.sttModel === m
-                            ? 'border-accent bg-accent-soft text-accent font-medium'
-                            : 'border-line bg-canvas text-secondary hover:bg-hover'
-                        }`}
-                      >
-                        {m}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-end">
-            <div>
-              <label className="block mb-1 text-[12px] font-medium text-secondary">识别语言</label>
-              <select
-                value={draftVoice.sttLanguage}
-                onChange={(e) => setDraftVoice((prev) => ({ ...prev, sttLanguage: e.target.value }))}
-                className="w-full px-3 py-2 rounded-xl bg-canvas border border-line text-ink text-[12.5px] outline-none focus:border-accent"
-              >
-                <option value="zh">中文 (zh)</option>
-                <option value="en">英文 (en)</option>
-                <option value="ja">日文 (ja)</option>
-                <option value="">自动识别</option>
-              </select>
-            </div>
-            <div className="flex justify-end">
-              <button
-                type="button"
-                onClick={() => onSaveVoice({ keepActiveProfile: true })}
-                className="px-4 py-2 rounded-xl bg-accent text-white font-medium hover:opacity-95 cursor-pointer"
-              >
-                保存语音输入配置
-              </button>
-            </div>
-          </div>
-        </div>
+        <VoiceSttSubTab
+          draftVoice={draftVoice}
+          setDraftVoice={setDraftVoice}
+          onSaveVoice={onSaveVoice}
+        />
       )}
     </div>
   );

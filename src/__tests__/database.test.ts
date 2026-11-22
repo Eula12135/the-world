@@ -17,7 +17,9 @@ import {
   sessionToMarkdown,
   worldToMarkdown,
 } from '../services/exportService';
-import { isSafeHttpUrl } from '../utils/platform';
+import { buildSessionSystemPrompt } from '../services/contextBuilder';
+import { loadSessionContextData } from '../store/helpers';
+import { isProviderReady, isSafeHttpUrl } from '../utils/platform';
 
 describe('database v3, cascades, backup & security checks', () => {
   beforeEach(async () => {
@@ -375,5 +377,188 @@ describe('database v3, cascades, backup & security checks', () => {
     expect(restored.voice.ttsProviderConfigs?.breeze?.apiKey).toBe('local-breeze-key');
     expect(restored.voice.ttsProviderConfigs?.siliconflow_tts?.apiKey).toBe('local-sf-tts-key');
     expect(restored.voice.sttProviderConfigs?.siliconflow_stt?.apiKey).toBe('local-sf-stt-key');
+  });
+
+  it('detaches world characters when keepCharacters is true and deletes standalone characters cleanly', async () => {
+    await db.worlds.put({
+      id: 'w-keep',
+      name: '旧城',
+      genre: '都市',
+      document: '## 概要\n旧城设定',
+      contextMode: 'progressive',
+      pinnedSections: [],
+      selectedSections: [],
+      includeCharacters: true,
+      includeTimeline: true,
+      createdAt: 1,
+      updatedAt: 1,
+    });
+    await db.characters.put({
+      id: 'c-bound',
+      worldId: 'w-keep',
+      name: '沈墨',
+      identity: '调查员',
+      personality: '',
+      status: '',
+      relationsNote: '',
+      notes: '',
+      avatarColor: '#4d6bfe',
+      updatedAt: 1,
+    });
+    await db.timelineEvents.put({
+      id: 'e-bound',
+      worldId: 'w-keep',
+      timeLabel: '初秋',
+      title: '相遇',
+      details: '',
+      characterIds: ['c-bound'],
+      orderIndex: 1,
+      updatedAt: 1,
+    });
+    await db.relations.put({
+      id: 'r-bound',
+      worldId: 'w-keep',
+      sourceId: 'c-bound',
+      targetId: 'c-other',
+      directed: false,
+      phases: [{ id: 'p0', type: 'friend', label: '搭档', strength: 2, description: '' }],
+      updatedAt: 1,
+    });
+    await db.sessions.put({
+      id: 's-keep',
+      title: '与沈墨对话',
+      pinned: false,
+      providerId: 'deepseek',
+      model: 'deepseek-chat',
+      chatMode: 'character_role',
+      roleCharacterId: 'c-bound',
+      worldId: 'w-keep',
+      enableWorldContext: true,
+      storyPointEventId: 'e-bound',
+      createdAt: 1,
+      updatedAt: 1,
+    });
+
+    await deleteWorldCascade('w-keep', { keepCharacters: true });
+
+    expect(await db.worlds.get('w-keep')).toBeUndefined();
+    expect(await db.timelineEvents.where('worldId').equals('w-keep').count()).toBe(0);
+    expect(await db.relations.where('worldId').equals('w-keep').count()).toBe(0);
+
+    const detached = await db.characters.get('c-bound');
+    expect(detached).toBeDefined();
+    expect(detached?.worldId).toBe('');
+
+    const sess = await db.sessions.get('s-keep');
+    expect(sess?.worldId).toBeUndefined();
+    expect(sess?.enableWorldContext).toBe(false);
+    expect(sess?.storyPointEventId).toBeUndefined();
+    expect(sess?.chatMode).toBe('character_role');
+    expect(sess?.roleCharacterId).toBe('c-bound');
+
+    // Delete the now-standalone character cleanly
+    await deleteCharacterCascade('c-bound');
+    expect(await db.characters.get('c-bound')).toBeUndefined();
+    const afterCharDelete = await db.sessions.get('s-keep');
+    expect(afterCharDelete?.chatMode).toBe('assistant');
+    expect(afterCharDelete?.roleCharacterId).toBeUndefined();
+  });
+
+  it('loads standalone and cross-world role characters for session context building', async () => {
+    await db.characters.put({
+      id: 'c-solo',
+      worldId: '',
+      name: '林夏',
+      identity: '独立侦探',
+      personality: '冷静毒舌',
+      status: '调查失踪案',
+      relationsNote: '',
+      notes: '',
+      systemPrompt: '你必须以第一人称侦探林夏的口吻回答。',
+      avatarColor: '#4d6bfe',
+      updatedAt: 1,
+    });
+
+    const soloSession = {
+      id: 's-solo',
+      title: '与林夏对话',
+      pinned: false,
+      providerId: 'deepseek',
+      model: 'deepseek-chat',
+      chatMode: 'character_role' as const,
+      roleCharacterId: 'c-solo',
+      enableWorldContext: false,
+      createdAt: 1,
+      updatedAt: 1,
+    };
+
+    const soloCtx = await loadSessionContextData(soloSession);
+    expect(soloCtx.world).toBeNull();
+    expect(soloCtx.characters.map((c) => c.id)).toEqual(['c-solo']);
+
+    const { prompt } = buildSessionSystemPrompt({
+      settings: DEFAULT_SETTINGS,
+      session: soloSession,
+      world: soloCtx.world,
+      characters: soloCtx.characters,
+      relations: soloCtx.relations,
+      events: soloCtx.timelineEvents,
+      recentMessages: [],
+    });
+    expect(prompt).toContain('林夏');
+    expect(prompt).toContain('第一人称侦探林夏');
+
+    // Also works when pairing a standalone character with an existing world context
+    await db.worlds.put({
+      id: 'w-city',
+      name: '雾城档案',
+      genre: '悬疑',
+      document: '## 雾城\n常年被浓雾笼罩的港口城市',
+      contextMode: 'full',
+      pinnedSections: [],
+      selectedSections: [],
+      includeCharacters: true,
+      includeTimeline: true,
+      createdAt: 1,
+      updatedAt: 1,
+    });
+    const hybridCtx = await loadSessionContextData({
+      ...soloSession,
+      worldId: 'w-city',
+      enableWorldContext: true,
+    });
+    expect(hybridCtx.world?.id).toBe('w-city');
+    expect(hybridCtx.characters.some((c) => c.id === 'c-solo')).toBe(true);
+  });
+
+  it('does not mark any default provider as ready on a fresh install so onboarding is visible', async () => {
+    const providers = await db.providers.toArray();
+    const hasReady = providers.some((p) => p.enabled && isProviderReady(p));
+    expect(hasReady).toBe(false);
+    expect(providers.find((p) => p.id === 'ollama')?.enabled).toBe(false);
+  });
+
+  it('normalizes imported characters missing worldId or name', async () => {
+    const dirtyBackup = JSON.stringify({
+      app: 'the-world',
+      version: 2,
+      exportedAt: new Date().toISOString(),
+      data: {
+        characters: [
+          { id: 'c-dirty-1', personality: '神秘' },
+          { id: 'c-dirty-2', worldId: null, name: '   ' },
+        ],
+      },
+    });
+    await importFullBackupJson(dirtyBackup);
+
+    const c1 = await db.characters.get('c-dirty-1');
+    expect(c1?.worldId).toBe('');
+    expect(c1?.name).toBe('未命名角色');
+    expect(c1?.avatarColor).toBeTruthy();
+
+    const c2 = await db.characters.get('c-dirty-2');
+    expect(c2?.worldId).toBe('');
+    expect(c2?.name).toBe('未命名角色');
   });
 });

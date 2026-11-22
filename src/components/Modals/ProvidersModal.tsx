@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import {
   CheckCircle2,
+  ChevronDown,
+  ChevronRight,
   ExternalLink,
   Eye,
   EyeOff,
@@ -55,11 +57,16 @@ export const ProvidersModal: React.FC = () => {
   const [fetchingModels, setFetchingModels] = useState(false);
   const [fetchingImgModels, setFetchingImgModels] = useState(false);
   const [statusMsg, setStatusMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [showLlmAdvanced, setShowLlmAdvanced] = useState(false);
 
   const [draftImg, setDraftImg] = useState<ImageGenConfig>(settings.imageGen);
   const [showImgKey, setShowImgKey] = useState(false);
 
   const [draftVoice, setDraftVoice] = useState<VoiceConfig>(settings.voice);
+
+  const hasReadyKeyProvider = providers.some(
+    (p) => p.enabled && p.requiresKey && p.apiKey.trim().length > 0
+  );
 
   useEffect(() => {
     if (activeModal !== 'providers') return;
@@ -72,6 +79,7 @@ export const ProvidersModal: React.FC = () => {
 
   useEffect(() => {
     setStatusMsg(null);
+    setShowLlmAdvanced(false);
   }, [activeModal, selectedId]);
 
   useEffect(() => {
@@ -378,19 +386,23 @@ export const ProvidersModal: React.FC = () => {
         className="w-full max-w-4xl h-[90vh] md:h-[670px] rounded-2xl bg-card border border-line shadow-2xl flex flex-col overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex flex-wrap items-center justify-between gap-2 px-5 py-3 border-b border-line shrink-0">
-          <div>
-            <h2 className="text-[16px] font-semibold text-ink">模型中心与多模态接口</h2>
-            <p className="text-[12px] text-dim">
-              直连官方/自定义接口（桌面端使用系统密钥库加密存储，绝不经过第三方中转）
-            </p>
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2.5 px-4 md:px-5 py-3 border-b border-line shrink-0">
+          <div className="flex items-center justify-between gap-2">
+            <h2 className="text-[16px] font-semibold text-ink">模型与多模态配置</h2>
+            <button
+              onClick={() => setActiveModal('none')}
+              className="p-1.5 rounded-lg text-dim hover:text-ink hover:bg-hover cursor-pointer md:hidden"
+              aria-label="关闭"
+            >
+              <X className="w-4 h-4" />
+            </button>
           </div>
           <div className="flex items-center gap-2">
-            <div className="flex flex-wrap items-center gap-1 p-1 rounded-xl bg-muted border border-line">
+            <div className="flex-1 md:flex-initial grid grid-cols-3 md:flex items-center gap-1 p-1 rounded-xl bg-muted border border-line">
               <button
                 type="button"
                 onClick={() => setProvidersModalTab('llm')}
-                className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[12px] font-medium whitespace-nowrap cursor-pointer ${
+                className={`flex items-center justify-center gap-1 px-2.5 py-1.5 md:py-1 rounded-lg text-[12px] font-medium whitespace-nowrap cursor-pointer ${
                   providersModalTab === 'llm'
                     ? 'bg-card text-accent shadow-xs'
                     : 'text-secondary hover:text-ink'
@@ -402,7 +414,7 @@ export const ProvidersModal: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setProvidersModalTab('image')}
-                className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[12px] font-medium whitespace-nowrap cursor-pointer ${
+                className={`flex items-center justify-center gap-1 px-2.5 py-1.5 md:py-1 rounded-lg text-[12px] font-medium whitespace-nowrap cursor-pointer ${
                   providersModalTab === 'image'
                     ? 'bg-card text-accent shadow-xs'
                     : 'text-secondary hover:text-ink'
@@ -414,7 +426,7 @@ export const ProvidersModal: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setProvidersModalTab('voice')}
-                className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[12px] font-medium whitespace-nowrap cursor-pointer ${
+                className={`flex items-center justify-center gap-1 px-2.5 py-1.5 md:py-1 rounded-lg text-[12px] font-medium whitespace-nowrap cursor-pointer ${
                   providersModalTab === 'voice'
                     ? 'bg-card text-accent shadow-xs'
                     : 'text-secondary hover:text-ink'
@@ -426,7 +438,8 @@ export const ProvidersModal: React.FC = () => {
             </div>
             <button
               onClick={() => setActiveModal('none')}
-              className="p-1.5 rounded-lg text-dim hover:text-ink hover:bg-hover cursor-pointer"
+              className="hidden md:block p-1.5 rounded-lg text-dim hover:text-ink hover:bg-hover cursor-pointer"
+              aria-label="关闭"
             >
               <X className="w-4 h-4" />
             </button>
@@ -436,33 +449,35 @@ export const ProvidersModal: React.FC = () => {
         {/* TAB 1: Text LLM Providers */}
         {providersModalTab === 'llm' && (
           <>
-            <div className="px-5 py-2.5 bg-accent-soft border-b border-line flex flex-wrap items-center justify-between gap-2 text-[12px] shrink-0">
-              <div className="flex items-center gap-2 text-ink">
-                <Sparkles className="w-3.5 h-3.5 text-accent shrink-0" />
-                <span>
-                  新手上手 3 步：<strong>①</strong> 选一家厂商（推荐 DeepSeek / 硅基流动）→{' '}
-                  <strong>②</strong> 点「去官网拿 Key」复制密钥 → <strong>③</strong> 粘贴并测试连通
-                </span>
+            {!hasReadyKeyProvider && (
+              <div className="px-4 md:px-5 py-2.5 bg-accent-soft border-b border-line flex flex-wrap items-center justify-between gap-2 text-[12px] shrink-0">
+                <div className="flex items-center gap-2 text-ink">
+                  <Sparkles className="w-3.5 h-3.5 text-accent shrink-0" />
+                  <span>
+                    新手上手 3 步：<strong>①</strong> 选一家厂商（推荐 DeepSeek / 硅基流动）→{' '}
+                    <strong>②</strong> 点「去官网拿 Key」复制密钥 → <strong>③</strong> 粘贴并测试连通
+                  </span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    onClick={() => setSelectedId('deepseek')}
+                    className="px-2 py-0.5 rounded-md bg-card border border-line text-ink hover:border-accent cursor-pointer"
+                  >
+                    DeepSeek
+                  </button>
+                  <button
+                    onClick={() => setSelectedId('siliconflow')}
+                    className="px-2 py-0.5 rounded-md bg-card border border-line text-ink hover:border-accent cursor-pointer"
+                  >
+                    硅基流动
+                  </button>
+                </div>
               </div>
-              <div className="flex items-center gap-1.5">
-                <button
-                  onClick={() => setSelectedId('deepseek')}
-                  className="px-2 py-0.5 rounded-md bg-card border border-line text-ink hover:border-accent cursor-pointer"
-                >
-                  DeepSeek
-                </button>
-                <button
-                  onClick={() => setSelectedId('siliconflow')}
-                  className="px-2 py-0.5 rounded-md bg-card border border-line text-ink hover:border-accent cursor-pointer"
-                >
-                  硅基流动
-                </button>
-              </div>
-            </div>
+            )}
 
             <div className="flex-1 flex flex-col md:flex-row min-h-0">
               {/* Provider List */}
-              <div className="w-full md:w-64 shrink-0 border-b md:border-b-0 md:border-r border-line bg-sidebar overflow-x-auto md:overflow-y-auto p-2.5 flex md:flex-col gap-1">
+              <div className="w-full md:w-60 shrink-0 border-b md:border-b-0 md:border-r border-line bg-sidebar overflow-x-auto md:overflow-y-auto p-2 flex md:flex-col gap-1">
                 {providers.map((p) => {
                   const ready = !p.requiresKey || p.apiKey.trim().length > 0;
                   const active = p.id === draft.id;
@@ -497,115 +512,61 @@ export const ProvidersModal: React.FC = () => {
               </div>
 
               {/* Config Detail */}
-              <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-4 text-[13px]">
+              <div className="flex-1 overflow-y-auto p-4 md:p-5 space-y-4 text-[13px]">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
                     <h3 className="text-[16px] font-semibold text-ink">{draft.name}</h3>
-                    <p className="mt-0.5 text-[13px] text-secondary">{draft.description}</p>
+                    <p className="mt-0.5 text-[12.5px] text-secondary">{draft.description}</p>
                   </div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    {draft.consoleUrl && (
-                      <button
-                        onClick={() => openExternalUrl(draft.consoleUrl)}
-                        className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-[12px] font-medium bg-accent text-white hover:opacity-95 cursor-pointer"
-                      >
-                        <span>去官网获取 API Key</span>
-                        <ExternalLink className="w-3.5 h-3.5" />
-                      </button>
-                    )}
-                    {draft.docsUrl && (
-                      <button
-                        onClick={() => openExternalUrl(draft.docsUrl)}
-                        className="flex items-center gap-1 px-3 py-2 rounded-xl text-[12px] border border-line text-secondary hover:bg-hover cursor-pointer"
-                      >
-                        <span>API 文档</span>
-                        <ExternalLink className="w-3 h-3" />
-                      </button>
-                    )}
-                  </div>
-                </div>
-
-                {draft.isCustom && (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div>
-                      <label className="block mb-1.5 font-medium text-secondary">厂商显示名称</label>
-                      <input
-                        value={draft.name}
-                        onChange={(e) => setDraft({ ...draft, name: e.target.value })}
-                        className="w-full px-3 py-2 rounded-xl bg-canvas border border-line text-ink outline-none focus:border-accent"
-                      />
-                    </div>
-                    <div>
-                      <label className="block mb-1.5 font-medium text-secondary">接口协议</label>
-                      <div className="grid grid-cols-2 gap-2">
-                        {(
-                          [
-                            { id: 'openai', label: 'OpenAI 兼容' },
-                            { id: 'anthropic', label: 'Anthropic 原生' },
-                          ] as const
-                        ).map((proto) => (
-                          <button
-                            key={proto.id}
-                            type="button"
-                            onClick={() => setDraft({ ...draft, protocol: proto.id })}
-                            className={`py-2 rounded-xl border text-[12px] cursor-pointer ${
-                              draft.protocol === proto.id
-                                ? 'bg-accent-soft border-accent text-accent font-medium'
-                                : 'border-line text-secondary'
-                            }`}
-                          >
-                            {proto.label}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                <div>
-                  <label className="block mb-1.5 font-medium text-secondary">API Base URL</label>
-                  <input
-                    value={draft.baseUrl}
-                    onChange={(e) => setDraft({ ...draft, baseUrl: e.target.value })}
-                    placeholder="https://api.deepseek.com/v1"
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-canvas border border-line text-ink outline-none font-mono text-[13px] focus:border-accent"
-                  />
-                </div>
-
-                <div>
-                  <label className="block mb-1.5 font-medium text-secondary">
-                    API Key {!draft.requiresKey && '（本地 Ollama 通常无需填写）'}
-                  </label>
-                  <div className="flex items-center rounded-xl bg-canvas border border-line px-3.5 focus-within:border-accent">
-                    <input
-                      type={showKey ? 'text' : 'password'}
-                      value={draft.apiKey}
-                      onChange={(e) => setDraft({ ...draft, apiKey: e.target.value })}
-                      placeholder={draft.requiresKey ? 'sk-...' : '留空即可'}
-                      className="flex-1 py-2.5 bg-transparent text-ink outline-none font-mono text-[13px]"
-                    />
+                  {draft.consoleUrl && (
                     <button
-                      onClick={() => setShowKey((v) => !v)}
-                      className="p-1 text-dim hover:text-ink cursor-pointer"
-                      aria-label={showKey ? '隐藏密钥' : '显示密钥'}
+                      onClick={() => openExternalUrl(draft.consoleUrl)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[12px] font-medium bg-accent text-white hover:opacity-95 cursor-pointer shrink-0"
                     >
-                      {showKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      <span>去官网获取 API Key</span>
+                      <ExternalLink className="w-3.5 h-3.5" />
                     </button>
+                  )}
+                </div>
+
+                {/* Card 1: Basic Connection */}
+                <div className="p-3.5 md:p-4 rounded-2xl bg-sidebar border border-line space-y-3">
+                  <div>
+                    <label className="block mb-1.5 font-medium text-ink">
+                      API Key {!draft.requiresKey && '（本地 Ollama 通常无需填写）'}
+                    </label>
+                    <div className="flex items-center rounded-xl bg-canvas border border-line px-3.5 focus-within:border-accent">
+                      <input
+                        type={showKey ? 'text' : 'password'}
+                        value={draft.apiKey}
+                        onChange={(e) => setDraft({ ...draft, apiKey: e.target.value })}
+                        placeholder={draft.requiresKey ? 'sk-...' : '留空即可'}
+                        className="flex-1 py-2 bg-transparent text-ink outline-none font-mono text-[13px]"
+                      />
+                      <button
+                        onClick={() => setShowKey((v) => !v)}
+                        className="p-1 text-dim hover:text-ink cursor-pointer"
+                        aria-label={showKey ? '隐藏密钥' : '显示密钥'}
+                      >
+                        {showKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
                   </div>
                 </div>
 
-                <div className="space-y-2.5">
-                  <div className="flex items-center justify-between">
-                    <label className="font-medium text-secondary">
-                      可用模型（默认：{draft.selectedModel}）
+                {/* Card 2: Model Configuration */}
+                <div className="p-3.5 md:p-4 rounded-2xl bg-sidebar border border-line space-y-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <label className="font-medium text-ink">
+                      可用模型（默认：<span className="font-mono text-accent">{draft.selectedModel}</span>）
                     </label>
                     <button
                       onClick={handleFetchModels}
                       disabled={fetchingModels}
-                      className="flex items-center gap-1 px-2.5 py-1 rounded-lg border border-line text-[12px] text-accent hover:bg-accent-soft cursor-pointer disabled:opacity-50"
+                      className="flex items-center gap-1 px-2.5 py-1 rounded-lg border border-line bg-canvas text-[12px] text-accent hover:bg-accent-soft cursor-pointer disabled:opacity-50 shrink-0"
                     >
                       <RefreshCw className={`w-3 h-3 ${fetchingModels ? 'animate-spin' : ''}`} />
-                      <span>从服务器拉取模型</span>
+                      <span>拉取模型</span>
                     </button>
                   </div>
 
@@ -654,11 +615,105 @@ export const ProvidersModal: React.FC = () => {
                     />
                     <button
                       onClick={handleAddModel}
-                      className="px-3.5 py-2 rounded-xl border border-line text-secondary hover:bg-hover cursor-pointer"
+                      className="px-3.5 py-2 rounded-xl border border-line bg-canvas text-secondary hover:bg-hover cursor-pointer"
                     >
                       添加
                     </button>
                   </div>
+                </div>
+
+                {/* Card 3: Collapsible Advanced Endpoint Options */}
+                <div className="rounded-2xl bg-sidebar border border-line overflow-hidden">
+                  {!draft.isCustom && (
+                    <button
+                      type="button"
+                      onClick={() => setShowLlmAdvanced((v) => !v)}
+                      className="w-full flex items-center justify-between px-4 py-2.5 text-[12.5px] font-medium text-secondary hover:text-ink hover:bg-hover cursor-pointer"
+                    >
+                      <span className="flex items-center gap-1.5">
+                        {showLlmAdvanced ? (
+                          <ChevronDown className="w-4 h-4 text-accent" />
+                        ) : (
+                          <ChevronRight className="w-4 h-4 text-dim" />
+                        )}
+                        <span>高级接口选项（Base URL / 协议 / 文档）</span>
+                      </span>
+                      <span className="text-[11px] font-mono text-dim truncate max-w-[180px]">
+                        {draft.baseUrl}
+                      </span>
+                    </button>
+                  )}
+
+                  {(draft.isCustom || showLlmAdvanced) && (
+                    <div
+                      className={`p-3.5 md:p-4 space-y-3 ${
+                        !draft.isCustom ? 'border-t border-line' : ''
+                      }`}
+                    >
+                      {draft.isCustom && (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div>
+                            <label className="block mb-1.5 font-medium text-secondary">厂商显示名称</label>
+                            <input
+                              value={draft.name}
+                              onChange={(e) => setDraft({ ...draft, name: e.target.value })}
+                              className="w-full px-3 py-2 rounded-xl bg-canvas border border-line text-ink outline-none focus:border-accent"
+                            />
+                          </div>
+                          <div>
+                            <label className="block mb-1.5 font-medium text-secondary">接口协议</label>
+                            <div className="grid grid-cols-2 gap-2">
+                              {(
+                                [
+                                  { id: 'openai', label: 'OpenAI 兼容' },
+                                  { id: 'anthropic', label: 'Anthropic 原生' },
+                                ] as const
+                              ).map((proto) => (
+                                <button
+                                  key={proto.id}
+                                  type="button"
+                                  onClick={() => setDraft({ ...draft, protocol: proto.id })}
+                                  className={`py-2 rounded-xl border text-[12px] cursor-pointer ${
+                                    draft.protocol === proto.id
+                                      ? 'bg-accent-soft border-accent text-accent font-medium'
+                                      : 'border-line text-secondary'
+                                  }`}
+                                >
+                                  {proto.label}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      <div>
+                        <label className="block mb-1.5 font-medium text-secondary">API Base URL</label>
+                        <input
+                          value={draft.baseUrl}
+                          onChange={(e) => setDraft({ ...draft, baseUrl: e.target.value })}
+                          placeholder="https://api.deepseek.com/v1"
+                          className="w-full px-3 py-2 rounded-xl bg-canvas border border-line text-ink outline-none font-mono text-[12.5px] focus:border-accent"
+                        />
+                      </div>
+
+                      {!draft.isCustom && (
+                        <div className="flex flex-wrap items-center justify-between gap-2 text-[12px] text-dim pt-1">
+                          <span>协议：{draft.protocol === 'anthropic' ? 'Anthropic 原生' : 'OpenAI 兼容'}</span>
+                          {draft.docsUrl && (
+                            <button
+                              type="button"
+                              onClick={() => openExternalUrl(draft.docsUrl)}
+                              className="flex items-center gap-1 text-accent hover:underline cursor-pointer"
+                            >
+                              <span>查看官方 API 文档</span>
+                              <ExternalLink className="w-3 h-3" />
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 {statusMsg && (
@@ -678,7 +733,7 @@ export const ProvidersModal: React.FC = () => {
                   </div>
                 )}
 
-                <div className="flex flex-wrap items-center justify-between gap-2 pt-3 border-t border-line">
+                <div className="flex flex-wrap items-center justify-between gap-2 pt-2">
                   <div>
                     {draft.isCustom && (
                       <button

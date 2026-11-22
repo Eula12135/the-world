@@ -46,7 +46,7 @@ export const TopBar: React.FC = () => {
   };
 
   return (
-    <header className="shrink-0 bg-canvas/95 backdrop-blur-md border-b border-line safe-top">
+    <header className="relative z-30 shrink-0 bg-canvas/95 backdrop-blur-md border-b border-line safe-top">
       <div className="h-14 flex items-center justify-between gap-2 px-3 md:px-5">
         {/* Left action */}
         <div className="flex items-center gap-2 min-w-0">

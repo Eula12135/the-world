@@ -93,22 +93,28 @@ export function buildRoleCharacterPrompt(params: {
   const { character, world, relations, characters, orderedEvents, pointEventId, extraInstruction } =
     params;
   const charMap = new Map(characters.map((c) => [c.id, c.name]));
+  const customPrompt = character.systemPrompt?.trim();
+  const lines: string[] = [];
 
-  const lines: string[] = [
-    `请直接以角色「${character.name}」的第一人称身份、视角与口吻和用户对话${
-      world ? `（所属作品：《${world.name}》${world.genre ? ` · ${world.genre}` : ''}）` : ''
-    }。除非用户在正文中要求跳出视角，否则不要以“AI助手”口吻自称或说教。`,
-  ];
+  if (customPrompt) {
+    lines.push(customPrompt);
+  } else {
+    lines.push(
+      `请直接以角色「${character.name}」的第一人称身份、视角与口吻和用户对话${
+        world ? `（所属作品：《${world.name}》${world.genre ? ` · ${world.genre}` : ''}）` : ''
+      }。除非用户在正文中要求跳出视角，否则不要以“AI助手”口吻自称或说教。`
+    );
 
-  const profile: string[] = [];
-  if (character.identity) profile.push(`- 身份定位：${character.identity}`);
-  if (character.personality) profile.push(`- 性格特点：${character.personality}`);
-  if (character.status) profile.push(`- 当前状态：${character.status}`);
-  if (character.relationsNote) profile.push(`- 关系简记：${character.relationsNote}`);
-  if (character.notes) profile.push(`- 补充细节：${character.notes}`);
+    const profile: string[] = [];
+    if (character.identity) profile.push(`- 身份定位：${character.identity}`);
+    if (character.personality) profile.push(`- 性格特点：${character.personality}`);
+    if (character.status) profile.push(`- 当前状态：${character.status}`);
+    if (character.relationsNote) profile.push(`- 关系简记：${character.relationsNote}`);
+    if (character.notes) profile.push(`- 补充细节：${character.notes}`);
 
-  if (profile.length > 0) {
-    lines.push('【你的角色档案】\n' + profile.join('\n'));
+    if (profile.length > 0) {
+      lines.push('【你的角色档案】\n' + profile.join('\n'));
+    }
   }
 
   const roleRelations = relations.filter(

@@ -73,6 +73,12 @@ npm run serve:lan
 
 也可以将代码推送到 GitHub（或 Gitee），打上 `v0.2.1` 等 Tag 后内置的 `.github/workflows/build.yml` 会自动将 `GITHUB_REPOSITORY` 写入安装包作为默认更新源、构建全平台安装包并自动发布 GitHub Release。
 
+## 已知限制
+
+- **Android 端局域网 / 本地模型地址**：App 页面运行在 `https://localhost` 源下，填 `http://` 的地址（如 `http://192.168.1.10:11434/v1`）会被 WebView 当作混合内容拦截，随后自动回退为**原生 HTTP 非流式**请求——功能可用，但不再逐字输出。介意体验的话请在 Android 端使用 `https://` 端点，或改用桌面端/浏览器。
+- **Android 6–9（API 23–28）**：「保存图片到相册」不可用（应用未申请存储权限），会提示保存失败；Android 10 及以上正常。
+- **API Key 存储**：桌面端使用系统密钥库（Electron `safeStorage`）加密；Android 端没有等价的系统级密钥库，Key 以明文保存在应用私有存储（IndexedDB）中，未 root 的设备上其它应用无法读取。对外宣传请以本段为准，不要笼统写「加密存储」。
+
 ## 隐私、合规与开源协议
 
 - **许可证**：[MIT License](./LICENSE)

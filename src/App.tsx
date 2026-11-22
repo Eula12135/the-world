@@ -1,15 +1,24 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { Download, ExternalLink, Loader2, X } from 'lucide-react';
+import React, { lazy, Suspense, useEffect, useRef, useState } from 'react';
+import { AlertTriangle, Download, ExternalLink, Loader2, RotateCcw, X } from 'lucide-react';
 import { useShallow } from 'zustand/react/shallow';
 import { useAppStore } from './store/useAppStore';
 import { AppShell } from './components/Layout/AppShell';
 import { ChatView } from './components/Chat/ChatView';
-import { WorldsView } from './components/Worlds/WorldsView';
-import { ProvidersModal } from './components/Modals/ProvidersModal';
-import { DataTransferModal } from './components/Modals/DataTransferModal';
-import { SettingsModal } from './components/Modals/SettingsModal';
 import { ConfirmDialog } from './components/Common/ConfirmDialog';
 import { ToastHost } from './components/Common/ToastHost';
+
+const WorldsView = lazy(() =>
+  import('./components/Worlds/WorldsView').then((m) => ({ default: m.WorldsView }))
+);
+const ProvidersModal = lazy(() =>
+  import('./components/Modals/ProvidersModal').then((m) => ({ default: m.ProvidersModal }))
+);
+const DataTransferModal = lazy(() =>
+  import('./components/Modals/DataTransferModal').then((m) => ({ default: m.DataTransferModal }))
+);
+const SettingsModal = lazy(() =>
+  import('./components/Modals/SettingsModal').then((m) => ({ default: m.SettingsModal }))
+);
 import {
   type ApkUpdateProgress,
   canInAppAndroidUpdate,
@@ -22,7 +31,9 @@ import { openExternalUrl } from './utils/platform';
 export const App: React.FC = () => {
   const {
     initialized,
+    initError,
     activeView,
+    activeModal,
     theme,
     autoCheckUpdates,
     updateRepo,
@@ -34,7 +45,9 @@ export const App: React.FC = () => {
   } = useAppStore(
     useShallow((s) => ({
       initialized: s.initialized,
+      initError: s.initError,
       activeView: s.activeView,
+      activeModal: s.activeModal,
       theme: s.settings.theme,
       autoCheckUpdates: s.settings.autoCheckUpdates,
       updateRepo: s.settings.updateRepo,
@@ -98,6 +111,46 @@ export const App: React.FC = () => {
       return () => mq.removeEventListener('change', handler);
     }
   }, [theme]);
+
+  if (initError) {
+    return (
+      <div className="h-full w-full flex items-center justify-center bg-canvas text-ink p-4">
+        <div className="max-w-md w-full rounded-2xl border border-line bg-card p-6 space-y-4 shadow-lg">
+          <div className="flex items-start gap-3">
+            <div className="w-10 h-10 rounded-xl bg-red-500/10 text-red-500 flex items-center justify-center shrink-0">
+              <AlertTriangle className="w-5 h-5" />
+            </div>
+            <div className="space-y-1 min-w-0">
+              <h2 className="text-[15px] font-semibold text-ink">本地工作区初始化失败</h2>
+              <p className="text-[12.5px] text-secondary leading-relaxed">
+                可能是本地存储权限受限或数据库版本迁移异常，请重试或重启应用。
+              </p>
+            </div>
+          </div>
+          <div className="rounded-xl bg-muted border border-line px-3 py-2 text-[12px] text-secondary font-mono break-all max-h-28 overflow-y-auto">
+            {initError}
+          </div>
+          <div className="flex items-center justify-end gap-2 pt-1">
+            <button
+              type="button"
+              onClick={() => window.location.reload()}
+              className="px-3.5 py-2 rounded-xl text-[13px] border border-line text-secondary hover:bg-hover hover:text-ink transition cursor-pointer"
+            >
+              刷新页面
+            </button>
+            <button
+              type="button"
+              onClick={() => init()}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-[13px] font-medium bg-accent text-white hover:opacity-95 transition cursor-pointer"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              <span>重试初始化</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (!initialized) {
     return (
@@ -207,11 +260,25 @@ export const App: React.FC = () => {
             </div>
           </div>
         )}
-        {activeView === 'chat' ? <ChatView /> : <WorldsView />}
+        {activeView === 'chat' ? (
+          <ChatView />
+        ) : (
+          <Suspense
+            fallback={
+              <div className="h-full w-full flex items-center justify-center bg-canvas text-secondary text-sm">
+                正在加载世界观工坊...
+              </div>
+            }
+          >
+            <WorldsView />
+          </Suspense>
+        )}
       </AppShell>
-      <ProvidersModal />
-      <DataTransferModal />
-      <SettingsModal />
+      <Suspense fallback={null}>
+        {activeModal === 'providers' && <ProvidersModal />}
+        {activeModal === 'dataTransfer' && <DataTransferModal />}
+        {activeModal === 'settings' && <SettingsModal />}
+      </Suspense>
       <ConfirmDialog />
       <ToastHost />
     </>

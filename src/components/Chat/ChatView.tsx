@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import {
   AlertCircle,
@@ -34,6 +34,8 @@ const QUICK_STARTERS = [
     prompt: '请仔细对照已关联的世界观文档、角色卡与时间线，排查可能存在的前后矛盾或时间漏洞。',
   },
 ];
+
+const sessionScrollCache = new Map<string, { scrollTop: number; nearBottom: boolean }>();
 
 export const ChatView: React.FC = () => {
   const {
@@ -85,6 +87,7 @@ export const ChatView: React.FC = () => {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const nearBottomRef = useRef(true);
   const prevMsgLenRef = useRef(messages.length);
+  const justMountedOrSwitchedRef = useRef(true);
   const keyboardOpen = useMobileKeyboardOpen();
 
   const session = sessions.find((s) => s.id === activeSessionId) ?? null;
@@ -105,6 +108,9 @@ export const ChatView: React.FC = () => {
 
   const isCurrentSessionStreaming =
     isStreaming && (activeSessionId === null || streamingSessionId === activeSessionId);
+  const wasStreamingRef = useRef(isCurrentSessionStreaming);
+  const cacheKey = activeSessionId ?? '__draft__';
+  const hasMessages = messages.length > 0;
 
   const hasReadyProvider = useMemo(
     () => providers.some((p) => p.enabled && isProviderReady(p)),
@@ -114,16 +120,56 @@ export const ChatView: React.FC = () => {
   const handleMessagesScroll = () => {
     const el = scrollContainerRef.current;
     if (!el) return;
-    nearBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 120;
+    const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 120;
+    nearBottomRef.current = nearBottom;
+    sessionScrollCache.set(cacheKey, { scrollTop: el.scrollTop, nearBottom });
   };
 
-  useEffect(() => {
-    const addedMessages = messages.length > prevMsgLenRef.current;
+  // 切回对话页或切换会话时在首帧绘制前恢复滚动位置，避免平滑滚过整段历史消息
+  useLayoutEffect(() => {
+    justMountedOrSwitchedRef.current = true;
     prevMsgLenRef.current = messages.length;
-    if (addedMessages || nearBottomRef.current) {
-      bottomRef.current?.scrollIntoView({ behavior: isCurrentSessionStreaming ? 'auto' : 'smooth' });
+    wasStreamingRef.current = isCurrentSessionStreaming;
+
+    const el = scrollContainerRef.current;
+    if (!el) return;
+
+    const cached = sessionScrollCache.get(cacheKey);
+    if (cached && !cached.nearBottom) {
+      el.scrollTop = cached.scrollTop;
+      nearBottomRef.current = false;
+    } else {
+      el.scrollTop = el.scrollHeight;
+      nearBottomRef.current = true;
+    }
+  }, [cacheKey, hasMessages]);
+
+  useEffect(() => {
+    if (justMountedOrSwitchedRef.current) {
+      justMountedOrSwitchedRef.current = false;
+      return;
+    }
+
+    const prevCount = prevMsgLenRef.current;
+    const addedMessages = messages.length > prevCount;
+    const streamJustFinished = wasStreamingRef.current && !isCurrentSessionStreaming;
+    prevMsgLenRef.current = messages.length;
+    wasStreamingRef.current = isCurrentSessionStreaming;
+
+    if (addedMessages || (nearBottomRef.current && (isCurrentSessionStreaming || streamJustFinished))) {
+      const behavior: 'auto' | 'smooth' =
+        isCurrentSessionStreaming || streamJustFinished || prevCount === 0 ? 'auto' : 'smooth';
+      bottomRef.current?.scrollIntoView({ behavior });
+      if (addedMessages) {
+        nearBottomRef.current = true;
+        const el = scrollContainerRef.current;
+        if (el) {
+          sessionScrollCache.set(cacheKey, { scrollTop: el.scrollHeight, nearBottom: true });
+        }
+      }
     }
   }, [
+    cacheKey,
     messages.length,
     messages[messages.length - 1]?.content,
     messages[messages.length - 1]?.reasoning,

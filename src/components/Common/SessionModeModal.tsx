@@ -2,22 +2,16 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
   Bot,
-  Check,
+  ChevronDown,
+  ChevronRight,
   Plus,
   Sparkles,
-  Square,
-  Trash2,
   UserRound,
   Users,
-  Volume2,
   X,
 } from 'lucide-react';
 import { useAppStore } from '../../store/useAppStore';
-import type { ChatMode, PersonaPreset } from '../../types';
-import { speakText, stopSpeaking } from '../../services/voiceService';
-import { createId } from '../../utils/platform';
-
-const AVATAR_COLORS = ['#4d6bfe', '#10b981', '#f59e0b', '#ec4899', '#8b5cf6', '#06b6d4', '#ef4444'];
+import type { ChatMode } from '../../types';
 
 export const SessionModeModal: React.FC = () => {
   const {
@@ -29,24 +23,15 @@ export const SessionModeModal: React.FC = () => {
     worlds,
     characters,
     personaPresets,
-    voiceProfiles,
-    providers,
-    settings,
-    upsertPersonaPreset,
-    deletePersonaPreset,
+    selectWorld,
     setActiveView,
-    openProvidersModal,
-    lastCreatedVoiceForTarget,
-    clearLastCreatedVoiceForTarget,
-    showToast,
+    openStandaloneCharacters,
   } = useAppStore();
 
   const [open, setOpen] = useState(false);
-  const [savingPreset, setSavingPreset] = useState(false);
-  const [presetName, setPresetName] = useState('');
-  const [presetDesc, setPresetDesc] = useState('');
-  const [presetVoiceId, setPresetVoiceId] = useState('');
-  const [previewingPresetVoice, setPreviewingPresetVoice] = useState(false);
+  const [charFilter, setCharFilter] = useState<string>('all');
+  const [assistantPromptOpen, setAssistantPromptOpen] = useState(false);
+  const [roleExtraOpen, setRoleExtraOpen] = useState(false);
 
   const session = sessions.find((s) => s.id === activeSessionId) ?? null;
   const chatMode: ChatMode = (session ? session.chatMode : draftConfig.chatMode) || 'assistant';
@@ -56,27 +41,16 @@ export const SessionModeModal: React.FC = () => {
   const promptOverride =
     (session ? session.systemPromptOverride : draftConfig.systemPromptOverride) || '';
 
-  const [selectedRoleWorldId, setSelectedRoleWorldId] = useState<string>(worldId || worlds[0]?.id || '');
-
   useEffect(() => {
-    if (open) {
-      setSelectedRoleWorldId(worldId || worlds[0]?.id || '');
+    if (!open) return;
+    setAssistantPromptOpen(Boolean(chatMode === 'assistant' && promptOverride.trim()));
+    setRoleExtraOpen(Boolean(chatMode === 'character_role' && promptOverride.trim()));
+    if (worldId && characters.some((c) => c.worldId === worldId)) {
+      setCharFilter(worldId);
+    } else {
+      setCharFilter('all');
     }
-  }, [open, worldId, worlds]);
-
-  useEffect(() => {
-    if (lastCreatedVoiceForTarget?.targetKey === 'persona') {
-      setPresetVoiceId(lastCreatedVoiceForTarget.profileId);
-      setSavingPreset(true);
-      clearLastCreatedVoiceForTarget();
-    }
-  }, [lastCreatedVoiceForTarget, clearLastCreatedVoiceForTarget]);
-
-  useEffect(() => {
-    return () => {
-      stopSpeaking();
-    };
-  }, []);
+  }, [open, worldId, chatMode, promptOverride, characters]);
 
   const activePreset = useMemo(
     () => (personaPresetId ? personaPresets.find((p) => p.id === personaPresetId) : undefined),
@@ -88,10 +62,36 @@ export const SessionModeModal: React.FC = () => {
     [characters, roleCharacterId]
   );
 
-  const roleWorldChars = useMemo(
-    () => (selectedRoleWorldId ? characters.filter((c) => c.worldId === selectedRoleWorldId) : []),
-    [characters, selectedRoleWorldId]
+  const worldNameMap = useMemo(
+    () => new Map(worlds.map((w) => [w.id, w.name])),
+    [worlds]
   );
+
+  const standaloneChars = useMemo(
+    () => characters.filter((c) => !c.worldId),
+    [characters]
+  );
+
+  const worldBuckets = useMemo(
+    () =>
+      worlds
+        .map((w) => ({
+          world: w,
+          count: characters.filter((c) => c.worldId === w.id).length,
+        }))
+        .filter((b) => b.count > 0),
+    [worlds, characters]
+  );
+
+  const filteredChars = useMemo(() => {
+    const list =
+      charFilter === 'all'
+        ? characters
+        : charFilter === 'standalone'
+          ? standaloneChars
+          : characters.filter((c) => c.worldId === charFilter);
+    return [...list].sort((a, b) => b.updatedAt - a.updatedAt);
+  }, [characters, standaloneChars, charFilter]);
 
   const patchSessionOrDraft = async (patch: {
     chatMode?: ChatMode;
@@ -108,35 +108,18 @@ export const SessionModeModal: React.FC = () => {
     }
   };
 
-  const handleSavePreset = async () => {
-    const name = presetName.trim();
-    const sys = promptOverride.trim();
-    if (!name || !sys) {
-      showToast('请填写人设名称和提示词内容', 'error');
-      return;
+  const handleManageChars = () => {
+    setOpen(false);
+    if (charFilter !== 'all' && charFilter !== 'standalone') {
+      void selectWorld(charFilter);
+      setActiveView('worlds');
+    } else {
+      openStandaloneCharacters(false);
     }
-    const now = Date.now();
-    const preset: PersonaPreset = {
-      id: createId('preset'),
-      name,
-      description: presetDesc.trim(),
-      systemPrompt: sys,
-      avatarColor: AVATAR_COLORS[personaPresets.length % AVATAR_COLORS.length],
-      voiceProfileId: presetVoiceId || undefined,
-      createdAt: now,
-      updatedAt: now,
-    };
-    await upsertPersonaPreset(preset);
-    await patchSessionOrDraft({
-      chatMode: 'custom_persona',
-      personaPresetId: preset.id,
-    });
-    setSavingPreset(false);
-    setPresetName('');
-    setPresetDesc('');
-    setPresetVoiceId('');
-    showToast(`已保存常用人设「${name}」`, 'success');
   };
+
+  const isRoleMode = chatMode === 'character_role';
+  const isLegacyPersona = chatMode === 'custom_persona';
 
   return (
     <>
@@ -150,7 +133,7 @@ export const SessionModeModal: React.FC = () => {
             : 'bg-accent-soft text-accent font-medium'
         }`}
       >
-        {chatMode === 'character_role' ? (
+        {isRoleMode ? (
           <>
             {activeRoleChar?.avatarImage ? (
               <img
@@ -163,7 +146,7 @@ export const SessionModeModal: React.FC = () => {
             )}
             <span>扮演：{activeRoleChar?.name || '选择角色'}</span>
           </>
-        ) : chatMode === 'custom_persona' ? (
+        ) : isLegacyPersona ? (
           <>
             <UserRound className="w-3.5 h-3.5 shrink-0" />
             <span>人设：{activePreset?.name || '自定义人设'}</span>
@@ -172,6 +155,9 @@ export const SessionModeModal: React.FC = () => {
           <>
             <Bot className="w-3.5 h-3.5 shrink-0" />
             <span>通用助手</span>
+            {promptOverride.trim() && (
+              <span className="w-1.5 h-1.5 rounded-full bg-accent shrink-0" title="已设临时指令" />
+            )}
           </>
         )}
       </button>
@@ -183,385 +169,243 @@ export const SessionModeModal: React.FC = () => {
             className="fixed inset-0 z-50 bg-black/55 backdrop-blur-[2px] flex items-end md:items-center justify-center p-0 md:p-4"
             onClick={() => setOpen(false)}
           >
-          <div
-            className="w-full md:max-w-xl rounded-t-2xl md:rounded-2xl bg-card border border-line shadow-2xl overflow-hidden flex flex-col max-h-[88vh]"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between px-4 py-3 border-b border-line shrink-0">
-              <div className="flex items-center gap-2">
-                <Sparkles className="w-4 h-4 text-accent" />
-                <span className="text-[15px] font-semibold text-ink">对话用途与人设模式</span>
-              </div>
-              <button
-                onClick={() => setOpen(false)}
-                className="p-1 text-dim hover:text-ink cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <div className="p-4 overflow-y-auto space-y-4 text-[13px]">
-              {/* 3 Mode Cards */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                <button
-                  type="button"
-                  onClick={() =>
-                    patchSessionOrDraft({
-                      chatMode: 'assistant',
-                      roleCharacterId: undefined,
-                      personaPresetId: undefined,
-                      ...(chatMode !== 'assistant' ? { systemPromptOverride: '' } : {}),
-                    })
-                  }
-                  className={`p-3 rounded-xl border text-left cursor-pointer transition ${
-                    chatMode === 'assistant'
-                      ? 'border-accent bg-accent-soft'
-                      : 'border-line hover:bg-hover'
-                  }`}
-                >
-                  <div className="flex items-center gap-1.5 font-semibold text-ink text-[13px]">
-                    <Bot className="w-4 h-4 text-accent shrink-0" />
-                    <span>通用助手</span>
-                  </div>
-                  <div className="text-[11px] text-dim mt-1">
-                    带全局“AI助手”系统提示，适合日常问答与小说写作顾问
-                  </div>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() =>
-                    patchSessionOrDraft({
-                      chatMode: 'custom_persona',
-                      roleCharacterId: undefined,
-                      ...(chatMode !== 'custom_persona' ? { systemPromptOverride: '' } : {}),
-                    })
-                  }
-                  className={`p-3 rounded-xl border text-left cursor-pointer transition ${
-                    chatMode === 'custom_persona'
-                      ? 'border-accent bg-accent-soft'
-                      : 'border-line hover:bg-hover'
-                  }`}
-                >
-                  <div className="flex items-center gap-1.5 font-semibold text-ink text-[13px]">
-                    <UserRound className="w-4 h-4 text-accent shrink-0" />
-                    <span>自定义人设</span>
-                  </div>
-                  <div className="text-[11px] text-dim mt-1">
-                    屏蔽默认助手前缀，纯按你自写的人设/对象提示词对话
-                  </div>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() =>
-                    patchSessionOrDraft({
-                      chatMode: 'character_role',
-                      personaPresetId: undefined,
-                      ...(chatMode !== 'character_role' ? { systemPromptOverride: '' } : {}),
-                    })
-                  }
-                  className={`p-3 rounded-xl border text-left cursor-pointer transition ${
-                    chatMode === 'character_role'
-                      ? 'border-accent bg-accent-soft'
-                      : 'border-line hover:bg-hover'
-                  }`}
-                >
-                  <div className="flex items-center gap-1.5 font-semibold text-ink text-[13px]">
-                    <Users className="w-4 h-4 text-accent shrink-0" />
-                    <span>扮演作品角色</span>
-                  </div>
-                  <div className="text-[11px] text-dim mt-1">
-                    绑定自建角色卡，以第一人称视角及当下关系网互动
-                  </div>
-                </button>
-              </div>
-
-              {/* Assistant Details */}
-              {chatMode === 'assistant' && (
-                <div className="space-y-2">
-                  <label className="block font-medium text-secondary text-[12px]">
-                    本次对话附加系统提示词（可选，留空则使用全局设置中的系统提示词）
-                  </label>
-                  <textarea
-                    rows={3}
-                    value={promptOverride}
-                    onChange={(e) => patchSessionOrDraft({ systemPromptOverride: e.target.value })}
-                    placeholder="例如：请用更简练的要点体回答..."
-                    className="w-full p-3 rounded-xl bg-canvas border border-line text-[13px] text-ink outline-none focus:border-accent"
-                  />
+            <div
+              className="w-full md:max-w-xl rounded-t-2xl md:rounded-2xl bg-card border border-line shadow-2xl overflow-hidden flex flex-col max-h-[88vh]"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between px-4 py-3 border-b border-line shrink-0">
+                <div className="flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-accent" />
+                  <span className="text-[15px] font-semibold text-ink">对话模式</span>
                 </div>
-              )}
+                <button
+                  onClick={() => setOpen(false)}
+                  className="p-1 text-dim hover:text-ink cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
 
-              {/* Custom Persona Details */}
-              {chatMode === 'custom_persona' && (
-                <div className="space-y-3">
-                  <div className="p-2.5 rounded-xl bg-emerald-500/8 border border-emerald-500/25 text-[11.5px] text-emerald-500">
-                    已自动屏蔽默认的“AI 助手”提示词，模型将纯粹遵循你在下方编写的人设设定与对话要求。
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <div className="flex items-center justify-between">
-                      <label className="font-medium text-secondary text-[12px]">
-                        会话专属人设提示词 (System Prompt)
-                      </label>
-                      <button
-                        type="button"
-                        onClick={() => setSavingPreset((v) => !v)}
-                        className="flex items-center gap-1 text-[12px] text-accent hover:underline cursor-pointer"
-                      >
-                        <Plus className="w-3.5 h-3.5" />
-                        <span>保存为常用人设</span>
-                      </button>
+              <div className="p-4 overflow-y-auto space-y-4 text-[13px]">
+                {/* 2 Mode Cards */}
+                <div className="grid grid-cols-2 gap-2.5">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      patchSessionOrDraft({
+                        chatMode: 'assistant',
+                        roleCharacterId: undefined,
+                        personaPresetId: undefined,
+                        ...(chatMode !== 'assistant' ? { systemPromptOverride: '' } : {}),
+                      })
+                    }
+                    className={`p-3 rounded-xl border text-left cursor-pointer transition ${
+                      chatMode === 'assistant'
+                        ? 'border-accent bg-accent-soft'
+                        : 'border-line hover:bg-hover'
+                    }`}
+                  >
+                    <div className="flex items-center gap-1.5 font-semibold text-ink text-[13px]">
+                      <Bot className="w-4 h-4 text-accent shrink-0" />
+                      <span>通用助手</span>
                     </div>
-                    <textarea
-                      rows={5}
-                      value={promptOverride}
-                      onChange={(e) =>
-                        patchSessionOrDraft({
-                          systemPromptOverride: e.target.value,
-                          personaPresetId: undefined,
-                        })
-                      }
-                      placeholder="在这里填写你想让模型扮演的性格、背景、说话习惯、互动风格..."
-                      className="w-full p-3 rounded-xl bg-canvas border border-line text-[13px] text-ink outline-none focus:border-accent"
-                    />
-                  </div>
+                    <div className="text-[11px] text-dim mt-1">
+                      日常问答、写作顾问，支持随时附加临时指令
+                    </div>
+                  </button>
 
-                  {savingPreset && (
-                    <div className="p-3 rounded-xl bg-sidebar border border-line space-y-2">
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                        <input
-                          value={presetName}
-                          onChange={(e) => setPresetName(e.target.value)}
-                          placeholder="人设名称（如：毒舌剑修师兄）"
-                          className="px-3 py-1.5 rounded-lg bg-canvas border border-line text-ink text-[12px] outline-none focus:border-accent"
+                  <button
+                    type="button"
+                    onClick={() =>
+                      patchSessionOrDraft({
+                        chatMode: 'character_role',
+                        personaPresetId: undefined,
+                        ...(chatMode !== 'character_role' ? { systemPromptOverride: '' } : {}),
+                      })
+                    }
+                    className={`p-3 rounded-xl border text-left cursor-pointer transition ${
+                      isRoleMode
+                        ? 'border-accent bg-accent-soft'
+                        : 'border-line hover:bg-hover'
+                    }`}
+                  >
+                    <div className="flex items-center gap-1.5 font-semibold text-ink text-[13px]">
+                      <Users className="w-4 h-4 text-accent shrink-0" />
+                      <span>角色对话</span>
+                    </div>
+                    <div className="text-[11px] text-dim mt-1">
+                      独立角色或作品角色，支持立绘、语音与专属人设
+                    </div>
+                  </button>
+                </div>
+
+                {/* Assistant Details */}
+                {chatMode === 'assistant' && (
+                  <div className="rounded-xl bg-sidebar border border-line overflow-hidden">
+                    <button
+                      type="button"
+                      onClick={() => setAssistantPromptOpen((v) => !v)}
+                      className="w-full flex items-center justify-between px-3.5 py-2.5 text-[12.5px] font-medium text-secondary hover:text-ink hover:bg-hover cursor-pointer"
+                    >
+                      <span className="flex items-center gap-1.5">
+                        {assistantPromptOpen ? (
+                          <ChevronDown className="w-4 h-4 text-accent" />
+                        ) : (
+                          <ChevronRight className="w-4 h-4 text-dim" />
+                        )}
+                        <span>本次对话临时指令（可选）</span>
+                      </span>
+                      {promptOverride.trim() && (
+                        <span className="text-[11px] px-1.5 py-0.5 rounded bg-accent-soft text-accent">
+                          已设置
+                        </span>
+                      )}
+                    </button>
+                    {assistantPromptOpen && (
+                      <div className="p-3.5 pt-2 border-t border-line space-y-1.5">
+                        <p className="text-[11.5px] text-dim">
+                          仅对当前会话生效，留空则使用全局设置中的系统提示词。
+                        </p>
+                        <textarea
+                          rows={3}
+                          value={promptOverride}
+                          onChange={(e) =>
+                            patchSessionOrDraft({ systemPromptOverride: e.target.value })
+                          }
+                          placeholder="例如：请充当中英双语润色编辑，用简洁要点体给出修改建议..."
+                          className="w-full p-2.5 rounded-xl bg-canvas border border-line text-[13px] text-ink outline-none focus:border-accent"
                         />
-                        <input
-                          value={presetDesc}
-                          onChange={(e) => setPresetDesc(e.target.value)}
-                          placeholder="简短备注（可选）"
-                          className="px-3 py-1.5 rounded-lg bg-canvas border border-line text-ink text-[12px] outline-none focus:border-accent"
-                        />
-                      </div>
-                      <div className="space-y-1.5">
-                        <div className="flex items-center justify-between">
-                          <span className="text-[11.5px] text-secondary">绑定声音（可选）</span>
-                          <button
-                            type="button"
-                            onClick={() =>
-                              openProvidersModal('voice', {
-                                voiceSubTab: 'create',
-                                bindTarget: { kind: 'persona' },
-                              })
-                            }
-                            className="flex items-center gap-0.5 text-[11.5px] text-accent font-medium hover:underline cursor-pointer"
-                          >
-                            <Plus className="w-3 h-3" />
-                            <span>新建声音</span>
-                          </button>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <select
-                            value={presetVoiceId}
-                            onChange={(e) => setPresetVoiceId(e.target.value)}
-                            className="flex-1 min-w-0 px-3 py-1.5 rounded-lg bg-canvas border border-line text-ink text-[12px] outline-none focus:border-accent"
-                          >
-                            <option value="">跟随全局默认声音</option>
-                            {voiceProfiles.map((vp) => (
-                              <option key={vp.id} value={vp.id}>
-                                {vp.name}（{vp.isCloned ? '克隆' : vp.engine === 'native' ? '原生' : 'API'}）
-                              </option>
-                            ))}
-                          </select>
-                          <button
-                            type="button"
-                            onClick={async () => {
-                              if (previewingPresetVoice) {
-                                stopSpeaking();
-                                setPreviewingPresetVoice(false);
-                                return;
-                              }
-                              const vp = presetVoiceId
-                                ? voiceProfiles.find((p) => p.id === presetVoiceId)
-                                : undefined;
-                              setPreviewingPresetVoice(true);
-                              await speakText({
-                                text: `你好，我是${presetName.trim() || '新设定人物'}。`,
-                                config: settings.voice,
-                                providers,
-                                profile: vp,
-                                onEnd: () => setPreviewingPresetVoice(false),
-                                onError: (msg) => {
-                                  setPreviewingPresetVoice(false);
-                                  showToast(msg, 'error');
-                                },
-                              });
-                            }}
-                            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-line bg-canvas text-[12px] text-ink hover:border-accent cursor-pointer shrink-0"
-                          >
-                            {previewingPresetVoice ? (
-                              <Square className="w-3 h-3 text-accent" />
-                            ) : (
-                              <Volume2 className="w-3 h-3 text-accent" />
-                            )}
-                            <span>{previewingPresetVoice ? '停止' : '试听'}</span>
-                          </button>
-                        </div>
-                      </div>
-                      <div className="flex justify-end gap-2">
-                        <button
-                          type="button"
-                          onClick={() => setSavingPreset(false)}
-                          className="px-2.5 py-1 rounded-lg border border-line text-[12px] text-secondary cursor-pointer"
-                        >
-                          取消
-                        </button>
-                        <button
-                          type="button"
-                          onClick={handleSavePreset}
-                          className="flex items-center gap-1 px-3 py-1 rounded-lg bg-accent text-white text-[12px] font-medium cursor-pointer"
-                        >
-                          <Check className="w-3.5 h-3.5" />
-                          <span>保存人设</span>
-                        </button>
-                      </div>
-                    </div>
-                  )}
-
-                  <div className="space-y-1.5">
-                    <div className="text-[12px] font-medium text-secondary">
-                      我的本地人设预设（默认完全空白，仅存本机）
-                    </div>
-                    {personaPresets.length === 0 ? (
-                      <div className="py-4 text-center rounded-xl border border-dashed border-line text-[12px] text-dim">
-                        暂未保存常用人设，编写好上方提示词后可点击「保存为常用人设」复用
-                      </div>
-                    ) : (
-                      <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
-                        {personaPresets.map((p) => {
-                          const selected = personaPresetId === p.id;
-                          return (
-                            <div
-                              key={p.id}
-                              onClick={() =>
-                                patchSessionOrDraft({
-                                  chatMode: 'custom_persona',
-                                  personaPresetId: p.id,
-                                  systemPromptOverride: p.systemPrompt,
-                                })
-                              }
-                              className={`flex items-center justify-between gap-2 px-3 py-2 rounded-xl border cursor-pointer transition ${
-                                selected
-                                  ? 'border-accent bg-accent-soft'
-                                  : 'border-line hover:bg-hover'
-                              }`}
-                            >
-                              <div className="min-w-0">
-                                <div className="text-[13px] font-medium text-ink truncate">
-                                  {p.name}
-                                </div>
-                                <div className="text-[11px] text-dim truncate">
-                                  {p.description || p.systemPrompt}
-                                </div>
-                              </div>
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  deletePersonaPreset(p.id);
-                                }}
-                                className="p-1 text-dim hover:text-red-500 cursor-pointer shrink-0"
-                                title="删除预设"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
-                            </div>
-                          );
-                        })}
                       </div>
                     )}
                   </div>
-                </div>
-              )}
+                )}
 
-              {/* Character Role Details */}
-              {chatMode === 'character_role' && (
-                <div className="space-y-3">
-                  {worlds.length === 0 ? (
-                    <div className="p-4 rounded-xl border border-dashed border-line text-center space-y-2">
-                      <div className="text-secondary text-[13px]">还没有创建作品与角色卡</div>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setOpen(false);
-                          setActiveView('worlds');
-                        }}
-                        className="px-3.5 py-1.5 rounded-xl bg-accent text-white text-[12px] font-medium cursor-pointer"
-                      >
-                        去「作品工坊」创建作品和角色
-                      </button>
-                    </div>
-                  ) : (
-                    <>
-                      <div className="space-y-1.5">
-                        <label className="block font-medium text-secondary text-[12px]">
-                          1. 选择所属作品
-                        </label>
-                        <div className="flex flex-wrap gap-1.5">
-                          {worlds.map((w) => (
-                            <button
-                              key={w.id}
-                              type="button"
-                              onClick={() => setSelectedRoleWorldId(w.id)}
-                              className={`px-3 py-1.5 rounded-xl border text-[12px] cursor-pointer ${
-                                selectedRoleWorldId === w.id
-                                  ? 'bg-accent text-white border-transparent'
-                                  : 'border-line text-secondary hover:bg-hover'
-                              }`}
-                            >
-                              《{w.name}》
-                            </button>
-                          ))}
-                        </div>
+                {/* Unified Character Role Details */}
+                {(isRoleMode || isLegacyPersona) && (
+                  <div className="space-y-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <span className="font-medium text-secondary text-[12px]">
+                        选择角色卡（点击立即切换）
+                      </span>
+                      <div className="flex items-center gap-2.5">
+                        <button
+                          type="button"
+                          onClick={handleManageChars}
+                          className="text-[12px] text-secondary hover:text-ink hover:underline cursor-pointer"
+                        >
+                          管理角色卡
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setOpen(false);
+                            openStandaloneCharacters(true);
+                          }}
+                          className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-accent-soft text-accent text-[12px] font-medium hover:opacity-90 cursor-pointer"
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                          <span>新建独立角色</span>
+                        </button>
                       </div>
+                    </div>
 
-                      <div className="space-y-1.5">
-                        <div className="flex items-center justify-between">
-                          <label className="font-medium text-secondary text-[12px]">
-                            2. 选择由 AI 扮演的角色卡
-                          </label>
+                    {characters.length === 0 ? (
+                      <div className="p-5 rounded-xl border border-dashed border-line text-center space-y-2.5">
+                        <div className="text-secondary text-[13px]">还没有任何角色卡</div>
+                        <p className="text-[11.5px] text-dim">
+                          可以直接新建不绑定作品的独立角色（支持 AI 生图、绑定音色和自由提示词），或在作品中创建角色。
+                        </p>
+                        <div className="flex flex-wrap justify-center gap-2 pt-1">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setOpen(false);
+                              openStandaloneCharacters(true);
+                            }}
+                            className="inline-flex items-center gap-1 px-3.5 py-1.5 rounded-xl bg-accent text-white text-[12px] font-medium cursor-pointer"
+                          >
+                            <Plus className="w-3.5 h-3.5" />
+                            <span>新建独立角色</span>
+                          </button>
                           <button
                             type="button"
                             onClick={() => {
                               setOpen(false);
                               setActiveView('worlds');
                             }}
-                            className="text-[12px] text-accent hover:underline cursor-pointer"
+                            className="px-3.5 py-1.5 rounded-xl border border-line text-secondary text-[12px] hover:bg-hover cursor-pointer"
                           >
-                            去管理角色卡
+                            去作品工坊
                           </button>
                         </div>
-                        {roleWorldChars.length === 0 ? (
-                          <div className="p-3 rounded-xl border border-dashed border-line text-[12px] text-dim text-center">
-                            该作品下还没有角色卡，请先在「作品 → 角色卡」中添加角色。
+                      </div>
+                    ) : (
+                      <>
+                        {/* Filter Pills */}
+                        <div className="flex flex-wrap gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => setCharFilter('all')}
+                            className={`px-2.5 py-1 rounded-lg border text-[11.5px] cursor-pointer transition ${
+                              charFilter === 'all'
+                                ? 'bg-accent text-white border-transparent font-medium'
+                                : 'border-line text-secondary hover:bg-hover'
+                            }`}
+                          >
+                            全部 ({characters.length})
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setCharFilter('standalone')}
+                            className={`px-2.5 py-1 rounded-lg border text-[11.5px] cursor-pointer transition ${
+                              charFilter === 'standalone'
+                                ? 'bg-accent text-white border-transparent font-medium'
+                                : 'border-line text-secondary hover:bg-hover'
+                            }`}
+                          >
+                            独立角色 ({standaloneChars.length})
+                          </button>
+                          {worldBuckets.map(({ world, count }) => (
+                            <button
+                              key={world.id}
+                              type="button"
+                              onClick={() => setCharFilter(world.id)}
+                              className={`px-2.5 py-1 rounded-lg border text-[11.5px] cursor-pointer transition ${
+                                charFilter === world.id
+                                  ? 'bg-accent text-white border-transparent font-medium'
+                                  : 'border-line text-secondary hover:bg-hover'
+                              }`}
+                            >
+                              《{world.name}》({count})
+                            </button>
+                          ))}
+                        </div>
+
+                        {filteredChars.length === 0 ? (
+                          <div className="p-4 rounded-xl border border-dashed border-line text-center text-[12px] text-dim">
+                            该分类下暂无角色卡
                           </div>
                         ) : (
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-48 overflow-y-auto pr-1">
-                            {roleWorldChars.map((c) => {
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-56 overflow-y-auto pr-1">
+                            {filteredChars.map((c) => {
                               const selected = roleCharacterId === c.id;
+                              const boundWorldName = c.worldId ? worldNameMap.get(c.worldId) : undefined;
                               return (
                                 <button
                                   key={c.id}
                                   type="button"
-                                  onClick={() =>
-                                    patchSessionOrDraft({
+                                  onClick={async () => {
+                                    await patchSessionOrDraft({
                                       chatMode: 'character_role',
-                                      worldId: c.worldId,
                                       roleCharacterId: c.id,
-                                    })
-                                  }
-                                  className={`flex items-center gap-2.5 p-2.5 rounded-xl border text-left cursor-pointer ${
+                                      personaPresetId: undefined,
+                                      ...(c.worldId
+                                        ? { worldId: c.worldId, enableWorldContext: true }
+                                        : { worldId: undefined, enableWorldContext: false }),
+                                    });
+                                    setOpen(false);
+                                  }}
+                                  className={`flex items-center gap-2.5 p-2.5 rounded-xl border text-left cursor-pointer transition ${
                                     selected
                                       ? 'border-accent bg-accent-soft'
                                       : 'border-line hover:bg-hover'
@@ -571,22 +415,27 @@ export const SessionModeModal: React.FC = () => {
                                     <img
                                       src={c.avatarImage}
                                       alt={c.name}
-                                      className="w-8 h-8 rounded-full object-cover shrink-0 border border-line"
+                                      className="w-9 h-9 rounded-full object-cover shrink-0 border border-line"
                                     />
                                   ) : (
                                     <div
-                                      className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-semibold shrink-0"
+                                      className="w-9 h-9 rounded-full flex items-center justify-center text-white text-xs font-semibold shrink-0"
                                       style={{ backgroundColor: c.avatarColor || '#4d6bfe' }}
                                     >
                                       {c.name.slice(0, 1)}
                                     </div>
                                   )}
-                                  <div className="min-w-0">
-                                    <div className="text-[13px] font-medium text-ink truncate">
-                                      {c.name}
+                                  <div className="min-w-0 flex-1">
+                                    <div className="flex items-center justify-between gap-1.5">
+                                      <span className="text-[13px] font-medium text-ink truncate">
+                                        {c.name}
+                                      </span>
+                                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-dim shrink-0">
+                                        {boundWorldName ? `《${boundWorldName}》` : '独立'}
+                                      </span>
                                     </div>
-                                    <div className="text-[11px] text-dim truncate">
-                                      {c.identity || c.personality || '角色卡'}
+                                    <div className="text-[11px] text-dim truncate mt-0.5">
+                                      {c.identity || c.personality || c.systemPrompt || '角色卡'}
                                     </div>
                                   </div>
                                 </button>
@@ -594,31 +443,51 @@ export const SessionModeModal: React.FC = () => {
                             })}
                           </div>
                         )}
-                      </div>
+                      </>
+                    )}
 
-                      <div className="space-y-1.5">
-                        <label className="block font-medium text-secondary text-[12px]">
-                          3. 补充当前场景指令（可选）
-                        </label>
-                        <textarea
-                          rows={2}
-                          value={promptOverride}
-                          onChange={(e) =>
-                            patchSessionOrDraft({ systemPromptOverride: e.target.value })
-                          }
-                          placeholder="例如：此时我们刚在酒馆重逢，气氛有些僵持..."
-                          className="w-full p-2.5 rounded-xl bg-canvas border border-line text-[13px] text-ink outline-none focus:border-accent"
-                        />
-                      </div>
-                    </>
-                  )}
-                </div>
-              )}
+                    {/* Collapsible per-session scenario note */}
+                    <div className="rounded-xl bg-sidebar border border-line overflow-hidden">
+                      <button
+                        type="button"
+                        onClick={() => setRoleExtraOpen((v) => !v)}
+                        className="w-full flex items-center justify-between px-3.5 py-2 text-[12px] font-medium text-secondary hover:text-ink hover:bg-hover cursor-pointer"
+                      >
+                        <span className="flex items-center gap-1.5">
+                          {roleExtraOpen ? (
+                            <ChevronDown className="w-3.5 h-3.5 text-accent" />
+                          ) : (
+                            <ChevronRight className="w-3.5 h-3.5 text-dim" />
+                          )}
+                          <span>补充情境与要求（仅本次对话生效）</span>
+                        </span>
+                        {promptOverride.trim() && (
+                          <span className="text-[10.5px] px-1.5 py-0.5 rounded bg-accent-soft text-accent">
+                            已设置
+                          </span>
+                        )}
+                      </button>
+                      {roleExtraOpen && (
+                        <div className="p-3 pt-2 border-t border-line">
+                          <textarea
+                            rows={2}
+                            value={promptOverride}
+                            onChange={(e) =>
+                              patchSessionOrDraft({ systemPromptOverride: e.target.value })
+                            }
+                            placeholder="例如：此时我们刚在酒馆重逢，气氛有些僵持..."
+                            className="w-full p-2.5 rounded-xl bg-canvas border border-line text-[13px] text-ink outline-none focus:border-accent"
+                          />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
-        </div>,
-        document.body
-      )}
+          </div>,
+          document.body
+        )}
     </>
   );
 };

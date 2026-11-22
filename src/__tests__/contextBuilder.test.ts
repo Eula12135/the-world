@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { buildSessionSystemPrompt, estimateTokens } from '../services/contextBuilder';
+import {
+  buildRoleCharacterPrompt,
+  buildSessionSystemPrompt,
+  estimateTokens,
+} from '../services/contextBuilder';
 import { getRecommendedTemplateId, parseDocumentSections, PREAMBLE_HEADING } from '../data/worldTemplates';
 import { DEFAULT_SETTINGS } from '../db/database';
 import type { Character, CharacterRelation, TimelineEvent, WorldProject } from '../types';
@@ -404,5 +408,50 @@ describe('buildSessionSystemPrompt (progressive disclosure + temporal + rolling 
     });
     expect(staleSelectedRes.prompt).toContain('一、世界概述');
     expect(staleSelectedRes.prompt).toContain('五、禁忌规则');
+  });
+
+  it('uses character.systemPrompt directly for standalone or tool-style character cards', () => {
+    const standaloneToolChar: Character = {
+      id: 'c-tool',
+      worldId: '',
+      name: '双语润色编辑',
+      identity: '翻译与润色助手',
+      personality: '',
+      status: '',
+      relationsNote: '',
+      notes: '',
+      systemPrompt: '你是专业的中英小说双语润色编辑，请保留文学质感。',
+      avatarColor: '#4d6bfe',
+      updatedAt: 1,
+    };
+
+    const directPrompt = buildRoleCharacterPrompt({
+      character: standaloneToolChar,
+      world: null,
+      relations: [],
+      characters: [standaloneToolChar],
+      orderedEvents: [],
+      extraInstruction: '优先检查节奏拖沓问题',
+    });
+
+    expect(directPrompt).toContain('你是专业的中英小说双语润色编辑，请保留文学质感。');
+    expect(directPrompt).toContain('优先检查节奏拖沓问题');
+    expect(directPrompt).not.toContain('第一人称身份');
+
+    const sessionRes = buildSessionSystemPrompt({
+      settings: DEFAULT_SETTINGS,
+      session: {
+        chatMode: 'character_role',
+        roleCharacterId: 'c-tool',
+        enableWorldContext: false,
+      },
+      world: null,
+      characters: [standaloneToolChar],
+      relations: [],
+      events: [],
+    });
+
+    expect(sessionRes.prompt).toContain('你是专业的中英小说双语润色编辑');
+    expect(sessionRes.prompt).not.toContain('清晰、理性且富有洞察力的 AI 助手');
   });
 });
