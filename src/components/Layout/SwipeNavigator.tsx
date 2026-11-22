@@ -52,10 +52,10 @@ export const SwipeNavigator: React.FC<{ children: React.ReactNode }> = ({ childr
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     if (!gesturesEnabled || e.pointerType !== 'touch') return;
     const target = e.target as HTMLElement | null;
-    // 表单控件、代码块、表格、图谱等区域不拦截横向滑动
+    // 表单控件、代码块、表格及显式标记 data-no-swipe 的节点不拦截横向滑动
     if (
       target?.closest(
-        'input, textarea, select, audio, video, pre, code, table, svg, [contenteditable="true"], [data-no-swipe="true"]'
+        'input, textarea, select, audio, video, pre, code, table, [contenteditable="true"], [data-no-swipe="true"]'
       ) ||
       hasHorizontallyScrollableAncestor(target, e.currentTarget)
     ) {

@@ -115,7 +115,7 @@ export const TopBar: React.FC = () => {
           ) : (
             <button
               onClick={() => setActiveView('chat')}
-              className="hidden md:inline-flex px-3 py-1.5 rounded-xl border border-line text-[13px] text-secondary hover:bg-hover hover:text-ink transition cursor-pointer"
+              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl border border-line text-[12.5px] md:text-[13px] text-secondary hover:bg-hover hover:text-ink transition cursor-pointer"
             >
               返回对话
             </button>

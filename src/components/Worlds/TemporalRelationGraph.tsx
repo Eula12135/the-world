@@ -89,12 +89,31 @@ export const TemporalRelationGraph: React.FC<{ worldId: string }> = ({ worldId }
     const timer = setInterval(() => {
       setActivePointId((cur) => {
         const idx = timePoints.findIndex((p) => p.id === cur);
-        const nextIdx = idx === -1 || idx >= timePoints.length - 1 ? 0 : idx + 1;
+        if (idx === -1 || idx >= timePoints.length - 1) {
+          setPlaying(false);
+          return cur;
+        }
+        const nextIdx = idx + 1;
+        if (nextIdx >= timePoints.length - 1) {
+          setPlaying(false);
+        }
         return timePoints[nextIdx].id;
       });
     }, 1500);
     return () => clearInterval(timer);
   }, [playing, timePoints]);
+
+  const handleTogglePlay = () => {
+    if (playing) {
+      setPlaying(false);
+      return;
+    }
+    const idx = timePoints.findIndex((p) => p.id === activePointId);
+    if (idx === -1 || idx >= timePoints.length - 1) {
+      setActivePointId(timePoints[0].id);
+    }
+    setPlaying(true);
+  };
 
   const resolvedPointId = activePointId === '__latest__' ? undefined : activePointId;
 
@@ -474,57 +493,63 @@ export const TemporalRelationGraph: React.FC<{ worldId: string }> = ({ worldId }
   }
 
   return (
-    <div className="flex-1 flex flex-col min-h-0 gap-3">
+    <div className="flex-1 flex flex-col min-h-0 gap-2.5 overflow-hidden">
       {/* Timeline Scrubber Bar */}
-      <div className="p-3 rounded-2xl bg-card border border-line space-y-2.5">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="flex items-center gap-2 text-[12px] font-medium text-ink">
-            <Clock className="w-4 h-4 text-accent" />
-            <span>跨时间轴切片（点选事件观察人物关系如何随剧情演变）</span>
+      <div className="p-2.5 md:p-3 rounded-2xl bg-card border border-line space-y-2 shrink-0">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-1.5 text-[12px] font-medium text-ink min-w-0">
+            <Clock className="w-3.5 h-3.5 text-accent shrink-0" />
+            <span className="truncate">时间轴演进（点选节点查看关系变化）</span>
           </div>
 
-          <div className="flex flex-wrap items-center gap-1.5">
-            {timePoints.length > 2 && (
+          <div className="flex items-center gap-1.5 shrink-0">
+            {timePoints.length > 1 && (
               <button
-                onClick={() => setPlaying((v) => !v)}
-                className={`flex items-center gap-1 px-2.5 py-1 rounded-lg border text-[12px] whitespace-nowrap shrink-0 cursor-pointer ${
+                type="button"
+                onClick={handleTogglePlay}
+                className={`flex items-center gap-1 px-2.5 py-1 rounded-xl border text-[12px] whitespace-nowrap shrink-0 cursor-pointer transition ${
                   playing
-                    ? 'border-accent bg-accent-soft text-accent'
-                    : 'border-line text-secondary hover:bg-hover'
+                    ? 'border-accent bg-accent-soft text-accent font-medium'
+                    : 'border-line text-secondary hover:bg-hover hover:text-ink'
                 }`}
+                title={playing ? '暂停演变' : '从头播放一遍关系演变'}
               >
-                {playing ? <Pause className="w-3.5 h-3.5 shrink-0" /> : <Play className="w-3.5 h-3.5 shrink-0" />}
-                <span>{playing ? '暂停演变' : '播放演变'}</span>
+                {playing ? (
+                  <Pause className="w-3.5 h-3.5 shrink-0" />
+                ) : (
+                  <Play className="w-3.5 h-3.5 shrink-0" />
+                )}
+                <span>{playing ? '暂停' : '播放演变'}</span>
               </button>
             )}
 
-            <div className="inline-flex rounded-xl bg-muted p-0.5 border border-line text-[12px] shrink-0">
-              <button
-                onClick={() => setViewMode('graph')}
-                className={`flex items-center gap-1 px-2.5 py-1 rounded-lg whitespace-nowrap cursor-pointer ${
-                  viewMode === 'graph' ? 'bg-card text-ink font-medium shadow-xs' : 'text-secondary'
-                }`}
-              >
-                <GitBranch className="w-3.5 h-3.5 shrink-0" />
-                <span>图谱</span>
-              </button>
-              <button
-                onClick={() => setViewMode('list')}
-                className={`flex items-center gap-1 px-2.5 py-1 rounded-lg whitespace-nowrap cursor-pointer ${
-                  viewMode === 'list' ? 'bg-card text-ink font-medium shadow-xs' : 'text-secondary'
-                }`}
-              >
-                <List className="w-3.5 h-3.5 shrink-0" />
-                <span>演进列表</span>
-              </button>
-            </div>
+            <button
+              type="button"
+              onClick={() => setViewMode((m) => (m === 'graph' ? 'list' : 'graph'))}
+              className="flex items-center gap-1 px-2.5 py-1 rounded-xl border border-line bg-canvas text-[12px] text-secondary hover:bg-hover hover:text-ink whitespace-nowrap shrink-0 cursor-pointer transition"
+              title={viewMode === 'graph' ? '切换到关系演进列表' : '切换到关系图谱'}
+            >
+              {viewMode === 'graph' ? (
+                <>
+                  <List className="w-3.5 h-3.5 shrink-0 text-accent" />
+                  <span>演进列表</span>
+                </>
+              ) : (
+                <>
+                  <GitBranch className="w-3.5 h-3.5 shrink-0 text-accent" />
+                  <span>关系图谱</span>
+                </>
+              )}
+            </button>
 
             <button
+              type="button"
               onClick={openNewRelation}
-              className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-accent text-white text-[12px] font-medium whitespace-nowrap shrink-0 cursor-pointer"
+              className="w-7 h-7 rounded-xl bg-accent text-white flex items-center justify-center hover:opacity-95 shrink-0 cursor-pointer transition"
+              title="添加人物关系"
+              aria-label="添加人物关系"
             >
-              <Plus className="w-3.5 h-3.5 shrink-0" />
-              <span>添加关系</span>
+              <Plus className="w-4 h-4" />
             </button>
           </div>
         </div>
@@ -563,8 +588,8 @@ export const TemporalRelationGraph: React.FC<{ worldId: string }> = ({ worldId }
       {/* Main Graph or List */}
       {viewMode === 'graph' ? (
         <div
-          data-no-swipe="true"
-          className="relative flex-1 min-h-[380px] rounded-2xl bg-card border border-line overflow-hidden select-none"
+          data-no-swipe={zoom > 1 ? 'true' : undefined}
+          className="relative flex-1 min-h-[220px] rounded-2xl bg-card border border-line overflow-hidden select-none"
         >
           <div className="absolute top-3 right-3 z-10 flex items-center gap-1">
             {selectedCharId && (
@@ -597,11 +622,11 @@ export const TemporalRelationGraph: React.FC<{ worldId: string }> = ({ worldId }
             ref={svgRef}
             viewBox="0 0 680 440"
             preserveAspectRatio="xMidYMid meet"
-            className="w-full h-full touch-none"
+            className="w-full h-full"
             onPointerDown={(e) => {
-              e.stopPropagation();
               didDragRef.current = false;
-              if ((e.target as Element).tagName === 'svg') {
+              if ((e.target as Element).tagName === 'svg' && (zoom > 1 || e.pointerType !== 'touch')) {
+                e.stopPropagation();
                 dragRef.current = {
                   kind: 'pan',
                   startX: e.clientX,
@@ -721,8 +746,9 @@ export const TemporalRelationGraph: React.FC<{ worldId: string }> = ({ worldId }
                 return (
                   <g
                     key={c.id}
+                    data-no-swipe="true"
                     transform={`translate(${p.x}, ${p.y})`}
-                    className="cursor-grab active:cursor-grabbing"
+                    className="cursor-grab active:cursor-grabbing touch-none"
                     opacity={dim ? 0.35 : 1}
                     onPointerDown={(e) => {
                       e.stopPropagation();
