@@ -7,13 +7,16 @@ import { crossPlatformFetchJson } from './llm';
  */
 export function buildVoiceBrief(character: Character, world?: WorldProject | null): string {
   const lines: string[] = [];
-  lines.push(`角色姓名：${character.name}`);
+  lines.push(`角色姓名：${character.name || '未命名角色'}`);
   if (world?.name) lines.push(`所属作品：${world.name}`);
   if (world?.genre) lines.push(`作品题材：${world.genre}`);
   if (character.identity) lines.push(`身份定位：${character.identity.slice(0, 120)}`);
   if (character.personality) lines.push(`性格气质：${character.personality.slice(0, 160)}`);
   if (character.status) lines.push(`当前状态：${character.status.slice(0, 80)}`);
   if (character.notes) lines.push(`补充细节：${character.notes.slice(0, 200)}`);
+  if (character.systemPrompt?.trim()) {
+    lines.push(`人设提示词：${character.systemPrompt.trim().slice(0, 240)}`);
+  }
   return lines.join('\n');
 }
 
@@ -25,13 +28,15 @@ const VOICE_DESIGN_SYSTEM_PROMPT = `你是配音导演，负责为小说角色�
 4) 不要出现"这个声音""以下""描述"之类的元话语
 直接输出描述本身，不要任何解释或前后缀。`;
 
-/** 清洗模型输出：去引号、去换行、压空格、限长 */
+/** 清洗模型输出：去 <think> 思考块、去引号、去换行、压空格、限长 */
 export function sanitizeVoiceDescription(raw: string): string {
   let text = String(raw || '')
+    .replace(/<think>[\s\S]*?<\/think>/gi, '')
+    .replace(/<think>[\s\S]*$/gi, '')
     .replace(/^```[a-z]*\s*/i, '')
     .replace(/```$/g, '')
     .replace(/^["'“”「『]|["'“”」』]$/g, '')
-    .replace(/^(音色描述|描述|答案)[:：]\s*/i, '')
+    .replace(/^(音色描述|描述|答案|最终描述)[:：]\s*/i, '')
     .replace(/\s*\r?\n+\s*/g, ' ')
     .replace(/\s{2,}/g, ' ')
     .trim();
@@ -42,6 +47,19 @@ export function sanitizeVoiceDescription(raw: string): string {
     text = (lastPunct > 40 ? cut.slice(0, lastPunct) : cut).trim();
   }
   return text;
+}
+
+function extractApiErrorDetail(rawText: string, status: number): string {
+  try {
+    const parsed = JSON.parse(rawText);
+    const msg = parsed?.error?.message || parsed?.message || parsed?.detail;
+    if (typeof msg === 'string' && msg.trim()) {
+      return `生成音色描述失败 (HTTP ${status}：${msg.trim().slice(0, 120)})`;
+    }
+  } catch {
+    // ignore
+  }
+  return `生成音色描述失败 (HTTP ${status})`;
 }
 
 /**
@@ -79,16 +97,19 @@ export async function generateVoiceDescription(params: {
       },
       body: JSON.stringify({
         model,
-        max_tokens: 300,
+        max_tokens: 2048,
         temperature: 0.7,
         system: VOICE_DESIGN_SYSTEM_PROMPT,
         messages: [{ role: 'user', content: userContent }],
       }),
     });
-    if (!resp.ok) throw new Error(`生成音色描述失败 (HTTP ${resp.status})`);
+    if (!resp.ok) throw new Error(extractApiErrorDetail(resp.text, resp.status));
     const parsed = JSON.parse(resp.text);
     const blocks = Array.isArray(parsed?.content) ? parsed.content : [];
-    const text = blocks.map((b: { text?: string }) => b.text || '').join('');
+    const text = blocks
+      .filter((b: { type?: string; text?: string }) => b.type !== 'thinking' && b.text)
+      .map((b: { text?: string }) => b.text || '')
+      .join('');
     return sanitizeVoiceDescription(text);
   }
 
@@ -102,16 +123,26 @@ export async function generateVoiceDescription(params: {
     body: JSON.stringify({
       model,
       temperature: 0.7,
-      max_tokens: 300,
+      // 思考模型（如 DeepSeek R1 / Reasoner / Flash 思考模式）会先消耗数百 token 输出 reasoning_content，
+      // 过小的 max_tokens 会导致在思考阶段被截断、message.content 为空。
+      max_tokens: 2048,
       messages: [
         { role: 'system', content: VOICE_DESIGN_SYSTEM_PROMPT },
         { role: 'user', content: userContent },
       ],
     }),
   });
-  if (!resp.ok) throw new Error(`生成音色描述失败 (HTTP ${resp.status})`);
+  if (!resp.ok) throw new Error(extractApiErrorDetail(resp.text, resp.status));
 
   const parsed = JSON.parse(resp.text);
-  const text = String(parsed?.choices?.[0]?.message?.content || '');
-  return sanitizeVoiceDescription(text);
+  const msgObj = parsed?.choices?.[0]?.message;
+  let cleaned = sanitizeVoiceDescription(String(msgObj?.content || ''));
+  if (!cleaned && typeof msgObj?.reasoning_content === 'string') {
+    // 极端情况下若模型把最终答案留在了 reasoning_content 末尾引号中，尝试提取最后一个引号段
+    const quoted = msgObj.reasoning_content.match(/[“"「]([^”"」\r\n]{20,120})[”"」]/g);
+    if (quoted && quoted.length > 0) {
+      cleaned = sanitizeVoiceDescription(quoted[quoted.length - 1]);
+    }
+  }
+  return cleaned;
 }

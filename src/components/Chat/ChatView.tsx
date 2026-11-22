@@ -51,6 +51,7 @@ export const ChatView: React.FC = () => {
     isStreaming,
     streamingSessionId,
     streamingError,
+    speakingMessageId,
     sendMessage,
     stopStreaming,
     setActiveModal,
@@ -71,6 +72,7 @@ export const ChatView: React.FC = () => {
       isStreaming: s.isStreaming,
       streamingSessionId: s.streamingSessionId,
       streamingError: s.streamingError,
+      speakingMessageId: s.speakingMessageId,
       sendMessage: s.sendMessage,
       stopStreaming: s.stopStreaming,
       setActiveModal: s.setActiveModal,
@@ -332,6 +334,21 @@ export const ChatView: React.FC = () => {
                   <VolumeX className="w-3.5 h-3.5" />
                 )}
                 <span>自动朗读</span>
+              </button>
+            )}
+
+            {speakingMessageId && (
+              <button
+                type="button"
+                onClick={() => {
+                  stopSpeaking();
+                  setSpeakingMessageId(null);
+                }}
+                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl text-[12px] border border-red-500/40 bg-red-500/10 text-red-500 font-medium hover:bg-red-500/15 transition cursor-pointer"
+                title="立即中断当前语音朗读"
+              >
+                <Square className="w-3 h-3 fill-current" />
+                <span>停止朗读</span>
               </button>
             )}
 

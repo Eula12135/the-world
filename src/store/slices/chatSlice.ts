@@ -103,6 +103,8 @@ export const createChatSlice: AppSliceCreator<ChatSlice> = (set, get) => ({
     const trimmed = text.trim();
     if (!trimmed || get().isStreaming || isSendingLock) return;
     isSendingLock = true;
+    stopSpeaking();
+    set({ speakingMessageId: null });
     try {
       const now = Date.now();
       let targetSessionId = get().activeSessionId;

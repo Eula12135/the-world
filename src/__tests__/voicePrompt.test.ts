@@ -42,14 +42,20 @@ describe('voicePromptService', () => {
 
     // 没有作品时也不能报错
     expect(buildVoiceBrief(character, null)).toContain('角色姓名：林澈');
+    expect(
+      buildVoiceBrief({ ...character, systemPrompt: '以冷淡剑客口吻对话' }, null)
+    ).toContain('人设提示词：以冷淡剑客口吻对话');
   });
 
-  it('sanitizes model output into a single clean line', () => {
+  it('sanitizes model output into a single clean line and strips think blocks', () => {
     expect(sanitizeVoiceDescription('“成熟慵懒的御姐女声，略带笑意。”')).toBe(
       '成熟慵懒的御姐女声，略带笑意。'
     );
     expect(sanitizeVoiceDescription('音色描述：清亮少年音\n语速偏快')).toBe('清亮少年音 语速偏快');
     expect(sanitizeVoiceDescription('```\n低沉磁性男声\n```')).toBe('低沉磁性男声');
+    expect(
+      sanitizeVoiceDescription('<think>用户想要一段40到80字的音色描述，我先构思一下。</think>“清冷克制的青年男声，语速偏慢。”')
+    ).toBe('清冷克制的青年男声，语速偏慢。');
     expect(sanitizeVoiceDescription('  ')).toBe('');
   });
 

@@ -1,3 +1,4 @@
+import { stopSpeaking } from '../../services/voiceService';
 import { createId } from '../../utils/platform';
 import type { AppSliceCreator, UiSlice } from '../types';
 
@@ -16,7 +17,10 @@ export const createUiSlice: AppSliceCreator<UiSlice> = (set, get) => ({
   confirmRequest: null,
   toasts: [],
 
-  setActiveView: (v) => set({ activeView: v }),
+  setActiveView: (v) => {
+    stopSpeaking();
+    set({ activeView: v, speakingMessageId: null });
+  },
   setWorldStudioMode: (mode) => set({ worldStudioMode: mode }),
   openStandaloneCharacters: (autoCreate = false) =>
     set({

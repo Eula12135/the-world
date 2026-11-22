@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Check, Loader2, RefreshCw, Sparkles, Wand2 } from 'lucide-react';
 import { useAppStore } from '../../../store/useAppStore';
 import type { MediaProviderCredential, VoiceConfig, VoiceProfile } from '../../../types';
@@ -10,6 +10,7 @@ import {
   saveBreezeVoiceDesign,
 } from '../../../services/voiceService';
 import { generateVoiceDescription } from '../../../services/voicePromptService';
+import { isProviderReady } from '../../../utils/platform';
 import { type InspirationChip, VOICE_INSPIRATION_CHIPS } from './constants';
 
 interface VoiceBreezeDesignSectionProps {
@@ -58,6 +59,9 @@ export const VoiceBreezeDesignSection: React.FC<VoiceBreezeDesignSectionProps> =
   const characters = useAppStore((s) => s.characters);
   const worlds = useAppStore((s) => s.worlds);
   const settings = useAppStore((s) => s.settings);
+  const sessions = useAppStore((s) => s.sessions);
+  const activeSessionId = useAppStore((s) => s.activeSessionId);
+  const draftConfig = useAppStore((s) => s.draftConfig);
   const pendingVoiceBindTarget = useAppStore((s) => s.pendingVoiceBindTarget);
   const completePendingVoiceBind = useAppStore((s) => s.completePendingVoiceBind);
   const upsertVoiceProfile = useAppStore((s) => s.upsertVoiceProfile);
@@ -65,11 +69,19 @@ export const VoiceBreezeDesignSection: React.FC<VoiceBreezeDesignSectionProps> =
   const setVoiceStudioSubTab = useAppStore((s) => s.setVoiceStudioSubTab);
   const showToast = useAppStore((s) => s.showToast);
 
-  const [voiceBriefCharacterId, setVoiceBriefCharacterId] = useState('');
+  const [voiceBriefCharacterId, setVoiceBriefCharacterId] = useState(() =>
+    pendingVoiceBindTarget?.kind === 'character' ? pendingVoiceBindTarget.characterId : ''
+  );
   const [generatingVoiceDesc, setGeneratingVoiceDesc] = useState(false);
   const [designing, setDesigning] = useState(false);
   const [savingDesignId, setSavingDesignId] = useState<string | null>(null);
   const [fetchingBreezeVoices, setFetchingBreezeVoices] = useState(false);
+
+  useEffect(() => {
+    if (pendingVoiceBindTarget?.kind === 'character' && pendingVoiceBindTarget.characterId) {
+      setVoiceBriefCharacterId(pendingVoiceBindTarget.characterId);
+    }
+  }, [pendingVoiceBindTarget]);
 
   const handleGenerateVoiceDescription = async () => {
     const character = characters.find((c) => c.id === voiceBriefCharacterId);
@@ -77,16 +89,25 @@ export const VoiceBreezeDesignSection: React.FC<VoiceBreezeDesignSectionProps> =
       showToast('先选一张角色卡，AI 会按它的设定写音色描述', 'info');
       return;
     }
-    const enabled = providers.filter((p) => p.enabled);
+    const activeSess = activeSessionId
+      ? sessions.find((s) => s.id === activeSessionId)
+      : undefined;
+    const preferredProviderId = activeSess?.providerId || draftConfig.providerId;
+    const preferredModel = activeSess?.model || draftConfig.model;
+    const readyProviders = providers.filter((p) => p.enabled && isProviderReady(p));
     const provider =
-      enabled.find((p) => p.id === settings.defaultProviderId) ||
-      enabled.find((p) => !p.requiresKey || p.apiKey.trim()) ||
-      enabled[0];
+      readyProviders.find((p) => p.id === preferredProviderId) ||
+      readyProviders.find((p) => p.id === settings.defaultProviderId) ||
+      readyProviders[0] ||
+      providers.find((p) => isProviderReady(p));
     if (!provider) {
-      showToast('没有可用的文本模型，请先在「模型」里配置', 'error');
+      showToast('没有已配置 API Key 的可用文本模型，请先在「模型」页填写密钥', 'error');
       return;
     }
-    const model = provider.selectedModel || provider.models[0];
+    const model =
+      (provider.id === preferredProviderId && preferredModel ? preferredModel : '') ||
+      provider.selectedModel ||
+      provider.models[0];
     setGeneratingVoiceDesc(true);
     try {
       const text = await generateVoiceDescription({

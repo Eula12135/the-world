@@ -34,7 +34,8 @@ import {
   TTS_BUILTIN_VOICES,
   TTS_PRESETS,
 } from '../../services/voiceService';
-import { createId, openExternalUrl } from '../../utils/platform';
+import { createId, isProviderReady, openExternalUrl } from '../../utils/platform';
+import { generateVoiceDescription } from '../../services/voicePromptService';
 import { type InspirationChip, VOICE_INSPIRATION_CHIPS } from './voice/constants';
 import { VoiceLibrarySubTab } from './voice/VoiceLibrarySubTab';
 import { VoiceSttSubTab } from './voice/VoiceSttSubTab';
@@ -54,6 +55,12 @@ export const VoiceStudioTab: React.FC<VoiceStudioTabProps> = ({
 }) => {
   const {
     providers,
+    characters,
+    worlds,
+    settings,
+    sessions,
+    activeSessionId,
+    draftConfig,
     voiceProfiles,
     voiceStudioSubTab,
     setVoiceStudioSubTab,
@@ -69,6 +76,10 @@ export const VoiceStudioTab: React.FC<VoiceStudioTabProps> = ({
 
   const [showVoiceKey, setShowVoiceKey] = useState(false);
   const [nativeVoices, setNativeVoices] = useState<SpeechSynthesisVoice[]>(() => listNativeVoices());
+  const [styleBriefCharacterId, setStyleBriefCharacterId] = useState(() =>
+    pendingVoiceBindTarget?.kind === 'character' ? pendingVoiceBindTarget.characterId : ''
+  );
+  const [generatingStyleDesc, setGeneratingStyleDesc] = useState(false);
 
   // Library audition tracking
   const [playingProfileId, setPlayingProfileId] = useState<string | null>(null);
@@ -107,11 +118,63 @@ export const VoiceStudioTab: React.FC<VoiceStudioTabProps> = ({
 
   // Pre-fill profile name when triggered from Character Card "+ 新建声音"
   useEffect(() => {
-    if (pendingVoiceBindTarget?.kind === 'character' && pendingVoiceBindTarget.characterName) {
-      setNewProfileName((prev) => prev || `${pendingVoiceBindTarget.characterName} 声线`);
-      setDesignVoiceName((prev) => prev || `${pendingVoiceBindTarget.characterName} 声线`);
+    if (pendingVoiceBindTarget?.kind === 'character') {
+      if (pendingVoiceBindTarget.characterId) {
+        setStyleBriefCharacterId(pendingVoiceBindTarget.characterId);
+      }
+      if (pendingVoiceBindTarget.characterName) {
+        setNewProfileName((prev) => prev || `${pendingVoiceBindTarget.characterName} 声线`);
+        setDesignVoiceName((prev) => prev || `${pendingVoiceBindTarget.characterName} 声线`);
+      }
     }
   }, [pendingVoiceBindTarget]);
+
+  const handleGenerateStyleInstruction = async () => {
+    const character = characters.find((c) => c.id === styleBriefCharacterId);
+    if (!character) {
+      showToast('先选一张角色卡，AI 会按它的设定写语气指令', 'info');
+      return;
+    }
+    const activeSess = activeSessionId
+      ? sessions.find((s) => s.id === activeSessionId)
+      : undefined;
+    const preferredProviderId = activeSess?.providerId || draftConfig.providerId;
+    const preferredModel = activeSess?.model || draftConfig.model;
+    const readyProviders = providers.filter((p) => p.enabled && isProviderReady(p));
+    const provider =
+      readyProviders.find((p) => p.id === preferredProviderId) ||
+      readyProviders.find((p) => p.id === settings.defaultProviderId) ||
+      readyProviders[0] ||
+      providers.find((p) => isProviderReady(p));
+    if (!provider) {
+      showToast('没有已配置 API Key 的可用文本模型，请先在「模型」页填写密钥', 'error');
+      return;
+    }
+    const model =
+      (provider.id === preferredProviderId && preferredModel ? preferredModel : '') ||
+      provider.selectedModel ||
+      provider.models[0];
+    setGeneratingStyleDesc(true);
+    try {
+      const text = await generateVoiceDescription({
+        provider,
+        model,
+        character,
+        world: worlds.find((w) => w.id === character.worldId) || null,
+      });
+      if (!text) {
+        showToast('模型没有返回有效的语气描述，请重试', 'error');
+        return;
+      }
+      setDraftVoice((prev) => ({ ...prev, ttsStyleInstruction: text }));
+      setDesignPrompt(text);
+      showToast('已根据角色卡生成语气指令，可再手动微调', 'success');
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : '生成语气指令失败', 'error');
+    } finally {
+      setGeneratingStyleDesc(false);
+    }
+  };
 
   // Clean up preview playback on unmount
   useEffect(() => {
@@ -1073,6 +1136,37 @@ export const VoiceStudioTab: React.FC<VoiceStudioTabProps> = ({
                   <label className="block mb-1 text-[12px] font-medium text-secondary">
                     语气 / 情感指令（可选，CosyVoice2 与 gpt-4o-mini-tts 支持）
                   </label>
+                  <div className="flex items-center gap-1.5 mb-1.5">
+                    <select
+                      value={styleBriefCharacterId}
+                      onChange={(e) => setStyleBriefCharacterId(e.target.value)}
+                      className="flex-1 min-w-0 px-2.5 py-1 rounded-lg bg-canvas border border-line text-[11.5px] text-ink outline-none focus:border-accent"
+                    >
+                      <option value="">从角色卡生成语气：选择角色…</option>
+                      {characters.map((c) => {
+                        const w = worlds.find((x) => x.id === c.worldId);
+                        return (
+                          <option key={c.id} value={c.id}>
+                            {c.name}
+                            {w ? ` · ${w.name}` : ''}
+                          </option>
+                        );
+                      })}
+                    </select>
+                    <button
+                      type="button"
+                      onClick={handleGenerateStyleInstruction}
+                      disabled={generatingStyleDesc || !styleBriefCharacterId}
+                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-accent/40 bg-accent-soft text-accent text-[11.5px] font-medium hover:opacity-90 cursor-pointer disabled:opacity-40 shrink-0"
+                    >
+                      {generatingStyleDesc ? (
+                        <Loader2 className="w-3 h-3 animate-spin" />
+                      ) : (
+                        <Wand2 className="w-3 h-3" />
+                      )}
+                      <span>{generatingStyleDesc ? '生成中…' : 'AI 帮我写'}</span>
+                    </button>
+                  </div>
                   <input
                     value={draftVoice.ttsStyleInstruction}
                     onChange={(e) =>

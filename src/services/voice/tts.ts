@@ -100,18 +100,22 @@ export function stopSpeaking(): void {
       }
     }
   }
-  if (activeAudioAbort) {
-    activeAudioAbort();
-    activeAudioAbort = null;
-  }
   if (activeAudio) {
     try {
+      activeAudio.onended = null;
+      activeAudio.onerror = null;
       activeAudio.pause();
+      activeAudio.currentTime = 0;
       activeAudio.src = '';
     } catch {
       // ignore
     }
     activeAudio = null;
+  }
+  if (activeAudioAbort) {
+    const abort = activeAudioAbort;
+    activeAudioAbort = null;
+    abort();
   }
   if (activeAudioUrl) {
     URL.revokeObjectURL(activeAudioUrl);
@@ -332,6 +336,10 @@ export async function speakText(params: {
 
     const playOne = (bin: SynthBin) =>
       new Promise<void>((resolve, reject) => {
+        if (token !== speechGenerationId) {
+          resolve();
+          return;
+        }
         const bytes = base64ToUint8Array(bin.base64);
         const mime = bin.contentType?.startsWith('audio/')
           ? bin.contentType
@@ -342,9 +350,20 @@ export async function speakText(params: {
         const url = URL.createObjectURL(blob);
         const audio = new Audio(url);
         let settled = false;
-        const finish = () => {
+        const finish = (pauseAudio = false) => {
           if (settled) return;
           settled = true;
+          if (pauseAudio) {
+            try {
+              audio.onended = null;
+              audio.onerror = null;
+              audio.pause();
+              audio.currentTime = 0;
+              audio.src = '';
+            } catch {
+              // ignore
+            }
+          }
           URL.revokeObjectURL(url);
           if (activeAudio === audio) {
             activeAudio = null;
@@ -357,19 +376,24 @@ export async function speakText(params: {
         activeAudio = audio;
         activeAudioUrl = url;
         activeAudioAbort = () => {
-          finish();
+          finish(true);
           resolve();
         };
         audio.onended = () => {
-          finish();
+          finish(false);
           resolve();
         };
         audio.onerror = () => {
-          finish();
+          finish(true);
           reject(new Error('音频播放失败'));
         };
         audio.play().catch((err) => {
-          finish();
+          if (token !== speechGenerationId) {
+            finish(true);
+            resolve();
+            return;
+          }
+          finish(true);
           reject(err instanceof Error ? err : new Error('音频播放失败'));
         });
       });

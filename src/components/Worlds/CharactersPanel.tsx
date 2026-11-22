@@ -180,6 +180,32 @@ export const CharactersPanel: React.FC<{ worldId: string }> = ({ worldId }) => {
     return saved;
   };
 
+  const handleOpenVoiceStudioForEditing = async (voiceSubTab: 'library' | 'create') => {
+    if (!editing) return;
+    const existedBefore = characters.some((c) => c.id === editing.id);
+    const resolvedName = editing.name.trim() || '未命名角色';
+    const saved: Character = {
+      ...editing,
+      name: resolvedName,
+      systemPrompt: editing.systemPrompt?.trim() ? editing.systemPrompt : undefined,
+      updatedAt: Date.now(),
+    };
+    await upsertCharacter(saved);
+    setEditing(saved);
+    setOriginalWorldId(saved.worldId);
+    if (!existedBefore) {
+      showToast(`已自动保存角色「${resolvedName}」`, 'info');
+    }
+    openProvidersModal('voice', {
+      voiceSubTab,
+      bindTarget: {
+        kind: 'character',
+        characterId: saved.id,
+        characterName: saved.name,
+      },
+    });
+  };
+
   const handleStartRoleChat = async (char: Character) => {
     let targetChar = char;
     if (editing && editing.id === char.id && editing.name.trim()) {
@@ -510,32 +536,14 @@ export const CharactersPanel: React.FC<{ worldId: string }> = ({ worldId }) => {
                   <div className="flex items-center gap-2">
                     <button
                       type="button"
-                      onClick={() =>
-                        openProvidersModal('voice', {
-                          voiceSubTab: 'library',
-                          bindTarget: {
-                            kind: 'character',
-                            characterId: editing.id,
-                            characterName: editing.name.trim() || '新角色',
-                          },
-                        })
-                      }
+                      onClick={() => void handleOpenVoiceStudioForEditing('library')}
                       className="text-[11.5px] text-secondary hover:text-accent hover:underline cursor-pointer"
                     >
                       管理声音库
                     </button>
                     <button
                       type="button"
-                      onClick={() =>
-                        openProvidersModal('voice', {
-                          voiceSubTab: 'create',
-                          bindTarget: {
-                            kind: 'character',
-                            characterId: editing.id,
-                            characterName: editing.name.trim() || '新角色',
-                          },
-                        })
-                      }
+                      onClick={() => void handleOpenVoiceStudioForEditing('create')}
                       className="flex items-center gap-0.5 text-[11.5px] text-accent font-medium hover:underline cursor-pointer"
                     >
                       <Plus className="w-3 h-3" />
