@@ -14,6 +14,7 @@ import {
   Wand2,
 } from 'lucide-react';
 import { useAppStore } from '../../store/useAppStore';
+import { clearTtsCache, getTtsCacheStats } from '../../services/voice/ttsCache';
 import type {
   MediaProviderCredential,
   TtsAutoPlayTarget,
@@ -53,6 +54,11 @@ interface VoiceStudioTabProps {
   onSaveVoice: (options?: { keepActiveProfile?: boolean }) => Promise<void>;
 }
 
+function formatCacheBytes(bytes: number): string {
+  if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
 export const VoiceStudioTab: React.FC<VoiceStudioTabProps> = ({
   draftVoice,
   setDraftVoice,
@@ -80,6 +86,7 @@ export const VoiceStudioTab: React.FC<VoiceStudioTabProps> = ({
   } = useAppStore();
 
   const [showVoiceKey, setShowVoiceKey] = useState(false);
+  const [cacheStats, setCacheStats] = useState<{ count: number; bytes: number } | null>(null);
   const [nativeVoices, setNativeVoices] = useState<SpeechSynthesisVoice[]>(() => listNativeVoices());
   const [styleBriefCharacterId, setStyleBriefCharacterId] = useState(() =>
     pendingVoiceBindTarget?.kind === 'character' ? pendingVoiceBindTarget.characterId : ''
@@ -330,6 +337,24 @@ export const VoiceStudioTab: React.FC<VoiceStudioTabProps> = ({
     const savedVoice = useAppStore.getState().settings.voice;
     await updateSettings({ voice: { ...savedVoice, ...patch } });
   };
+
+  const handleClearTtsCache = async () => {
+    await clearTtsCache();
+    setCacheStats(await getTtsCacheStats());
+    showToast('语音缓存已清空', 'success');
+  };
+
+  useEffect(() => {
+    let alive = true;
+    void getTtsCacheStats()
+      .then((stats) => {
+        if (alive) setCacheStats(stats);
+      })
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   const handleToggleQuickSetting = async (field: 'ttsEnabled' | 'ttsAutoPlay', checked: boolean) => {
     await handleQuickVoicePatch({ [field]: checked } as Partial<VoiceConfig>);
@@ -718,6 +743,20 @@ export const VoiceStudioTab: React.FC<VoiceStudioTabProps> = ({
           {activeDefaultProfile && (
             <span className="text-[11.5px] px-2.5 py-0.5 rounded-full bg-accent-soft text-accent border border-accent/25">
               当前默认：{activeDefaultProfile.name}
+            </span>
+          )}
+          {cacheStats && cacheStats.count > 0 && (
+            <span className="flex items-center gap-1.5 text-[11.5px] text-dim">
+              <span>
+                语音缓存 {cacheStats.count} 条 · {formatCacheBytes(cacheStats.bytes)}
+              </span>
+              <button
+                type="button"
+                onClick={() => void handleClearTtsCache()}
+                className="underline hover:text-accent cursor-pointer"
+              >
+                清空
+              </button>
             </span>
           )}
         </div>

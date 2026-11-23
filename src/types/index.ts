@@ -57,6 +57,26 @@ export type SttEngine = 'native' | 'openai_api';
 /** 自动朗读的范围：只读角色台词 / 只读我的台词 / 两边都读 */
 export type TtsAutoPlayTarget = 'assistant' | 'user' | 'both';
 
+/**
+ * 本地语音缓存条目（按「文本 + 音色 / 模型 / 语速 / 语气」哈希寻址）。
+ * 存的是合成结果本身，命中即可直接播放，不再请求 TTS 接口。
+ */
+export interface TtsCacheEntry {
+  /** 影响合成结果的参数 + 文本的哈希，见 services/voice/ttsCache.ts */
+  key: string;
+  base64: string;
+  contentType: string;
+  /** 近似占用（base64 字符数），用于容量上限与清理 */
+  bytes: number;
+  createdAt: number;
+  /** LRU 依据：最近一次播放时间 */
+  lastUsedAt: number;
+  hits: number;
+  /** 便于排查：这段缓存对应哪句话 */
+  textPreview: string;
+  voiceLabel: string;
+}
+
 export interface VoiceConfig {
   ttsEnabled: boolean;
   ttsAutoPlay: boolean;

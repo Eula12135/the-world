@@ -15,6 +15,7 @@ import {
   splitSpeechChunks,
   stripMarkdownForSpeech,
 } from './textUtils';
+import { buildTtsSpeechCacheKey, readTtsCache, writeTtsCache } from './ttsCache';
 
 export function buildTtsSpeechPayload(params: {
   model: string;
@@ -308,7 +309,7 @@ export async function speakText(params: {
     const openAiHeaders: Record<string, string> = { 'Content-Type': 'application/json' };
     if (apiKey) openAiHeaders.Authorization = `Bearer ${apiKey}`;
 
-    const synthesize = async (chunkText: string): Promise<SynthBin> => {
+    const synthesizeNetwork = async (chunkText: string): Promise<SynthBin> => {
       if (isBreezeCloud) {
         return crossPlatformFetchBinary({
           url: `${breezeBase}/v1/text-to-speech/${encodeURIComponent(breezeVoiceId)}?output_format=mp3_44100_128`,
@@ -348,6 +349,50 @@ export async function speakText(params: {
     // 改在播放端用 playbackRate 减速/加速——它只拉伸时间轴、保持音高，更适合人声。
     const speedHandledByServer = !isBreezeCloud && rate >= 1;
     const playbackRate = !speedHandledByServer && Math.abs(rate - 1) > 0.001 ? rate : 1;
+
+    /**
+     * 带本地缓存的合成：命中直接返回字节，不再请求接口。
+     * 键里带齐了音色 / 模型 / 服务端语速 / 增益 / 语气指令 / 文本，
+     * 所以换音色、换模型、改语气、编辑消息都会自然变成未命中，重新合成。
+     */
+    const synthesize = async (chunkText: string): Promise<SynthBin> => {
+      const cacheKey = buildTtsSpeechCacheKey({
+        baseUrl: isBreezeCloud ? breezeBase : cleanBase,
+        model,
+        voice: isBreezeCloud ? breezeVoiceId : ttsVoice,
+        synthRate: speedHandledByServer ? rate : 1,
+        gain: effective.ttsGain ?? 0,
+        styleInstruction: effective.ttsStyleInstruction || '',
+        text: chunkText,
+      });
+
+      try {
+        const hit = await readTtsCache(cacheKey);
+        if (hit) {
+          return {
+            ok: true,
+            status: 200,
+            contentType: hit.contentType,
+            base64: hit.base64,
+            errorText: '',
+          };
+        }
+      } catch {
+        // 缓存读失败就当未命中，不能因为缓存问题导致读不出来
+      }
+
+      const bin = await synthesizeNetwork(chunkText);
+      if (bin.ok && bin.base64) {
+        void writeTtsCache({
+          key: cacheKey,
+          base64: bin.base64,
+          contentType: bin.contentType,
+          textPreview: chunkText.slice(0, 40),
+          voiceLabel: isBreezeCloud ? breezeVoiceId : ttsVoice,
+        }).catch(() => undefined);
+      }
+      return bin;
+    };
 
     const playOne = (bin: SynthBin) =>
       new Promise<void>((resolve, reject) => {

@@ -10,6 +10,7 @@ import type {
   PersonaPreset,
   ProviderConfig,
   TimelineEvent,
+  TtsCacheEntry,
   UserPersona,
   VoiceConfig,
   VoiceProfile,
@@ -81,6 +82,7 @@ export class TheWorldDatabase extends Dexie {
   timelineEvents!: Table<TimelineEvent, string>;
   personaPresets!: Table<PersonaPreset, string>;
   userPersonas!: Table<UserPersona, string>;
+  ttsCache!: Table<TtsCacheEntry, string>;
   voiceProfiles!: Table<VoiceProfile, string>;
   settings!: Table<AppSettings, string>;
 
@@ -364,6 +366,22 @@ export class TheWorldDatabase extends Dexie {
       timelineEvents: 'id, worldId, orderIndex',
       personaPresets: 'id, updatedAt',
       userPersonas: 'id, updatedAt',
+      voiceProfiles: 'id, updatedAt',
+      settings: 'id',
+    });
+
+    // v9：本地语音缓存。纯新增表，不参与备份导出，清库也不影响既有数据。
+    this.version(9).stores({
+      providers: 'id, enabled, isCustom',
+      sessions: 'id, updatedAt, pinned, worldId, sourceId',
+      messages: 'id, sessionId, createdAt, [sessionId+createdAt]',
+      worlds: 'id, updatedAt',
+      characters: 'id, worldId, updatedAt',
+      relations: 'id, worldId, sourceId, targetId',
+      timelineEvents: 'id, worldId, orderIndex',
+      personaPresets: 'id, updatedAt',
+      userPersonas: 'id, updatedAt',
+      ttsCache: 'key, lastUsedAt, bytes',
       voiceProfiles: 'id, updatedAt',
       settings: 'id',
     });
