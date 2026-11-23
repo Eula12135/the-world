@@ -16,7 +16,7 @@ import {
   Trash2,
   Volume2,
 } from 'lucide-react';
-import type { Character, ChatMessage, PersonaPreset } from '../../types';
+import type { Character, ChatMessage, PersonaPreset, ResolvedUserIdentity } from '../../types';
 import { useAppStore } from '../../store/useAppStore';
 import { speakText, stopSpeaking } from '../../services/voiceService';
 import { parseRoleplayContent, stripActionsForSpeech } from '../../utils/dialogueParser';
@@ -29,6 +29,10 @@ interface MessageItemProps {
   isSessionStreaming: boolean;
   roleCharacter?: Character;
   personaPreset?: PersonaPreset;
+  /** 当前会话里「我」的身份；未设定时为 null，用户气泡保持原样 */
+  userIdentity?: ResolvedUserIdentity | null;
+  /** 「我」被称呼的名字（已按 override → 身份 → 角色卡 → 名字 解析过） */
+  userLabel?: string;
 }
 
 export const MessageItem: React.FC<MessageItemProps> = React.memo(({
@@ -38,6 +42,8 @@ export const MessageItem: React.FC<MessageItemProps> = React.memo(({
   isSessionStreaming,
   roleCharacter,
   personaPreset,
+  userIdentity,
+  userLabel,
 }) => {
   const {
     regenerateLastAssistant,
@@ -156,9 +162,17 @@ export const MessageItem: React.FC<MessageItemProps> = React.memo(({
   };
 
   if (isUser) {
+    const userAvatarImg = userIdentity?.avatarImage;
+    const userDisplayName = (userLabel || userIdentity?.name || '').trim();
+    const showUserIdentity = Boolean(userIdentity && userDisplayName);
     return (
-      <div className="flex justify-end">
+      <div className="flex justify-end gap-2.5">
         <div className="max-w-[85%] md:max-w-[75%] space-y-1.5">
+          {showUserIdentity && (
+            <div className="text-[11.5px] font-medium text-secondary text-right">
+              {userDisplayName}
+            </div>
+          )}
           {editing ? (
             <div className="p-3 rounded-2xl bg-card border border-accent space-y-2 min-w-[260px]">
               <textarea
@@ -222,6 +236,21 @@ export const MessageItem: React.FC<MessageItemProps> = React.memo(({
             </div>
           )}
         </div>
+        {showUserIdentity &&
+          (userAvatarImg ? (
+            <img
+              src={userAvatarImg}
+              alt={userDisplayName}
+              className="w-7 h-7 rounded-full object-cover shrink-0 mt-0.5 border border-line"
+            />
+          ) : (
+            <div
+              className="w-7 h-7 rounded-full shrink-0 text-white text-xs font-bold flex items-center justify-center mt-0.5"
+              style={{ backgroundColor: userIdentity?.avatarColor || 'var(--accent)' }}
+            >
+              {userDisplayName.slice(0, 1)}
+            </div>
+          ))}
       </div>
     );
   }

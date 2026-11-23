@@ -6,7 +6,13 @@ import {
 } from '../services/contextBuilder';
 import { getRecommendedTemplateId, parseDocumentSections, PREAMBLE_HEADING } from '../data/worldTemplates';
 import { DEFAULT_SETTINGS } from '../db/database';
-import type { Character, CharacterRelation, TimelineEvent, WorldProject } from '../types';
+import type {
+  Character,
+  CharacterRelation,
+  TimelineEvent,
+  UserPersona,
+  WorldProject,
+} from '../types';
 
 const sampleDoc = `## 一、世界概述
 双星系统边缘的殖民空间站。
@@ -453,5 +459,178 @@ describe('buildSessionSystemPrompt (progressive disclosure + temporal + rolling 
 
     expect(sessionRes.prompt).toContain('你是专业的中英小说双语润色编辑');
     expect(sessionRes.prompt).not.toContain('清晰、理性且富有洞察力的 AI 助手');
+  });
+});
+
+describe('「我」的提示词注入', () => {
+  const linChe: Character = {
+    id: 'c1',
+    worldId: 'w1',
+    name: '林澈',
+    identity: '星海领航员',
+    personality: '冷静克制',
+    status: '',
+    relationsNote: '',
+    notes: '',
+    avatarColor: '#4d6bfe',
+    updatedAt: 1,
+    userRelation: {
+      defaultAddress: '旅人',
+      defaultRelationLabel: '点头之交',
+      defaultRelationDesc: '在渡口见过几面',
+    },
+  };
+  const shenLan: Character = {
+    id: 'c2',
+    worldId: 'w1',
+    name: '沈岚',
+    identity: '剑修',
+    personality: '',
+    status: '',
+    relationsNote: '',
+    notes: '',
+    avatarColor: '#8b5cf6',
+    updatedAt: 1,
+  };
+  const xiaoChe: UserPersona = {
+    id: 'p1',
+    name: '小澈',
+    addressAs: '',
+    aliases: '阿澈',
+    identity: '大学同学',
+    description: '摄影社的',
+    avatarColor: '#10b981',
+    createdAt: 1,
+    updatedAt: 1,
+  };
+
+  it('注入身份、关系与硬约束，并把称呼写进开场句', () => {
+    const res = buildSessionSystemPrompt({
+      settings: DEFAULT_SETTINGS,
+      session: {
+        chatMode: 'character_role',
+        roleCharacterId: 'c1',
+        enableWorldContext: false,
+        userIdentity: { kind: 'persona', id: 'p1' },
+      },
+      world: null,
+      characters: [linChe],
+      relations: [],
+      events: [],
+      personas: [xiaoChe],
+    });
+
+    expect(res.prompt).toContain('【关于"我"（正在与你对话的人）】');
+    // 自建身份的 addressAs 留空 → 落到角色卡的 defaultAddress
+    expect(res.prompt).toContain('称呼：旅人');
+    expect(res.prompt).toContain('姓名：小澈');
+    expect(res.prompt).toContain('其他叫法：阿澈');
+    expect(res.prompt).toContain('身份：大学同学');
+    expect(res.prompt).toContain('【你我关系】');
+    expect(res.prompt).toContain('- 点头之交 — 在渡口见过几面');
+    expect(res.prompt).toContain('【扮演约束】');
+    expect(res.prompt).toContain('不要自行编造用户的姓名、外貌、身份或经历');
+    expect(res.prompt).toContain('不要替用户描写动作、对话或心理活动');
+    expect(res.prompt).toContain('和「旅人」对话');
+  });
+
+  it('自建身份自填的称呼压过角色卡默认值', () => {
+    const res = buildSessionSystemPrompt({
+      settings: DEFAULT_SETTINGS,
+      session: {
+        chatMode: 'character_role',
+        roleCharacterId: 'c1',
+        enableWorldContext: false,
+        userIdentity: { kind: 'persona', id: 'p1' },
+      },
+      world: null,
+      characters: [linChe],
+      relations: [],
+      events: [],
+      personas: [{ ...xiaoChe, addressAs: '阿澈' }],
+    });
+
+    expect(res.prompt).toContain('称呼：阿澈');
+    expect(res.prompt).toContain('和「阿澈」对话');
+  });
+
+  it('未选身份时提示词与改动前一致', () => {
+    const res = buildSessionSystemPrompt({
+      settings: DEFAULT_SETTINGS,
+      session: {
+        chatMode: 'character_role',
+        roleCharacterId: 'c1',
+        enableWorldContext: false,
+      },
+      world: null,
+      characters: [linChe],
+      relations: [],
+      events: [],
+      personas: [xiaoChe],
+    });
+
+    expect(res.prompt).not.toContain('【关于"我"');
+    expect(res.prompt).not.toContain('【扮演约束】');
+    expect(res.prompt).not.toContain('【你我关系】');
+    expect(res.prompt).toContain('和用户对话');
+  });
+
+  it('双卡对戏时关系只注入一次（开世界上下文也不重复）', () => {
+    const relations: CharacterRelation[] = [
+      {
+        id: 'r1',
+        worldId: 'w1',
+        sourceId: 'c1',
+        targetId: 'c2',
+        directed: true,
+        phases: [
+          { id: 'ph1', type: 'hostile', label: '死敌', strength: 2, description: '争同一把剑' },
+        ],
+        updatedAt: 1,
+      },
+    ];
+
+    const res = buildSessionSystemPrompt({
+      settings: DEFAULT_SETTINGS,
+      session: {
+        chatMode: 'character_role',
+        roleCharacterId: 'c1',
+        enableWorldContext: true,
+        userIdentity: { kind: 'character', id: 'c2' },
+      },
+      world: baseWorld,
+      characters: [linChe, shenLan],
+      relations,
+      events: [],
+      personas: [],
+    });
+
+    expect(res.prompt).toContain('【你我关系】');
+    expect(res.prompt.match(/死敌/g) || []).toHaveLength(1);
+  });
+
+  it('通用助手与自定义人设不注入身份', () => {
+    const assistant = buildSessionSystemPrompt({
+      settings: DEFAULT_SETTINGS,
+      session: {
+        chatMode: 'assistant',
+        enableWorldContext: false,
+        userIdentity: { kind: 'persona', id: 'p1' },
+      },
+      personas: [xiaoChe],
+    });
+    expect(assistant.prompt).not.toContain('【关于"我"');
+
+    const custom = buildSessionSystemPrompt({
+      settings: DEFAULT_SETTINGS,
+      session: {
+        chatMode: 'custom_persona',
+        systemPromptOverride: '你是一位古剑守护者',
+        enableWorldContext: false,
+        userIdentity: { kind: 'persona', id: 'p1' },
+      },
+      personas: [xiaoChe],
+    });
+    expect(custom.prompt).not.toContain('【关于"我"');
   });
 });

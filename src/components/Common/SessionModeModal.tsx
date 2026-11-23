@@ -11,7 +11,9 @@ import {
   X,
 } from 'lucide-react';
 import { useAppStore } from '../../store/useAppStore';
-import type { ChatMode } from '../../types';
+import { resolveUserAddress, resolveUserIdentity } from '../../services/userIdentity';
+import { UserIdentitySection } from '../Chat/UserIdentitySection';
+import type { ChatMode, SessionUserRelationOverride, UserIdentityRef } from '../../types';
 
 export const SessionModeModal: React.FC = () => {
   const {
@@ -23,6 +25,8 @@ export const SessionModeModal: React.FC = () => {
     worlds,
     characters,
     personaPresets,
+    userPersonas,
+    inheritUserRelationOverride,
     selectWorld,
     setActiveView,
     openStandaloneCharacters,
@@ -97,6 +101,8 @@ export const SessionModeModal: React.FC = () => {
     chatMode?: ChatMode;
     personaPresetId?: string;
     roleCharacterId?: string;
+    userIdentity?: UserIdentityRef;
+    userRelationOverride?: SessionUserRelationOverride;
     systemPromptOverride?: string;
     worldId?: string;
     enableWorldContext?: boolean;
@@ -120,6 +126,29 @@ export const SessionModeModal: React.FC = () => {
 
   const isRoleMode = chatMode === 'character_role';
   const isLegacyPersona = chatMode === 'custom_persona';
+
+  const activeUserIdentityRef = session ? session.userIdentity : draftConfig.userIdentity;
+  const activeUserRelationOverride = session
+    ? session.userRelationOverride
+    : draftConfig.userRelationOverride;
+
+  const resolvedUserIdentity = useMemo(
+    () =>
+      isRoleMode
+        ? resolveUserIdentity(activeUserIdentityRef, userPersonas, characters)
+        : null,
+    [isRoleMode, activeUserIdentityRef, userPersonas, characters]
+  );
+
+  const userDisplayName = useMemo(
+    () =>
+      resolveUserAddress({
+        identity: resolvedUserIdentity,
+        roleCharacter: activeRoleChar,
+        override: activeUserRelationOverride,
+      }),
+    [resolvedUserIdentity, activeRoleChar, activeUserRelationOverride]
+  );
 
   return (
     <>
@@ -145,6 +174,13 @@ export const SessionModeModal: React.FC = () => {
               <Users className="w-3.5 h-3.5 shrink-0" />
             )}
             <span>扮演：{activeRoleChar?.name || '选择角色'}</span>
+            {resolvedUserIdentity && (
+              <>
+                <span className="text-dim">↔</span>
+                <UserRound className="w-3.5 h-3.5 shrink-0" />
+                <span>我：{userDisplayName || resolvedUserIdentity.name}</span>
+              </>
+            )}
           </>
         ) : isLegacyPersona ? (
           <>
@@ -395,10 +431,17 @@ export const SessionModeModal: React.FC = () => {
                                   key={c.id}
                                   type="button"
                                   onClick={async () => {
+                                    // 组合键变了：旧关系覆盖作废，按新组合重新继承
+                                    const inherited = inheritUserRelationOverride(
+                                      c.id,
+                                      activeUserIdentityRef,
+                                      session?.id
+                                    );
                                     await patchSessionOrDraft({
                                       chatMode: 'character_role',
                                       roleCharacterId: c.id,
                                       personaPresetId: undefined,
+                                      userRelationOverride: inherited,
                                       ...(c.worldId
                                         ? { worldId: c.worldId, enableWorldContext: true }
                                         : { worldId: undefined, enableWorldContext: false }),
@@ -444,6 +487,16 @@ export const SessionModeModal: React.FC = () => {
                           </div>
                         )}
                       </>
+                    )}
+
+                    {/* 「我」以谁的身份进入这次对话 */}
+                    {isRoleMode && (
+                      <UserIdentitySection
+                        session={session}
+                        draftConfig={draftConfig}
+                        roleCharacterId={roleCharacterId}
+                        onPatch={patchSessionOrDraft}
+                      />
                     )}
 
                     {/* Collapsible per-session scenario note */}

@@ -108,6 +108,10 @@ export interface ChatSession {
   chatMode?: ChatMode;
   personaPresetId?: string;
   roleCharacterId?: string;
+  /** 本次对话「我」以谁的身份进入 */
+  userIdentity?: UserIdentityRef;
+  /** 仅存用户显式改过的关系字段，不是完整关系 */
+  userRelationOverride?: SessionUserRelationOverride;
   worldId?: string;
   enableWorldContext: boolean;
   storyPointEventId?: string;
@@ -165,6 +169,8 @@ export interface Character {
   avatarImage?: string;
   voiceName?: string;
   voiceProfileId?: string;
+  /** 与「我」的关系钩子（可选）：AI 扮演该角色时默认怎么称呼用户、默认是什么关系 */
+  userRelation?: CharacterUserRelationHook;
   posX?: number;
   posY?: number;
   updatedAt: number;
@@ -199,6 +205,65 @@ export interface CharacterRelation {
   directed: boolean;
   phases: RelationPhase[];
   updatedAt: number;
+}
+
+/** 角色卡上的「我」关系钩子：卡作者为该卡预设的默认称呼与默认关系 */
+export interface CharacterUserRelationHook {
+  /** 默认怎么称呼用户 */
+  defaultAddress?: string;
+  defaultRelationType?: RelationType;
+  defaultRelationLabel?: string;
+  defaultRelationDesc?: string;
+  /** 用户可以是：他的同门 / 他早年失散的宿敌 */
+  slotHint?: string;
+}
+
+/** 「我」的身份来源：自建人设，或直接引用一张角色卡 */
+export type UserIdentityKind = 'persona' | 'character';
+
+export interface UserIdentityRef {
+  kind: UserIdentityKind;
+  id: string;
+}
+
+/** 自建的「我」。刻意不含 TTS 音色：角色被朗读，用户不被朗读 */
+export interface UserPersona {
+  id: string;
+  name: string;
+  /** 角色怎么称呼我；留空表示不指定，交给 AI 角色卡的 defaultAddress 决定 */
+  addressAs: string;
+  aliases?: string;
+  identity: string;
+  description: string;
+  avatarImage?: string;
+  avatarColor: string;
+  /** 从哪张角色卡复制来的，仅作溯源，不是引用 */
+  sourceCharacterId?: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
+/** 解析后的「我」：渲染层与提示词层唯一消费的形状，不关心来源 */
+export interface ResolvedUserIdentity {
+  name: string;
+  /** 身份自身提供的称呼，可为空串（表示交给角色卡决定）；「我」是角色卡时恒为空串 */
+  addressAs: string;
+  aliases?: string;
+  identity: string;
+  description: string;
+  avatarImage?: string;
+  avatarColor: string;
+  kind: UserIdentityKind;
+  /** 溯源用的源实体 id */
+  sourceId: string;
+}
+
+/** 会话级「我 × 角色」关系的局部覆盖，只存用户显式改过的字段 */
+export interface SessionUserRelationOverride {
+  type?: RelationType;
+  label?: string;
+  description?: string;
+  address?: string;
 }
 
 export interface TimelineEvent {

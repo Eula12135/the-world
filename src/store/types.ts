@@ -8,7 +8,10 @@ import type {
   ChatSession,
   PersonaPreset,
   ProviderConfig,
+  SessionUserRelationOverride,
   TimelineEvent,
+  UserIdentityRef,
+  UserPersona,
   VoiceProfile,
   WorldProject,
 } from '../types';
@@ -29,6 +32,8 @@ export interface DraftSessionConfig {
   chatMode: ChatMode;
   personaPresetId?: string;
   roleCharacterId?: string;
+  userIdentity?: UserIdentityRef;
+  userRelationOverride?: SessionUserRelationOverride;
   systemPromptOverride?: string;
   worldId?: string;
   enableWorldContext: boolean;
@@ -105,6 +110,20 @@ export interface ProvidersSlice {
   updateSettings: (patch: Partial<AppSettings>) => Promise<void>;
 }
 
+export interface UserPersonaSlice {
+  userPersonas: UserPersona[];
+  upsertUserPersona: (persona: UserPersona) => Promise<void>;
+  deleteUserPersona: (id: string) => Promise<void>;
+  /** 以某张角色卡为底稿新建一份独立身份（复制，不是引用），返回新身份 id */
+  createUserPersonaFromCharacter: (characterId: string) => Promise<string | null>;
+  /** 按 (AI 角色, 我) 组合键找最近一次会话的关系覆盖，用于新建或切换时继承 */
+  inheritUserRelationOverride: (
+    roleCharacterId?: string,
+    identity?: UserIdentityRef,
+    excludeSessionId?: string
+  ) => SessionUserRelationOverride | undefined;
+}
+
 export interface ChatSlice {
   sessions: ChatSession[];
   activeSessionId: string | null;
@@ -123,6 +142,8 @@ export interface ChatSlice {
     chatMode?: ChatMode;
     personaPresetId?: string;
     roleCharacterId?: string;
+    userIdentity?: UserIdentityRef;
+    userRelationOverride?: SessionUserRelationOverride;
     systemPromptOverride?: string;
   }) => Promise<void>;
   updateDraftConfig: (patch: Partial<DraftSessionConfig>) => void;
@@ -170,6 +191,6 @@ export interface RootSlice {
   reloadAll: () => Promise<void>;
 }
 
-export type AppState = RootSlice & UiSlice & ProvidersSlice & ChatSlice & WorldSlice;
+export type AppState = RootSlice & UiSlice & ProvidersSlice & ChatSlice & WorldSlice & UserPersonaSlice;
 
 export type AppSliceCreator<T> = StateCreator<AppState, [], [], T>;

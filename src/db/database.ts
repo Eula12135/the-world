@@ -10,6 +10,7 @@ import type {
   PersonaPreset,
   ProviderConfig,
   TimelineEvent,
+  UserPersona,
   VoiceConfig,
   VoiceProfile,
   WorldProject,
@@ -78,6 +79,7 @@ export class TheWorldDatabase extends Dexie {
   relations!: Table<CharacterRelation, string>;
   timelineEvents!: Table<TimelineEvent, string>;
   personaPresets!: Table<PersonaPreset, string>;
+  userPersonas!: Table<UserPersona, string>;
   voiceProfiles!: Table<VoiceProfile, string>;
   settings!: Table<AppSettings, string>;
 
@@ -349,6 +351,21 @@ export class TheWorldDatabase extends Dexie {
             }
           });
       });
+
+    // v8：新增「我」的自建身份表。纯新增，不改动任何既有表，老数据零迁移。
+    this.version(8).stores({
+      providers: 'id, enabled, isCustom',
+      sessions: 'id, updatedAt, pinned, worldId, sourceId',
+      messages: 'id, sessionId, createdAt, [sessionId+createdAt]',
+      worlds: 'id, updatedAt',
+      characters: 'id, worldId, updatedAt',
+      relations: 'id, worldId, sourceId, targetId',
+      timelineEvents: 'id, worldId, orderIndex',
+      personaPresets: 'id, updatedAt',
+      userPersonas: 'id, updatedAt',
+      voiceProfiles: 'id, updatedAt',
+      settings: 'id',
+    });
   }
 }
 

@@ -9,6 +9,7 @@ import { loadWorldChildren, pickDefaultModelConfig } from './helpers';
 import { createChatSlice } from './slices/chatSlice';
 import { createProvidersSlice } from './slices/providersSlice';
 import { createUiSlice } from './slices/uiSlice';
+import { createUserPersonaSlice } from './slices/userPersonaSlice';
 import { createWorldSlice } from './slices/worldSlice';
 import type { AppState } from './types';
 
@@ -26,6 +27,7 @@ export type {
 export const useAppStore = create<AppState>((set, get, store) => ({
   ...createUiSlice(set, get, store),
   ...createProvidersSlice(set, get, store),
+  ...createUserPersonaSlice(set, get, store),
   ...createChatSlice(set, get, store),
   ...createWorldSlice(set, get, store),
 
@@ -52,6 +54,7 @@ export const useAppStore = create<AppState>((set, get, store) => ({
       worlds,
       resolvedSettings,
       personaPresets,
+      userPersonas,
       voiceProfiles,
       worldData,
     ] = await Promise.all([
@@ -60,6 +63,7 @@ export const useAppStore = create<AppState>((set, get, store) => ({
       db.worlds.orderBy('updatedAt').reverse().toArray(),
       loadSettingsDecrypted(),
       db.personaPresets.orderBy('updatedAt').reverse().toArray(),
+      db.userPersonas.orderBy('updatedAt').reverse().toArray(),
       db.voiceProfiles.orderBy('updatedAt').reverse().toArray(),
       loadWorldChildren(null),
     ]);
@@ -91,6 +95,7 @@ export const useAppStore = create<AppState>((set, get, store) => ({
       ...worldData,
       settings: resolvedSettings,
       personaPresets,
+      userPersonas,
       voiceProfiles,
     });
   },

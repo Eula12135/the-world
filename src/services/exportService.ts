@@ -9,16 +9,40 @@ import {
 import type {
   Character,
   CharacterRelation,
+  CharacterUserRelationHook,
   ChatMessage,
   ChatSession,
   MediaProviderCredential,
   PersonaPreset,
   ProviderConfig,
+  RelationType,
   TimelineEvent,
+  UserPersona,
   VoiceProfile,
   WorldProject,
 } from '../types';
-import { sortEventsChronologically } from './temporalGraph';
+import { RELATION_TYPE_META, sortEventsChronologically } from './temporalGraph';
+
+function normalizeUserRelationHook(raw: unknown): CharacterUserRelationHook | undefined {
+  if (!raw || typeof raw !== 'object') return undefined;
+  const r = raw as Record<string, unknown>;
+  const text = (key: string): string | undefined => {
+    const v = r[key];
+    return typeof v === 'string' && v.trim() ? v : undefined;
+  };
+  const typeRaw = r.defaultRelationType;
+  const hook: CharacterUserRelationHook = {
+    defaultAddress: text('defaultAddress'),
+    defaultRelationType:
+      typeof typeRaw === 'string' && typeRaw in RELATION_TYPE_META
+        ? (typeRaw as RelationType)
+        : undefined,
+    defaultRelationLabel: text('defaultRelationLabel'),
+    defaultRelationDesc: text('defaultRelationDesc'),
+    slotHint: text('slotHint'),
+  };
+  return Object.values(hook).some((v) => v !== undefined) ? hook : undefined;
+}
 
 export function sessionToMarkdown(
   session: ChatSession,
@@ -159,6 +183,7 @@ export async function exportFullBackupJson(includeApiKeys: boolean): Promise<str
     relations,
     timelineEvents,
     personaPresets,
+    userPersonas,
     voiceProfiles,
     settings,
   ] = await Promise.all([
@@ -170,6 +195,7 @@ export async function exportFullBackupJson(includeApiKeys: boolean): Promise<str
     db.relations.toArray(),
     db.timelineEvents.toArray(),
     db.personaPresets.toArray(),
+    db.userPersonas.toArray(),
     db.voiceProfiles.toArray(),
     loadSettingsDecrypted(),
   ]);
@@ -200,7 +226,7 @@ export async function exportFullBackupJson(includeApiKeys: boolean): Promise<str
   return JSON.stringify(
     {
       app: 'the-world',
-      backupVersion: 6,
+      backupVersion: 7,
       exportedAt: new Date().toISOString(),
       includesApiKeys: includeApiKeys,
       data: {
@@ -212,6 +238,7 @@ export async function exportFullBackupJson(includeApiKeys: boolean): Promise<str
         relations,
         timelineEvents,
         personaPresets,
+        userPersonas,
         voiceProfiles,
         settings: sanitizedSettings,
       },
@@ -279,6 +306,7 @@ export async function importFullBackupJson(rawText: string): Promise<{
       db.relations,
       db.timelineEvents,
       db.personaPresets,
+      db.userPersonas,
       db.voiceProfiles,
       db.settings,
     ],
@@ -346,6 +374,7 @@ export async function importFullBackupJson(rawText: string): Promise<{
               typeof c.avatarColor === 'string' && c.avatarColor ? c.avatarColor : '#4d6bfe',
             voiceName: typeof c.voiceName === 'string' ? c.voiceName : undefined,
             voiceProfileId: typeof c.voiceProfileId === 'string' ? c.voiceProfileId : undefined,
+            userRelation: normalizeUserRelationHook(c.userRelation),
             updatedAt: typeof c.updatedAt === 'number' ? c.updatedAt : Date.now(),
           }));
         if (normalizedChars.length > 0) {
@@ -381,6 +410,26 @@ export async function importFullBackupJson(rawText: string): Promise<{
       }
       if (Array.isArray(d.voiceProfiles)) {
         await db.voiceProfiles.bulkPut(d.voiceProfiles as VoiceProfile[]);
+      }
+      if (Array.isArray(d.userPersonas)) {
+        const personas = (d.userPersonas as UserPersona[])
+          .filter((p) => p && typeof p === 'object' && typeof p.id === 'string' && p.id.trim())
+          .map((p) => ({
+            id: p.id,
+            name: typeof p.name === 'string' && p.name.trim() ? p.name : '未命名身份',
+            addressAs: typeof p.addressAs === 'string' ? p.addressAs : '',
+            aliases: typeof p.aliases === 'string' ? p.aliases : undefined,
+            identity: typeof p.identity === 'string' ? p.identity : '',
+            description: typeof p.description === 'string' ? p.description : '',
+            avatarImage: typeof p.avatarImage === 'string' ? p.avatarImage : undefined,
+            avatarColor:
+              typeof p.avatarColor === 'string' && p.avatarColor ? p.avatarColor : '#4d6bfe',
+            sourceCharacterId:
+              typeof p.sourceCharacterId === 'string' ? p.sourceCharacterId : undefined,
+            createdAt: typeof p.createdAt === 'number' ? p.createdAt : Date.now(),
+            updatedAt: typeof p.updatedAt === 'number' ? p.updatedAt : Date.now(),
+          }));
+        if (personas.length > 0) await db.userPersonas.bulkPut(personas);
       }
       if (encryptedSettings) {
         await db.settings.put(encryptedSettings);

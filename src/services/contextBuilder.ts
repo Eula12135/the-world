@@ -4,7 +4,9 @@ import type {
   CharacterRelation,
   ChatMessage,
   ChatSession,
+  ResolvedUserIdentity,
   TimelineEvent,
+  UserPersona,
   WorldProject,
 } from '../types';
 import { parseDocumentSections, type DocSection } from '../data/worldTemplates';
@@ -15,6 +17,12 @@ import {
   resolveRelationAtPoint,
   sortEventsChronologically,
 } from './temporalGraph';
+import {
+  resolveSessionUserRelation,
+  resolveUserAddress,
+  resolveUserIdentity,
+  type ResolvedUserRelation,
+} from './userIdentity';
 
 export interface ContextBuildStats {
   worldName?: string;
@@ -81,6 +89,49 @@ function scoreSectionRelevance(section: DocSection, queryGrams: Set<string>, raw
   return score;
 }
 
+/**
+ * 「我」的提示词块。identity 为空时不产出任何内容，
+ * 以保证未启用该功能的会话提示词逐字节不变。
+ */
+export function buildUserBlock(params: {
+  identity?: ResolvedUserIdentity | null;
+  relation?: ResolvedUserRelation | null;
+  address?: string;
+}): string {
+  const { identity, relation } = params;
+  if (!identity) return '';
+
+  const address = (params.address || '').trim();
+  const callName = address || identity.name;
+
+  const lines = ['【关于"我"（正在与你对话的人）】', `- 称呼：${callName}`];
+  if (address && address !== identity.name) lines.push(`- 姓名：${identity.name}`);
+  if (identity.aliases) lines.push(`- 其他叫法：${identity.aliases}`);
+  if (identity.identity) lines.push(`- 身份：${identity.identity}`);
+  if (identity.description) lines.push(`- 人设：${identity.description}`);
+
+  const blocks = [lines.join('\n')];
+
+  const relationLabel = (relation?.label || '').trim();
+  const relationDesc = (relation?.description || '').trim();
+  if (relationLabel || relationDesc) {
+    const detail = relationLabel
+      ? `- ${relationLabel}${relationDesc ? ` — ${relationDesc}` : ''}`
+      : `- ${relationDesc}`;
+    blocks.push(`【你我关系】\n${detail}`);
+  }
+
+  blocks.push(
+    [
+      '【扮演约束】',
+      '- 不要自行编造用户的姓名、外貌、身份或经历；不确定时以角色口吻直接问。',
+      '- 不要替用户描写动作、对话或心理活动。',
+    ].join('\n')
+  );
+
+  return blocks.join('\n\n');
+}
+
 export function buildRoleCharacterPrompt(params: {
   character: Character;
   world?: WorldProject | null;
@@ -89,18 +140,35 @@ export function buildRoleCharacterPrompt(params: {
   orderedEvents: TimelineEvent[];
   pointEventId?: string;
   extraInstruction?: string;
+  userIdentity?: ResolvedUserIdentity | null;
+  userRelation?: ResolvedUserRelation | null;
+  userAddress?: string;
 }): string {
-  const { character, world, relations, characters, orderedEvents, pointEventId, extraInstruction } =
-    params;
+  const {
+    character,
+    world,
+    relations,
+    characters,
+    orderedEvents,
+    pointEventId,
+    extraInstruction,
+    userIdentity,
+    userRelation,
+    userAddress,
+  } = params;
   const charMap = new Map(characters.map((c) => [c.id, c.name]));
   const customPrompt = character.systemPrompt?.trim();
   const lines: string[] = [];
+  // 没有「我」时保持原文「和用户对话」，确保既有提示词逐字节不变
+  const addressee = userIdentity
+    ? `「${(userAddress || '').trim() || userIdentity.name}」`
+    : '用户';
 
   if (customPrompt) {
     lines.push(customPrompt);
   } else {
     lines.push(
-      `请直接以角色「${character.name}」的第一人称身份、视角与口吻和用户对话${
+      `请直接以角色「${character.name}」的第一人称身份、视角与口吻和${addressee}对话${
         world ? `（所属作品：《${world.name}》${world.genre ? ` · ${world.genre}` : ''}）` : ''
       }。除非用户在正文中要求跳出视角，否则不要以“AI助手”口吻自称或说教。`
     );
@@ -117,9 +185,25 @@ export function buildRoleCharacterPrompt(params: {
     }
   }
 
-  const roleRelations = relations.filter(
-    (r) => r.sourceId === character.id || r.targetId === character.id
-  );
+  const userBlock = buildUserBlock({
+    identity: userIdentity,
+    relation: userRelation,
+    address: userAddress,
+  });
+  if (userBlock) lines.push(userBlock);
+
+  // 「AI 角色 ↔ 我」这条边统一交给【你我关系】表达，
+  // 否则同一条关系会被注入两次，甚至前后矛盾。
+  const userCharacterId =
+    userIdentity?.kind === 'character' ? userIdentity.sourceId : undefined;
+  const roleRelations = relations.filter((r) => {
+    if (r.sourceId !== character.id && r.targetId !== character.id) return false;
+    if (!userCharacterId) return true;
+    const touchesUser =
+      (r.sourceId === character.id && r.targetId === userCharacterId) ||
+      (r.targetId === character.id && r.sourceId === userCharacterId);
+    return !touchesUser;
+  });
   if (roleRelations.length > 0) {
     const relLines: string[] = [];
     for (const rel of roleRelations) {
@@ -154,11 +238,14 @@ export function buildSessionSystemPrompt(params: {
     | 'rollingSummary'
     | 'chatMode'
     | 'roleCharacterId'
+    | 'userIdentity'
+    | 'userRelationOverride'
   > | null;
   world?: WorldProject | null;
   characters?: Character[];
   relations?: CharacterRelation[];
   events?: TimelineEvent[];
+  personas?: UserPersona[];
   recentMessages?: ChatMessage[];
   draftInput?: string;
 }): ContextBuildResult {
@@ -169,6 +256,7 @@ export function buildSessionSystemPrompt(params: {
     characters = [],
     relations = [],
     events = [],
+    personas = [],
     recentMessages = [],
     draftInput = '',
   } = params;
@@ -180,6 +268,31 @@ export function buildSessionSystemPrompt(params: {
     chatMode === 'character_role' && session?.roleCharacterId
       ? characters.find((c) => c.id === session.roleCharacterId)
       : undefined;
+
+  // 「我」只在角色对话里生效：其余模式没有选身份的入口，注入了用户也改不了。
+  const isRoleMode = chatMode === 'character_role' && Boolean(roleCharacter);
+  const userIdentity = isRoleMode
+    ? resolveUserIdentity(session?.userIdentity, personas, characters)
+    : null;
+  const userRelation =
+    isRoleMode && userIdentity
+      ? resolveSessionUserRelation({
+          roleCharacter,
+          userIdentity: session?.userIdentity,
+          override: session?.userRelationOverride,
+          characters,
+          relations,
+          events: orderedEvents,
+          pointEventId,
+        })
+      : null;
+  const userAddress = isRoleMode
+    ? resolveUserAddress({
+        identity: userIdentity,
+        roleCharacter,
+        override: session?.userRelationOverride,
+      })
+    : '';
 
   let basePrompt = '';
   if (chatMode === 'custom_persona') {
@@ -193,6 +306,9 @@ export function buildSessionSystemPrompt(params: {
       orderedEvents,
       pointEventId,
       extraInstruction: session?.systemPromptOverride,
+      userIdentity,
+      userRelation,
+      userAddress,
     });
   } else {
     basePrompt = (session?.systemPromptOverride?.trim() || settings.globalSystemPrompt || '').trim();
@@ -356,6 +472,16 @@ export function buildSessionSystemPrompt(params: {
     const activeCharIds = new Set(activeChars.map((c) => c.id));
     const lines: string[] = [];
     for (const rel of relations) {
+      // 与【你我关系】重复的那条边在这里也跳过：
+      // 只改角色提示词那一处会漏，开了世界上下文照样把旧关系塞进去。
+      if (
+        userIdentity?.kind === 'character' &&
+        roleCharacter &&
+        ((rel.sourceId === roleCharacter.id && rel.targetId === userIdentity.sourceId) ||
+          (rel.targetId === roleCharacter.id && rel.sourceId === userIdentity.sourceId))
+      ) {
+        continue;
+      }
       if (
         contextMode === 'progressive' &&
         activeCharIds.size > 0 &&

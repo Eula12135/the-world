@@ -53,6 +53,10 @@ export const createChatSlice: AppSliceCreator<ChatSlice> = (set, get) => ({
       chatMode: opts?.chatMode || 'assistant',
       personaPresetId: opts?.personaPresetId,
       roleCharacterId: opts?.roleCharacterId,
+      userIdentity: opts?.userIdentity,
+      userRelationOverride:
+        opts?.userRelationOverride ??
+        get().inheritUserRelationOverride(opts?.roleCharacterId, opts?.userIdentity),
       systemPromptOverride: opts?.systemPromptOverride,
       worldId: opts?.worldId,
       enableWorldContext: Boolean(opts?.worldId),
@@ -124,6 +128,8 @@ export const createChatSlice: AppSliceCreator<ChatSlice> = (set, get) => ({
           chatMode: draft.chatMode,
           personaPresetId: draft.personaPresetId,
           roleCharacterId: draft.roleCharacterId,
+          userIdentity: draft.userIdentity,
+          userRelationOverride: draft.userRelationOverride,
           systemPromptOverride: draft.systemPromptOverride,
           worldId: draft.worldId,
           enableWorldContext: draft.enableWorldContext,
@@ -195,6 +201,7 @@ export const createChatSlice: AppSliceCreator<ChatSlice> = (set, get) => ({
         characters: worldData.characters,
         relations: worldData.relations,
         events: worldData.timelineEvents,
+        personas: get().userPersonas,
         recentMessages: recentSlice,
         draftInput: trimmed,
       });

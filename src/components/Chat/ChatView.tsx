@@ -16,6 +16,7 @@ import { useAppStore } from '../../store/useAppStore';
 import { useMobileKeyboardOpen } from '../../utils/keyboard';
 import { isImeComposing, isProviderReady } from '../../utils/platform';
 import { startVoiceCapture, stopSpeaking, type VoiceCaptureHandle } from '../../services/voiceService';
+import { resolveUserAddress, resolveUserIdentity } from '../../services/userIdentity';
 import { MessageItem } from './MessageItem';
 import { WorldContextPopover } from '../Common/WorldContextPopover';
 import { SessionModeModal } from '../Common/SessionModeModal';
@@ -47,6 +48,7 @@ export const ChatView: React.FC = () => {
     worlds,
     characters,
     personaPresets,
+    userPersonas,
     settings,
     isStreaming,
     streamingSessionId,
@@ -68,6 +70,7 @@ export const ChatView: React.FC = () => {
       worlds: s.worlds,
       characters: s.characters,
       personaPresets: s.personaPresets,
+      userPersonas: s.userPersonas,
       settings: s.settings,
       isStreaming: s.isStreaming,
       streamingSessionId: s.streamingSessionId,
@@ -106,6 +109,29 @@ export const ChatView: React.FC = () => {
   const personaPreset = useMemo(
     () => (activePresetId ? personaPresets.find((p) => p.id === activePresetId) : undefined),
     [personaPresets, activePresetId]
+  );
+
+  const activeUserIdentityRef = session ? session.userIdentity : draftConfig.userIdentity;
+  const activeUserRelationOverride = session
+    ? session.userRelationOverride
+    : draftConfig.userRelationOverride;
+
+  // 「我」只在角色对话里生效，与提示词注入范围保持一致
+  const userIdentity = useMemo(() => {
+    if (activeChatMode !== 'character_role') return null;
+    return resolveUserIdentity(activeUserIdentityRef, userPersonas, characters);
+  }, [activeChatMode, activeUserIdentityRef, userPersonas, characters]);
+
+  const userAddress = useMemo(
+    () =>
+      userIdentity
+        ? resolveUserAddress({
+            identity: userIdentity,
+            roleCharacter,
+            override: activeUserRelationOverride,
+          })
+        : '',
+    [userIdentity, roleCharacter, activeUserRelationOverride]
   );
 
   const isCurrentSessionStreaming =
@@ -406,13 +432,15 @@ export const ChatView: React.FC = () => {
               )}
               <h1 className="text-[20px] font-semibold text-ink">
                 {roleCharacter
-                  ? `与「${roleCharacter.name}」开启角色对话`
+                  ? userIdentity
+                    ? `你以「${userAddress || userIdentity.name}」的身份，与「${roleCharacter.name}」对话`
+                    : `与「${roleCharacter.name}」开启角色对话`
                   : personaPreset
                     ? `人设模式：${personaPreset.name}`
                     : '今天想聊点什么，或写点什么？'}
               </h1>
               <p className="text-[13px] text-secondary">
-                支持切换通用助手 / 自定义人设 / 扮演作品角色卡，亦支持生图与语音框架
+                支持切换通用助手 / 自定义人设 / 扮演作品角色卡，亦可为「我」设定身份，让角色知道在跟谁说话
               </p>
             </div>
 
@@ -475,6 +503,8 @@ export const ChatView: React.FC = () => {
                   isSessionStreaming={isCurrentSessionStreaming}
                   roleCharacter={roleCharacter}
                   personaPreset={personaPreset}
+                  userIdentity={userIdentity}
+                  userLabel={userAddress}
                 />
               ))}
               <div ref={bottomRef} />

@@ -18,7 +18,7 @@ import {
 } from 'lucide-react';
 import { useAppStore } from '../../store/useAppStore';
 import { ImageLightbox } from '../Common/ImageLightbox';
-import type { Character, VoiceProfile } from '../../types';
+import type { Character, RelationType, VoiceProfile } from '../../types';
 import {
   buildCharacterImagePrompt,
   compressImageDataToDataUrl,
@@ -30,7 +30,21 @@ import {
   stopSpeaking,
   TTS_PRESETS,
 } from '../../services/voiceService';
+import { RELATION_TYPE_META } from '../../services/temporalGraph';
 import { createId } from '../../utils/platform';
+
+/** 清掉空白字段；全空则整个钩子不落库，避免老卡被写入一堆空串 */
+function normalizeUserHook(hook?: Character['userRelation']): Character['userRelation'] {
+  if (!hook) return undefined;
+  const next = {
+    defaultAddress: hook.defaultAddress?.trim() || undefined,
+    defaultRelationType: hook.defaultRelationType,
+    defaultRelationLabel: hook.defaultRelationLabel?.trim() || undefined,
+    defaultRelationDesc: hook.defaultRelationDesc?.trim() || undefined,
+    slotHint: hook.slotHint?.trim() || undefined,
+  };
+  return Object.values(next).some((v) => v !== undefined) ? next : undefined;
+}
 
 function formatVoiceProfileOption(vp: VoiceProfile): string {
   const provider =
@@ -68,6 +82,7 @@ export const CharactersPanel: React.FC<{ worldId: string }> = ({ worldId }) => {
   const [editing, setEditing] = useState<Character | null>(null);
   const [originalWorldId, setOriginalWorldId] = useState<string>('');
   const [showSystemPromptBox, setShowSystemPromptBox] = useState(false);
+  const [showUserHookBox, setShowUserHookBox] = useState(false);
   const [imgPromptOpen, setImgPromptOpen] = useState(false);
   const [imgPrompt, setImgPrompt] = useState('');
   const [generatingImg, setGeneratingImg] = useState(false);
@@ -124,6 +139,7 @@ export const CharactersPanel: React.FC<{ worldId: string }> = ({ worldId }) => {
     setEditing({ ...char });
     setOriginalWorldId(char.worldId);
     setShowSystemPromptBox(Boolean(char.systemPrompt?.trim()));
+    setShowUserHookBox(Boolean(normalizeUserHook(char.userRelation)));
     setImgPromptOpen(false);
     setImgError(null);
     setImgPrompt(buildCharacterImagePrompt(char, targetWorld, settings.imageGen.styleHint));
@@ -171,6 +187,7 @@ export const CharactersPanel: React.FC<{ worldId: string }> = ({ worldId }) => {
       ...editing,
       name: editing.name.trim(),
       systemPrompt: editing.systemPrompt?.trim() ? editing.systemPrompt : undefined,
+      userRelation: normalizeUserHook(editing.userRelation),
       updatedAt: Date.now(),
     };
     await upsertCharacter(saved);
@@ -178,6 +195,11 @@ export const CharactersPanel: React.FC<{ worldId: string }> = ({ worldId }) => {
     setOriginalWorldId(saved.worldId);
     showToast('角色卡已保存', 'success');
     return saved;
+  };
+
+  const updateUserHook = (patch: Partial<NonNullable<Character['userRelation']>>) => {
+    if (!editing) return;
+    setEditing({ ...editing, userRelation: { ...(editing.userRelation || {}), ...patch } });
   };
 
   const handleOpenVoiceStudioForEditing = async (voiceSubTab: 'library' | 'create') => {
@@ -658,6 +680,80 @@ export const CharactersPanel: React.FC<{ worldId: string }> = ({ worldId }) => {
                 placeholder="例如：与苏岚：旧日搭档，因三年前事故产生隔阂；与沈老：师徒，受其暗中庇护。"
                 className="w-full px-3.5 py-2.5 rounded-xl bg-canvas border border-line text-[14px] text-ink outline-none focus:border-accent"
               />
+            </div>
+
+            <div className="rounded-2xl bg-sidebar border border-line overflow-hidden">
+              <button
+                type="button"
+                onClick={() => setShowUserHookBox((v) => !v)}
+                className="w-full flex items-center justify-between px-3.5 py-2.5 text-[12.5px] font-medium text-secondary hover:text-ink hover:bg-hover cursor-pointer"
+              >
+                <span className="flex items-center gap-1.5">
+                  {showUserHookBox || Boolean(normalizeUserHook(editing.userRelation)) ? (
+                    <ChevronDown className="w-4 h-4 text-accent" />
+                  ) : (
+                    <ChevronRight className="w-4 h-4 text-dim" />
+                  )}
+                  <span>与「我」的关系钩子（可选 · 独立角色尤其有用）</span>
+                </span>
+                {Boolean(normalizeUserHook(editing.userRelation)) && (
+                  <span className="text-[11px] px-1.5 py-0.5 rounded bg-accent-soft text-accent">
+                    已启用
+                  </span>
+                )}
+              </button>
+              {(showUserHookBox || Boolean(normalizeUserHook(editing.userRelation))) && (
+                <div className="p-3.5 pt-2 border-t border-line space-y-2">
+                  <p className="text-[11.5px] text-dim">
+                    这张卡被当成对话对象时的默认设定：默认怎么称呼「我」、默认是什么关系。用户在对话里随时能覆盖，
+                    不会改到卡本身。
+                  </p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <input
+                      value={editing.userRelation?.defaultAddress || ''}
+                      onChange={(e) => updateUserHook({ defaultAddress: e.target.value })}
+                      placeholder="默认称呼，例如：旅人"
+                      className="w-full px-2.5 py-1.5 rounded-lg bg-canvas border border-line text-[12.5px] text-ink outline-none focus:border-accent"
+                    />
+                    <select
+                      value={editing.userRelation?.defaultRelationType || ''}
+                      onChange={(e) =>
+                        updateUserHook({
+                          defaultRelationType: (e.target.value || undefined) as
+                            | RelationType
+                            | undefined,
+                        })
+                      }
+                      className="w-full px-2.5 py-1.5 rounded-lg bg-canvas border border-line text-[12.5px] text-ink outline-none focus:border-accent"
+                    >
+                      <option value="">默认关系类型：不指定</option>
+                      {(Object.keys(RELATION_TYPE_META) as RelationType[]).map((t) => (
+                        <option key={t} value={t}>
+                          {RELATION_TYPE_META[t].label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <input
+                    value={editing.userRelation?.defaultRelationLabel || ''}
+                    onChange={(e) => updateUserHook({ defaultRelationLabel: e.target.value })}
+                    placeholder="默认关系标签，例如：点头之交"
+                    className="w-full px-2.5 py-1.5 rounded-lg bg-canvas border border-line text-[12.5px] text-ink outline-none focus:border-accent"
+                  />
+                  <input
+                    value={editing.userRelation?.defaultRelationDesc || ''}
+                    onChange={(e) => updateUserHook({ defaultRelationDesc: e.target.value })}
+                    placeholder="默认关系描述，例如：在渡口见过几面"
+                    className="w-full px-2.5 py-1.5 rounded-lg bg-canvas border border-line text-[12.5px] text-ink outline-none focus:border-accent"
+                  />
+                  <input
+                    value={editing.userRelation?.slotHint || ''}
+                    onChange={(e) => updateUserHook({ slotHint: e.target.value })}
+                    placeholder="可选项提示，例如：用户可以是他的同门 / 他早年失散的宿敌"
+                    className="w-full px-2.5 py-1.5 rounded-lg bg-canvas border border-line text-[12.5px] text-ink outline-none focus:border-accent"
+                  />
+                </div>
+              )}
             </div>
 
             <div>
