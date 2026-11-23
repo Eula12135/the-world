@@ -5,6 +5,7 @@ import {
   resolveMediaApiKey,
   resolveReusableApiKey,
 } from '../services/imageGenService';
+import { buildImageBrief, sanitizeImagePrompt } from '../services/imagePromptService';
 import {
   buildBreezeTtsPayload,
   buildTtsSpeechPayload,
@@ -527,5 +528,45 @@ describe('imageGenService & voiceService helpers', () => {
     } finally {
       globalThis.fetch = origFetch;
     }
+  });
+});
+
+describe('image prompt service', () => {
+  it('builds a brief that carries only visual-relevant fields', () => {
+    const char: Character = {
+      id: 'c1',
+      worldId: '',
+      name: '陈墨瞳',
+      identity: '卡塞尔学院 A 级 / 红发巫女',
+      personality: '傲娇',
+      status: '刚打完一场架',
+      relationsNote: '与路明非：欢喜冤家',
+      notes: '暗红色长发，红瞳',
+      avatarColor: '#4d6bfe',
+      updatedAt: 1,
+    };
+    const brief = buildImageBrief(char, null);
+    expect(brief).toContain('陈墨瞳');
+    expect(brief).toContain('红发巫女');
+    expect(brief).toContain('暗红色长发');
+    // 剧情/关系类字段不进画面参考
+    expect(brief).not.toContain('欢喜冤家');
+    expect(brief).not.toContain('刚打完一场架');
+  });
+
+  it('sanitizes model output into a single clean prompt line', () => {
+    const raw = '<think>先想想</think>\n提示词：「暗红长发，红瞳，冷艳」\n\n少女，校服';
+    const clean = sanitizeImagePrompt(raw);
+    expect(clean).not.toContain('想想');
+    expect(clean).not.toContain('提示词');
+    expect(clean).not.toContain('「');
+    expect(clean).not.toContain('\n');
+    expect(clean).toContain('暗红长发');
+    expect(clean).toContain('校服');
+  });
+
+  it('caps an overlong prompt at a sentence boundary', () => {
+    const raw = '银白长发，红瞳，'.repeat(40);
+    expect(sanitizeImagePrompt(raw).length).toBeLessThanOrEqual(240);
   });
 });

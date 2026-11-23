@@ -32,7 +32,8 @@ import {
   TTS_PRESETS,
 } from '../../services/voiceService';
 import { RELATION_TYPE_META } from '../../services/temporalGraph';
-import { createId } from '../../utils/platform';
+import { generateImagePrompt } from '../../services/imagePromptService';
+import { createId, isProviderReady } from '../../utils/platform';
 
 /** 清掉空白字段；全空则整个钩子不落库，避免老卡被写入一堆空串 */
 function normalizeUserHook(hook?: Character['userRelation']): Character['userRelation'] {
@@ -87,6 +88,7 @@ export const CharactersPanel: React.FC<{ worldId: string }> = ({ worldId }) => {
   const [imgPromptOpen, setImgPromptOpen] = useState(false);
   const [imgPrompt, setImgPrompt] = useState('');
   const [generatingImg, setGeneratingImg] = useState(false);
+  const [refiningPrompt, setRefiningPrompt] = useState(false);
   const [previewImage, setPreviewImage] = useState<{ src: string; alt: string } | null>(null);
   const [imgError, setImgError] = useState<string | null>(null);
   const [showCustomVoiceInput, setShowCustomVoiceInput] = useState(false);
@@ -269,6 +271,39 @@ export const CharactersPanel: React.FC<{ worldId: string }> = ({ worldId }) => {
     }
   };
 
+  const handleAiRefinePrompt = async () => {
+    if (!editing) return;
+    const readyProviders = providers.filter((p) => p.enabled && isProviderReady(p));
+    const provider =
+      readyProviders.find((p) => p.id === settings.defaultProviderId) || readyProviders[0];
+    if (!provider) {
+      showToast('没有已配置 API Key 的可用文本模型，请先在「模型」页填写密钥', 'error');
+      return;
+    }
+    const model = provider.selectedModel || provider.models[0];
+    setRefiningPrompt(true);
+    setImgError(null);
+    try {
+      const text = await generateImagePrompt({
+        provider,
+        model,
+        character: editing,
+        world: editingWorld,
+      });
+      if (!text) {
+        showToast('模型没有返回有效的画面描述，请重试', 'error');
+        return;
+      }
+      const prefix = settings.imageGen.styleHint?.trim();
+      setImgPrompt(prefix ? `${prefix}，${text}` : text);
+      showToast('已用 AI 提炼画面描述，可再手动微调', 'success');
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'AI 提炼画面描述失败', 'error');
+    } finally {
+      setRefiningPrompt(false);
+    }
+  };
+
   const handleGenerateAvatar = async () => {
     if (!editing) return;
     const promptToUse =
@@ -431,21 +466,38 @@ export const CharactersPanel: React.FC<{ worldId: string }> = ({ worldId }) => {
 
               {imgPromptOpen && (
                 <div className="pt-2 border-t border-line space-y-2">
-                  <div className="flex items-center justify-between text-[12px]">
+                  <div className="flex flex-wrap items-center justify-between gap-2 text-[12px]">
                     <span className="text-secondary">
                       画面描述词（当前生图模型：<code className="text-accent">{settings.imageGen.model}</code>）
                     </span>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setImgPrompt(
-                          buildCharacterImagePrompt(editing, editingWorld, settings.imageGen.styleHint)
-                        )
-                      }
-                      className="text-accent hover:underline cursor-pointer"
-                    >
-                      按设定自动生成提示词
-                    </button>
+                    <div className="flex items-center gap-3">
+                      <button
+                        type="button"
+                        onClick={() => void handleAiRefinePrompt()}
+                        disabled={refiningPrompt}
+                        className="flex items-center gap-1 text-accent font-medium hover:underline disabled:opacity-50 cursor-pointer"
+                        title="用文本模型从角色卡里提炼，会剔除台词与剧情"
+                      >
+                        {refiningPrompt ? (
+                          <Loader2 className="w-3 h-3 animate-spin" />
+                        ) : (
+                          <Sparkles className="w-3 h-3" />
+                        )}
+                        <span>{refiningPrompt ? '提炼中…' : 'AI 提炼画面'}</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setImgPrompt(
+                            buildCharacterImagePrompt(editing, editingWorld, settings.imageGen.styleHint)
+                          )
+                        }
+                        className="text-dim hover:text-accent hover:underline cursor-pointer"
+                        title="本地按关键词拼装，不调用模型"
+                      >
+                        按设定快速拼装
+                      </button>
+                    </div>
                   </div>
                   <textarea
                     rows={3}
