@@ -93,6 +93,35 @@ describe('imageGenService & voiceService helpers', () => {
     expect(prompt).toContain('玄黑披风');
   });
 
+  it('extracts only visual traits, dropping dialogue and story text', () => {
+    const char: Character = {
+      id: 'c2',
+      worldId: '',
+      name: '特蕾娜',
+      identity: '邻家大姐姐',
+      personality: '表面慵懒，银白长发，「别烦我」是她的口头禅。十八岁少女。',
+      status: '',
+      relationsNote: '',
+      notes:
+        '红瞳，穿着深色长裙。她常笑着说：「今晚月亮真好看」。后来她离开了村子，去了很远的地方。',
+      avatarColor: '#4d6bfe',
+      updatedAt: 1,
+    };
+
+    const prompt = buildCharacterImagePrompt(char, null, '');
+    // 该保留的画面信息
+    expect(prompt).toContain('银白');
+    expect(prompt).toContain('红瞳');
+    expect(prompt).toContain('深色长裙');
+    expect(prompt).toContain('十八岁');
+    expect(prompt).toContain('慵懒');
+    // 台词、口头禅、剧情都不该进画面提示词
+    expect(prompt).not.toContain('别烦我');
+    expect(prompt).not.toContain('今晚月亮');
+    expect(prompt).not.toContain('口头禅');
+    expect(prompt).not.toContain('离开了村子');
+  });
+
   it('strips markdown syntax and splits long speech into clean sentence chunks', () => {
     const md = `<think>内部推理</think>\n## 标题\n请看[这个链接](https://example.com)与**重点**。\n\`\`\`ts\nconst x = 1;\n\`\`\``;
     const clean = stripMarkdownForSpeech(md);

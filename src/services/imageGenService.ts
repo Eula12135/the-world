@@ -244,6 +244,55 @@ export async function fetchImageGenModels(params: {
   return Array.from(new Set(result)).sort((a, b) => a.localeCompare(b));
 }
 
+/** 只保留与「画面」有关的词：年龄/性别/外貌/服饰/气质 */
+const VISUAL_CUE_RE =
+  /岁|年龄|性别|男|女|少年|少女|青年|中年|老年|发|发色|发型|长发|短发|马尾|辫|眸|瞳|眼|眼神|目光|肤|皮肤|肤色|身材|身高|修长|纤|魁梧|肩|腰|腿|穿|衣|裙|袍|披风|西装|制服|盔甲|帽|靴|鞋|配饰|饰品|耳环|项链|项圈|纹身|疤|唇|眉|鼻|脸|面容|五官|容貌|相貌|俊|美|稚|沧桑|温柔|冷峻|清冷|冷傲|孤傲|慵懒|高傲|俏皮|阴郁|阳光|沉稳|活泼|冷静|温和|凌厉|妩媚|英气|稚气|成熟|肃穆|洒脱|气质|神态|表情/;
+
+/** 引号里的内容一律是台词，不是画面描述 */
+function stripQuotedSegments(text: string): string {
+  return text
+    .replace(/「[^」]*」/g, '，')
+    .replace(/『[^』]*』/g, '，')
+    .replace(/“[^”]*”/g, '，')
+    .replace(/"[^"]*"/g, '，');
+}
+
+/**
+ * 从自由文本里抽出可以画出来的描述。
+ *
+ * 角色卡的「性格」「补充备注」常被写成半段对话或剧情，
+ * 原样塞进生图提示词会变成莫名其妙的画面指令，所以按句筛选：
+ * 先剥掉引号内容，再只留含视觉线索的句子，并丢弃带冒号的对话引导。
+ */
+export function extractVisualTraits(text: string, maxLen: number): string {
+  if (!text) return '';
+
+  const cleaned = stripQuotedSegments(text);
+  const sentences = cleaned
+    .split(/[。！？；\n，,]+/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+  const kept: string[] = [];
+  let total = 0;
+
+  for (const raw of sentences) {
+    // 「外貌：银白长发」这种带前缀的写法，取冒号后面的内容
+    const labelled = /^([^：:]{1,8})[：:](.+)$/.exec(raw);
+    const sentence = (labelled ? labelled[2] : raw).trim();
+    if (sentence.length < 2) continue;
+    if (!VISUAL_CUE_RE.test(sentence)) continue;
+    // 剥完前缀仍带冒号的多半是「他说道：」这类对话
+    if (/[：:]/.test(sentence)) continue;
+    if (/(说|道|问|答|喊|叫|吼|嘟囔|低语|开口|回应|吐槽)$/.test(sentence)) continue;
+    if (total + sentence.length > maxLen) continue;
+    kept.push(sentence.replace(/[，,、]+$/, ''));
+    total += sentence.length;
+  }
+
+  return kept.join('，');
+}
+
 export function buildCharacterImagePrompt(
   character: Character,
   world?: WorldProject | null,
@@ -255,9 +304,16 @@ export function buildCharacterImagePrompt(
   else parts.push('小说角色半身立绘');
 
   parts.push(`角色姓名：${character.name}`);
-  if (character.identity) parts.push(`身份定位：${character.identity}`);
-  if (character.personality) parts.push(`气质神态：${character.personality.slice(0, 100)}`);
-  if (character.notes) parts.push(`外貌与服饰特征：${character.notes.slice(0, 180)}`);
+
+  const identity = stripQuotedSegments(character.identity || '').trim();
+  if (identity) parts.push(`身份定位：${identity.slice(0, 40)}`);
+
+  const look = extractVisualTraits(character.notes, 160);
+  if (look) parts.push(`外貌与服饰特征：${look}`);
+
+  const temperament = extractVisualTraits(character.personality, 60);
+  if (temperament) parts.push(`气质神态：${temperament}`);
+
   parts.push('单人正面或半侧面特写，构图清晰，光影质感细腻');
 
   return parts.join('，');
