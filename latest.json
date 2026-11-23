@@ -1,9 +1,9 @@
 {
-  "version": "0.5.1",
-  "name": "The World v0.5.1",
-  "pageUrl": "https://gitee.com/qiutonger/the-world/releases/tag/v0.5.1",
-  "releaseUrl": "https://gitee.com/qiutonger/the-world/releases/tag/v0.5.1",
-  "windowsUrl": "https://gitee.com/qiutonger/the-world/releases/download/v0.5.1/The-World-Setup-0.5.1.exe",
-  "androidUrl": "https://github.com/Eula12135/the-world/releases/download/v0.5.1/The-World-0.5.1-android.apk",
-  "notes": "## v0.5.1\n\n- 新增「停止朗读」按钮；切换页面、发送新消息时自动中断朗读，修复停止后仍在响\n- 修复思考模型生成音色描述返回空：max_tokens 提到 2048，剥离 <think>，兼容 reasoning_content\n- 语音工作室支持「从角色卡生成语气指令」\n- 手机端显示「返回对话」按钮\n- 滑动切换页面不再被图标拦截（仅在表单/代码/表格等交互区屏蔽）\n- 关系图谱：播放演进到末尾自动停止，头部控件紧凑化，未放大时可直接横滑切页"
+  "version": "0.6.0",
+  "name": "The World v0.6.0",
+  "pageUrl": "https://gitee.com/qiutonger/the-world/releases/tag/v0.6.0",
+  "releaseUrl": "https://gitee.com/qiutonger/the-world/releases/tag/v0.6.0",
+  "windowsUrl": "https://gitee.com/qiutonger/the-world/releases/download/v0.6.0/The-World-Setup-0.6.0.exe",
+  "androidUrl": "https://github.com/Eula12135/the-world/releases/download/v0.6.0/The-World-0.6.0-android.apk",
+  "notes": "## v0.5.1\n\n### 朗读与语音\n\n- **新增「停止朗读」按钮**：聊天页在朗读时显示红色停止按钮，点一下立刻中断\n- **切换页面 / 发送新消息时自动停止朗读**，不会再出现边换页边播、或上一句还没说完就叠着下一句\n- 修复「点了停止仍在响」：停止时先摘掉音频事件回调再暂停并清空音源，中断回调顺序也做了调整\n- **修复思考模型生成音色描述失败**：`max_tokens` 从 300 提到 2048（思考过程会把额度吃光导致返回空），并会剥离 `<think>` 思考块、兼容 `reasoning_content`，HTTP 错误会带上游返回的具体原因\n- 语音工作室新增**「从角色卡生成语气/表演指令」**：选一张角色卡，AI 按角色设定写一段语气描述填进「语气指令」\n- 角色口播参考文本会带上角色的自定义系统提示词\n- 从角色卡进入「管理声音库 / 新建声音」前会先自动保存角色卡，避免绑定到尚未落库的角色\n\n### 界面与导航\n\n- **手机端也能看到「返回对话」按钮**（此前只在桌面宽度显示）\n- **滑动切换页面不再被图标或图谱拦截**：之前任何 SVG（包括满屏的图标）都会让横滑失效，现在只在表单、代码块、表格等需要交互的区域屏蔽\n- **人物关系图谱**：\n  - 「播放演变」播到最后一个时间点会自动停止，不再循环回开头\n  - 顶部控件紧凑化：播放/暂停、图谱⇄演进列表切换、添加关系改为图标按钮，手机上不再挤成两行\n  - 图谱未放大时可直接横滑切换页面；放大后仍可拖拽画布，角色节点始终可拖动\n\n## 安装\n\n- **Android**：`The-World-0.5.1-android.apk`（release 签名，versionCode 501），从 0.5.0 可直接覆盖安装，本地数据保留\n- **Windows**：`The-World"
 }
