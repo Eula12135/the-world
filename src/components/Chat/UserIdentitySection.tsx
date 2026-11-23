@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { ChevronDown, ChevronRight, Plus, Undo2, Unlink, UserRound } from 'lucide-react';
 import { useShallow } from 'zustand/react/shallow';
 import { useAppStore } from '../../store/useAppStore';
+import { OptionPicker, type OptionPickerItem } from '../Common/OptionPicker';
 import { RELATION_TYPE_META } from '../../services/temporalGraph';
 import {
   resolveSessionUserRelation,
@@ -50,6 +51,7 @@ export const UserIdentitySection: React.FC<UserIdentitySectionProps> = ({
     relations,
     timelineEvents,
     voiceProfiles,
+    worlds,
     upsertUserPersona,
     deleteUserPersona,
     createUserPersonaFromCharacter,
@@ -63,6 +65,7 @@ export const UserIdentitySection: React.FC<UserIdentitySectionProps> = ({
       relations: s.relations,
       timelineEvents: s.timelineEvents,
       voiceProfiles: s.voiceProfiles,
+      worlds: s.worlds,
       upsertUserPersona: s.upsertUserPersona,
       deleteUserPersona: s.deleteUserPersona,
       createUserPersonaFromCharacter: s.createUserPersonaFromCharacter,
@@ -121,6 +124,79 @@ export const UserIdentitySection: React.FC<UserIdentitySectionProps> = ({
   const characterOptions = useMemo(
     () => characters.filter((c) => c.id !== roleCharacterId),
     [characters, roleCharacterId]
+  );
+
+  // 身份候选按「我的身份 / 独立角色 / 每个作品」分组，避免一长条平铺
+  const identityItems = useMemo<OptionPickerItem[]>(() => {
+    const items: OptionPickerItem[] = [
+      { value: '', label: '不指定身份', hint: '角色只面对一个匿名「你」' },
+    ];
+
+    for (const persona of userPersonas) {
+      items.push({
+        value: `persona:${persona.id}`,
+        label: persona.name,
+        hint: persona.identity || undefined,
+        group: '我的身份',
+        color: persona.avatarColor,
+        image: persona.avatarImage,
+      });
+    }
+
+    const standalone = characterOptions.filter((c) => !c.worldId);
+    for (const c of standalone) {
+      items.push({
+        value: `character:${c.id}`,
+        label: c.name,
+        hint: c.identity || '独立角色',
+        group: '独立角色',
+        color: c.avatarColor,
+        image: c.avatarImage,
+      });
+    }
+
+    const placed = new Set<string>();
+    for (const world of worlds) {
+      const inWorld = characterOptions.filter((c) => c.worldId === world.id);
+      if (inWorld.length === 0) continue;
+      for (const c of inWorld) {
+        placed.add(c.id);
+        items.push({
+          value: `character:${c.id}`,
+          label: c.name,
+          hint: c.identity || undefined,
+          group: `《${world.name}》`,
+          color: c.avatarColor,
+          image: c.avatarImage,
+        });
+      }
+    }
+
+    // 作品被删掉的角色，兜底归到「其他」
+    for (const c of characterOptions) {
+      if (!c.worldId || placed.has(c.id)) continue;
+      items.push({
+        value: `character:${c.id}`,
+        label: c.name,
+        hint: c.identity || '未归属作品',
+        group: '其他',
+        color: c.avatarColor,
+        image: c.avatarImage,
+      });
+    }
+
+    return items;
+  }, [userPersonas, characterOptions, worlds]);
+
+  const relationTypeItems = useMemo<OptionPickerItem[]>(
+    () => [
+      { value: '', label: '跟随默认' },
+      ...(Object.keys(RELATION_TYPE_META) as RelationType[]).map((t) => ({
+        value: t,
+        label: RELATION_TYPE_META[t].label,
+      })),
+    ],
+    []
   );
 
   const handleIdentityChange = async (value: string) => {
@@ -238,33 +314,15 @@ export const UserIdentitySection: React.FC<UserIdentitySectionProps> = ({
       </div>
 
       <div className="p-3.5 space-y-2.5">
-        <select
+        <OptionPicker
           value={selectValue}
-          onChange={(e) => void handleIdentityChange(e.target.value)}
-          className="w-full px-3 py-2 rounded-xl bg-canvas border border-line text-[13px] text-ink outline-none focus:border-accent"
-        >
-          <option value="">不指定身份（角色只面对一个匿名「你」）</option>
-          {userPersonas.length > 0 && (
-            <optgroup label="我的身份">
-              {userPersonas.map((p) => (
-                <option key={p.id} value={`persona:${p.id}`}>
-                  {p.name}
-                  {p.identity ? `（${p.identity}）` : ''}
-                </option>
-              ))}
-            </optgroup>
-          )}
-          {characterOptions.length > 0 && (
-            <optgroup label="直接扮演角色卡">
-              {characterOptions.map((c) => (
-                <option key={c.id} value={`character:${c.id}`}>
-                  {c.name}
-                  {c.worldId ? '（作品角色）' : '（独立角色）'}
-                </option>
-              ))}
-            </optgroup>
-          )}
-        </select>
+          items={identityItems}
+          onChange={(value) => void handleIdentityChange(value)}
+          placeholder="不指定身份"
+          searchable={characterOptions.length + userPersonas.length >= 5}
+          searchPlaceholder="搜索角色或身份…"
+          emptyText="没有匹配的角色或身份"
+        />
 
         {!resolved && roleCharacter?.userRelation?.slotHint && (
           <p className="text-[11.5px] text-dim">
@@ -350,19 +408,19 @@ export const UserIdentitySection: React.FC<UserIdentitySectionProps> = ({
               className="w-full px-2.5 py-1.5 rounded-lg bg-sidebar border border-line text-[12.5px] text-ink outline-none focus:border-accent"
             />
             <div>
-              <select
+              <OptionPicker
                 value={draftVoice}
-                onChange={(e) => setDraftVoice(e.target.value)}
-                className="w-full px-2.5 py-1.5 rounded-lg bg-sidebar border border-line text-[12.5px] text-ink outline-none focus:border-accent"
-              >
-                <option value="">朗读音色：跟随全局默认</option>
-                {voiceProfiles.map((vp) => (
-                  <option key={vp.id} value={vp.id}>
-                    {vp.name}
-                    {vp.isCloned ? '（克隆）' : ''}
-                  </option>
-                ))}
-              </select>
+                items={[
+                  { value: '', label: '朗读音色：跟随全局默认' },
+                  ...voiceProfiles.map((vp) => ({
+                    value: vp.id,
+                    label: `${vp.name}${vp.isCloned ? '（克隆）' : ''}`,
+                  })),
+                ]}
+                onChange={setDraftVoice}
+                searchable={voiceProfiles.length > 8}
+                searchPlaceholder="搜索声音档案…"
+              />
               <p className="mt-1 text-[11px] text-dim">
                 「我」的台词可以用这张身份的音色朗读。选项来自声音库，去「设置 → 声音」可以新建音色。
               </p>
@@ -450,18 +508,14 @@ export const UserIdentitySection: React.FC<UserIdentitySectionProps> = ({
                   className="w-full px-2.5 py-1.5 rounded-lg bg-canvas border border-line text-[12.5px] text-ink outline-none focus:border-accent"
                 />
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <select
-                    value={override?.type || ''}
-                    onChange={(e) => void setOverrideField('type', e.target.value)}
-                    className="px-2.5 py-1.5 rounded-lg bg-canvas border border-line text-[12px] text-ink outline-none focus:border-accent"
-                  >
-                    <option value="">关系类型：跟随默认</option>
-                    {(Object.keys(RELATION_TYPE_META) as RelationType[]).map((t) => (
-                      <option key={t} value={t}>
-                        {RELATION_TYPE_META[t].label}
-                      </option>
-                    ))}
-                  </select>
+                  <div className="w-full sm:w-52">
+                    <OptionPicker
+                      value={override?.type || ''}
+                      items={relationTypeItems}
+                      onChange={(value) => void setOverrideField('type', value)}
+                      placeholder="跟随默认"
+                    />
+                  </div>
                   <button
                     type="button"
                     onClick={() => void onPatch({ userRelationOverride: undefined })}

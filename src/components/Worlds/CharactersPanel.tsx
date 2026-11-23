@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { useAppStore } from '../../store/useAppStore';
 import { ImageLightbox } from '../Common/ImageLightbox';
+import { OptionPicker } from '../Common/OptionPicker';
 import type { Character, RelationType, VoiceProfile } from '../../types';
 import {
   buildCharacterImagePrompt,
@@ -494,18 +495,17 @@ export const CharactersPanel: React.FC<{ worldId: string }> = ({ worldId }) => {
 
             <div>
               <label className="block mb-1.5 font-medium text-secondary">所属作品</label>
-              <select
+              <OptionPicker
                 value={editing.worldId}
-                onChange={(e) => setEditing({ ...editing, worldId: e.target.value })}
-                className="w-full px-3.5 py-2.5 rounded-xl bg-canvas border border-line text-[14px] text-ink outline-none focus:border-accent"
-              >
-                <option value="">不绑定作品（独立角色）</option>
-                {worlds.map((w) => (
-                  <option key={w.id} value={w.id}>
-                    《{w.name}》{w.genre ? ` · ${w.genre}` : ''}
-                  </option>
-                ))}
-              </select>
+                items={[
+                  { value: '', label: '不绑定作品（独立角色）' },
+                  ...worlds.map((w) => ({
+                    value: w.id,
+                    label: `《${w.name}》${w.genre ? ` · ${w.genre}` : ''}`,
+                  })),
+                ]}
+                onChange={(value) => setEditing({ ...editing, worldId: value })}
+              />
               {originalWorldId && originalWorldId !== editing.worldId && (
                 <p className="mt-1 text-[11.5px] text-amber-500">
                   更改所属作品后，保存时将自动移除该角色在原作品中的关系连线与时间线出场标记。
@@ -574,20 +574,23 @@ export const CharactersPanel: React.FC<{ worldId: string }> = ({ worldId }) => {
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  <select
-                    value={editing.voiceProfileId || ''}
-                    onChange={(e) =>
-                      setEditing({ ...editing, voiceProfileId: e.target.value || undefined })
-                    }
-                    className="flex-1 min-w-0 px-3 py-2 rounded-xl bg-canvas border border-line text-[13px] text-ink outline-none focus:border-accent"
-                  >
-                    <option value="">跟随全局默认声音</option>
-                    {voiceProfiles.map((vp) => (
-                      <option key={vp.id} value={vp.id}>
-                        {formatVoiceProfileOption(vp)}
-                      </option>
-                    ))}
-                  </select>
+                  <div className="flex-1 min-w-0">
+                    <OptionPicker
+                      value={editing.voiceProfileId || ''}
+                      items={[
+                        { value: '', label: '跟随全局默认声音' },
+                        ...voiceProfiles.map((vp) => ({
+                          value: vp.id,
+                          label: formatVoiceProfileOption(vp),
+                        })),
+                      ]}
+                      onChange={(value) =>
+                        setEditing({ ...editing, voiceProfileId: value || undefined })
+                      }
+                      searchable={voiceProfiles.length > 8}
+                      searchPlaceholder="搜索声音档案…"
+                    />
+                  </div>
                   <button
                     type="button"
                     onClick={async () => {
