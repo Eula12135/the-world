@@ -226,7 +226,7 @@ export interface UserIdentityRef {
   id: string;
 }
 
-/** 自建的「我」。刻意不含 TTS 音色：角色被朗读，用户不被朗读 */
+/** 自建的「我」。不含默认关系钩子权：那属于角色卡 */
 export interface UserPersona {
   id: string;
   name: string;
@@ -237,6 +237,10 @@ export interface UserPersona {
   description: string;
   avatarImage?: string;
   avatarColor: string;
+  /** 朗读「我」的台词时使用的音色档案；留空则跟随全局默认声音 */
+  voiceProfileId?: string;
+  /** 未绑档案时的外部音色 ID 兜底 */
+  voiceName?: string;
   /** 从哪张角色卡复制来的，仅作溯源，不是引用 */
   sourceCharacterId?: string;
   createdAt: number;
@@ -253,6 +257,9 @@ export interface ResolvedUserIdentity {
   description: string;
   avatarImage?: string;
   avatarColor: string;
+  /** 朗读「我」的台词时使用的音色；自建身份取自己的，引用角色卡时取该卡的 */
+  voiceProfileId?: string;
+  voiceName?: string;
   kind: UserIdentityKind;
   /** 溯源用的源实体 id */
   sourceId: string;

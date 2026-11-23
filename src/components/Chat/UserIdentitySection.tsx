@@ -14,6 +14,7 @@ import type {
   RelationType,
   SessionUserRelationOverride,
   UserIdentityRef,
+  UserPersona,
 } from '../../types';
 import type { DraftSessionConfig } from '../../store/types';
 
@@ -48,6 +49,7 @@ export const UserIdentitySection: React.FC<UserIdentitySectionProps> = ({
     userPersonas,
     relations,
     timelineEvents,
+    voiceProfiles,
     upsertUserPersona,
     deleteUserPersona,
     createUserPersonaFromCharacter,
@@ -60,6 +62,7 @@ export const UserIdentitySection: React.FC<UserIdentitySectionProps> = ({
       userPersonas: s.userPersonas,
       relations: s.relations,
       timelineEvents: s.timelineEvents,
+      voiceProfiles: s.voiceProfiles,
       upsertUserPersona: s.upsertUserPersona,
       deleteUserPersona: s.deleteUserPersona,
       createUserPersonaFromCharacter: s.createUserPersonaFromCharacter,
@@ -70,11 +73,13 @@ export const UserIdentitySection: React.FC<UserIdentitySectionProps> = ({
   );
 
   const [relationOpen, setRelationOpen] = useState(false);
-  const [creating, setCreating] = useState(false);
+  const [formOpen, setFormOpen] = useState(false);
+  const [formId, setFormId] = useState<string | null>(null);
   const [draftName, setDraftName] = useState('');
   const [draftAddress, setDraftAddress] = useState('');
   const [draftIdentity, setDraftIdentity] = useState('');
   const [draftDesc, setDraftDesc] = useState('');
+  const [draftVoice, setDraftVoice] = useState('');
 
   const identityRef = session ? session.userIdentity : draftConfig.userIdentity;
   const override = session ? session.userRelationOverride : draftConfig.userRelationOverride;
@@ -143,28 +148,51 @@ export const UserIdentitySection: React.FC<UserIdentitySectionProps> = ({
     });
   };
 
-  const handleCreatePersona = async () => {
-    const name = draftName.trim();
-    if (!name) return;
-    const now = Date.now();
-    const persona = {
-      id: createId('up'),
-      name,
-      addressAs: draftAddress.trim(),
-      identity: draftIdentity.trim(),
-      description: draftDesc.trim(),
-      avatarColor: '#4d6bfe',
-      createdAt: now,
-      updatedAt: now,
-    };
-    await upsertUserPersona(persona);
-    setCreating(false);
+  const openCreateForm = () => {
+    setFormId(null);
     setDraftName('');
     setDraftAddress('');
     setDraftIdentity('');
     setDraftDesc('');
-    await handleIdentityChange(`persona:${persona.id}`);
-    showToast(`已创建身份「${name}」`, 'success');
+    setDraftVoice('');
+    setFormOpen(true);
+  };
+
+  const openEditForm = () => {
+    if (!resolved || resolved.kind !== 'persona') return;
+    const persona = userPersonas.find((p) => p.id === resolved.sourceId);
+    if (!persona) return;
+    setFormId(persona.id);
+    setDraftName(persona.name);
+    setDraftAddress(persona.addressAs);
+    setDraftIdentity(persona.identity);
+    setDraftDesc(persona.description);
+    setDraftVoice(persona.voiceProfileId || '');
+    setFormOpen(true);
+  };
+
+  const handleSubmitPersona = async () => {
+    const name = draftName.trim();
+    if (!name) return;
+    const existing = formId ? userPersonas.find((p) => p.id === formId) : undefined;
+    const now = Date.now();
+    const persona: UserPersona = {
+      id: existing?.id ?? createId('up'),
+      name,
+      addressAs: draftAddress.trim(),
+      identity: draftIdentity.trim(),
+      description: draftDesc.trim(),
+      avatarImage: existing?.avatarImage,
+      avatarColor: existing?.avatarColor || '#4d6bfe',
+      voiceProfileId: draftVoice || undefined,
+      sourceCharacterId: existing?.sourceCharacterId,
+      createdAt: existing?.createdAt ?? now,
+      updatedAt: now,
+    };
+    await upsertUserPersona(persona);
+    setFormOpen(false);
+    if (!existing) await handleIdentityChange(`persona:${persona.id}`);
+    showToast(existing ? `已更新身份「${name}」` : `已创建身份「${name}」`, 'success');
   };
 
   const handleSeparate = async () => {
@@ -268,17 +296,30 @@ export const UserIdentitySection: React.FC<UserIdentitySectionProps> = ({
           )}
 
           {resolved?.kind === 'persona' && (
-            <button
-              type="button"
-              onClick={handleDeletePersona}
-              className="text-dim hover:text-red-500 hover:underline cursor-pointer"
-            >
-              删除该身份
-            </button>
+            <>
+              <button
+                type="button"
+                onClick={openEditForm}
+                className="text-dim hover:text-accent hover:underline cursor-pointer"
+              >
+                编辑
+              </button>
+              <button
+                type="button"
+                onClick={handleDeletePersona}
+                className="text-dim hover:text-red-500 hover:underline cursor-pointer"
+              >
+                删除该身份
+              </button>
+            </>
+          )}
+
+          {identityIsCharacter && resolved?.voiceProfileId && (
+            <span className="text-[11px] text-dim">朗读音色跟随该角色卡</span>
           )}
         </div>
 
-        {creating ? (
+        {formOpen ? (
           <div className="rounded-xl border border-line bg-canvas p-2.5 space-y-2">
             <input
               autoFocus
@@ -308,28 +349,46 @@ export const UserIdentitySection: React.FC<UserIdentitySectionProps> = ({
               placeholder="更细的人设（可选）：外貌、性格、与角色的过往……"
               className="w-full px-2.5 py-1.5 rounded-lg bg-sidebar border border-line text-[12.5px] text-ink outline-none focus:border-accent"
             />
+            <div>
+              <select
+                value={draftVoice}
+                onChange={(e) => setDraftVoice(e.target.value)}
+                className="w-full px-2.5 py-1.5 rounded-lg bg-sidebar border border-line text-[12.5px] text-ink outline-none focus:border-accent"
+              >
+                <option value="">朗读音色：跟随全局默认</option>
+                {voiceProfiles.map((vp) => (
+                  <option key={vp.id} value={vp.id}>
+                    {vp.name}
+                    {vp.isCloned ? '（克隆）' : ''}
+                  </option>
+                ))}
+              </select>
+              <p className="mt-1 text-[11px] text-dim">
+                「我」的台词可以用这张身份的音色朗读。选项来自声音库，去「设置 → 声音」可以新建音色。
+              </p>
+            </div>
             <div className="flex justify-end gap-2">
               <button
                 type="button"
-                onClick={() => setCreating(false)}
+                onClick={() => setFormOpen(false)}
                 className="px-2.5 py-1 rounded-lg text-[12px] border border-line text-secondary cursor-pointer"
               >
                 取消
               </button>
               <button
                 type="button"
-                onClick={() => void handleCreatePersona()}
+                onClick={() => void handleSubmitPersona()}
                 disabled={!draftName.trim()}
                 className="px-3 py-1 rounded-lg text-[12px] bg-accent text-white disabled:opacity-40 cursor-pointer"
               >
-                创建并选用
+                {formId ? '保存修改' : '创建并选用'}
               </button>
             </div>
           </div>
         ) : (
           <button
             type="button"
-            onClick={() => setCreating(true)}
+            onClick={openCreateForm}
             className="inline-flex items-center gap-1 text-[12px] text-accent font-medium hover:underline cursor-pointer"
           >
             <Plus className="w-3.5 h-3.5" />

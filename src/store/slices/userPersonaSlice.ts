@@ -39,6 +39,8 @@ export const createUserPersonaSlice: AppSliceCreator<UserPersonaSlice> = (set, g
       description: resolved.description,
       avatarImage: resolved.avatarImage,
       avatarColor: resolved.avatarColor,
+      voiceProfileId: resolved.voiceProfileId,
+      voiceName: resolved.voiceName,
       sourceCharacterId: characterId,
       createdAt: now,
       updatedAt: now,

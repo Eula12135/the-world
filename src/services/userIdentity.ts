@@ -44,6 +44,8 @@ export function resolveUserIdentity(
       description: persona.description || '',
       avatarImage: persona.avatarImage,
       avatarColor: persona.avatarColor || FALLBACK_AVATAR_COLOR,
+      voiceProfileId: persona.voiceProfileId,
+      voiceName: persona.voiceName,
       kind: 'persona',
       sourceId: persona.id,
     };
@@ -62,6 +64,9 @@ export function resolveUserIdentity(
     description: joinNonEmpty([character.personality, character.notes]),
     avatarImage: character.avatarImage,
     avatarColor: character.avatarColor || FALLBACK_AVATAR_COLOR,
+    // 音色则相反：我演这张卡，这张卡的声音就是「我」的声音，取它是正确的
+    voiceProfileId: character.voiceProfileId,
+    voiceName: character.voiceName,
     kind: 'character',
     sourceId: character.id,
   };

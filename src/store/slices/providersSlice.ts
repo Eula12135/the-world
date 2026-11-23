@@ -87,7 +87,7 @@ export const createProvidersSlice: AppSliceCreator<ProvidersSlice> = (set, get) 
   deleteVoiceProfile: async (id) => {
     await db.transaction(
       'rw',
-      [db.voiceProfiles, db.characters, db.personaPresets],
+      [db.voiceProfiles, db.characters, db.personaPresets, db.userPersonas],
       async () => {
         await db.voiceProfiles.delete(id);
         await db.characters.toCollection().modify((c) => {
@@ -96,14 +96,19 @@ export const createProvidersSlice: AppSliceCreator<ProvidersSlice> = (set, get) 
         await db.personaPresets.toCollection().modify((p) => {
           if (p.voiceProfileId === id) p.voiceProfileId = undefined;
         });
+        // 「我」也绑音色，删档案时同样要解绑，否则会指向一个不存在的档案
+        await db.userPersonas.toCollection().modify((p) => {
+          if (p.voiceProfileId === id) p.voiceProfileId = undefined;
+        });
       }
     );
-    const [voiceProfiles, characters, personaPresets] = await Promise.all([
+    const [voiceProfiles, characters, personaPresets, userPersonas] = await Promise.all([
       db.voiceProfiles.orderBy('updatedAt').reverse().toArray(),
       db.characters.toArray(),
       db.personaPresets.orderBy('updatedAt').reverse().toArray(),
+      db.userPersonas.orderBy('updatedAt').reverse().toArray(),
     ]);
-    set({ voiceProfiles, characters, personaPresets });
+    set({ voiceProfiles, characters, personaPresets, userPersonas });
     if (get().settings.voice.activeVoiceProfileId === id) {
       await get().updateSettings({
         voice: { ...get().settings.voice, activeVoiceProfileId: undefined },

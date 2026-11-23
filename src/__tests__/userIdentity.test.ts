@@ -89,25 +89,41 @@ describe('resolveUserIdentity', () => {
     expect(resolveUserIdentity({ kind: 'persona', id: 'p2' }, [blank], [])!.addressAs).toBe('');
   });
 
-  it('never reads userRelation from the card the user is playing', () => {
-    // 「沈岚」这张卡上的钩子描述的是"AI 演沈岚时怎么叫用户"，
-    // 与"我演沈岚"无关，必须恒为空串。
+  it('never reads userRelation from the card the user is playing, but does read its voice', () => {
+    // 称呼：卡上的钩子是"AI 演它时怎么叫用户"，与"我演它"无关，必须恒为空串。
+    // 音色：我演这张卡，这张卡的声音就是我的声音，取它是正确的。
     const shenLan = makeCharacter({
       id: 'c_shenlan',
       name: '沈岚',
       identity: '剑修',
       personality: '寡言',
       notes: '左手有旧伤',
+      voiceProfileId: 'vp_shen',
+      voiceName: 'external:voice',
       userRelation: { defaultAddress: '师妹', defaultRelationLabel: '同门' },
     });
 
     const resolved = resolveUserIdentity({ kind: 'character', id: 'c_shenlan' }, [], [shenLan]);
     expect(resolved).not.toBeNull();
     expect(resolved!.addressAs).toBe('');
+    expect(resolved!.voiceProfileId).toBe('vp_shen');
+    expect(resolved!.voiceName).toBe('external:voice');
     expect(resolved!.identity).toBe('剑修');
     expect(resolved!.description).toBe('寡言\n左手有旧伤');
     expect(resolved!.kind).toBe('character');
     expect(resolved!.sourceId).toBe('c_shenlan');
+  });
+
+  it('carries the persona voice through resolution', () => {
+    const persona = makePersona({
+      id: 'p_voice',
+      name: '小澈',
+      voiceProfileId: 'vp_xiao',
+      voiceName: 'external:xiao',
+    });
+    const resolved = resolveUserIdentity({ kind: 'persona', id: 'p_voice' }, [persona], []);
+    expect(resolved!.voiceProfileId).toBe('vp_xiao');
+    expect(resolved!.voiceName).toBe('external:xiao');
   });
 
   it('returns null when the source entity is missing or unnamed', () => {

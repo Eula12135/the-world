@@ -32,7 +32,6 @@
 
 - 不把"我"并入人物关系图 / 时间线，不做关系相位随剧情推进。
 - 不做"我"的分享格式与跨设备分享。
-- 不给"我"绑定 TTS 音色（角色被朗读，"我"不被朗读）。
 - 不做身份快照兜底："我"或角色卡被删除后，历史会话身份直接悬空降级为匿名。
 - 不做作品隐含主角与所选身份的冲突消解，一律以用户所选为准。
 
@@ -68,6 +67,9 @@ export interface ResolvedUserIdentity {
   description: string;
   avatarImage?: string;
   avatarColor: string;
+  /** 朗读「我」的台词时使用的音色；自建身份取自己的，引用角色卡时取该卡的 */
+  voiceProfileId?: string;
+  voiceName?: string;
   kind: UserIdentityKind;
   /** 溯源用的源实体 id */
   sourceId: string;
@@ -96,6 +98,10 @@ export interface UserPersona {
   description: string;
   avatarImage?: string;
   avatarColor: string;
+  /** 朗读「我」的台词时使用的音色档案；留空则跟随全局默认声音 */
+  voiceProfileId?: string;
+  /** 未绑档案时的外部音色 ID 兜底 */
+  voiceName?: string;
   /** 从哪张角色卡复制来的，仅作溯源，不是引用 */
   sourceCharacterId?: string;
   createdAt: number;
@@ -104,8 +110,6 @@ export interface UserPersona {
 ```
 
 Dexie 新增表 `userPersonas`，DB 升到 v8。**纯新增表，不改动任何既有表结构**，老数据零迁移。
-
-刻意不包含 `voiceProfileId`：老的 `PersonaPreset` 带这个字段是设计缺陷，"我"没有 TTS 角色。
 
 ### 4.2 `Character` 新增关系钩子（可选）
 
@@ -145,6 +149,7 @@ userRelationOverride?: {
 - `kind === 'persona'`：直接映射 `UserPersona`，`identity` / `description` / `addressAs` 原样带出。`addressAs` 允许为空，语义是"我不指定称呼，交给角色卡决定"（见 §5.4）。
 - `kind === 'character'`：`name` 取卡名，`identity` 取卡的身份，`description` 由性格与备注拼接，头像取卡。
 - **`kind === 'character'` 时不读该卡的 `userRelation`**：那张卡上的钩子描述的是"AI 演这张卡时怎么叫用户"，与"我演这张卡"无关，读了就是张冠李戴。此分支下 `ResolvedUserIdentity.addressAs` 恒为空串，称呼完全交给 §5.4。
+- **但音色要读那张卡**：我演这张卡，这张卡的声音就是"我"的声音，这是不同性质的字段。同一张卡上，`userRelation` 属于"AI 面向用户"的约定，`voiceProfileId` 属于"这个角色本身"，所以前者舍弃、后者继承。
 - 源实体不存在（被删）：返回 `null`，会话降级为匿名，UI 提示"原身份已不存在"，但保留 ref 以便用户重新选择。
 
 ### 5.2 关系取值优先级
@@ -238,6 +243,7 @@ AI 角色卡上的 userRelation 默认值
 ## 7. 渲染
 
 - 用户气泡：右侧头像 + 上方小字名字，与 AI 侧对称。未选身份时保持现状。
+- 用户气泡操作区新增「朗读」：用「我」的音色朗读自己这句台词（`voiceProfileId`，没有档案时回退全局默认声音）。双卡对戏时两边都能出声 —— AI 用它的声音，我用我这张卡的声音。
 - 顶部关系条：`你（小澈）↔ 林澈（搭档）`；双卡时头像各用对应卡的立绘。
 - 空状态文案：由「与『林澈』开启角色对话」改为「你以小澈的身份，与林澈对话」。
 
@@ -329,3 +335,8 @@ AI 角色卡上的 userRelation 默认值
 3. **§6.1 注入范围** —— 原稿三种模式都注入，但入口只在角色模式。收敛为只做 `character_role`。
 4. **§5.2 有向关系** —— 原稿直接取两卡之间的边，会把"我单方面隐藏的关系"透给 AI。补方向规则。
 5. **§5.3 override 生命周期** —— 原稿只写了新建会话的继承，漏了中途切换。提升为通则，任一方变化即失效。
+
+2026-11-24 第二轮评审：
+
+6. **「我」的音色** —— 原稿把"从被扮演的角色卡上取字段"一刀切禁掉了，理由是称呼会张冠李戴。但对于音色，取那张卡恰恰是对的：我演沈岚，沈岚的声音就是她的声音。于是：`userRelation` 仍然不读，`voiceProfileId` / `voiceName` 改为继承；`UserPersona` 也补上音色字段，用户气泡新增「朗读」，双卡对戏时两边都能出声。
+

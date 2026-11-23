@@ -134,6 +134,37 @@ export const MessageItem: React.FC<MessageItemProps> = React.memo(({
     });
   };
 
+  // 「我」自己的台词：用我扮演的这个角色（或自建身份）的音色朗读。
+  // 双卡对戏时两边都能听——AI 用它的声音，我用我这张卡的声音。
+  const handleSpeakUserToggle = async () => {
+    if (isSpeaking) {
+      stopSpeaking();
+      setSpeakingMessageId(null);
+      return;
+    }
+    setSpeakingMessageId(message.id);
+    const profileId = userIdentity?.voiceProfileId || voiceSettings.activeVoiceProfileId;
+    const profile = profileId ? voiceProfiles.find((vp) => vp.id === profileId) : undefined;
+    await speakText({
+      text: message.content,
+      config: voiceSettings,
+      providers,
+      profile,
+      voiceOverride: profile ? undefined : userIdentity?.voiceName,
+      onEnd: () => {
+        if (useAppStore.getState().speakingMessageId === message.id) {
+          setSpeakingMessageId(null);
+        }
+      },
+      onError: (msg) => {
+        if (useAppStore.getState().speakingMessageId === message.id) {
+          setSpeakingMessageId(null);
+        }
+        showToast(msg, 'error');
+      },
+    });
+  };
+
   const handleSaveEdit = async () => {
     const trimmed = draftEdit.trim();
     if (!trimmed) return;
@@ -215,6 +246,28 @@ export const MessageItem: React.FC<MessageItemProps> = React.memo(({
                 {copied ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
                 <span>复制</span>
               </button>
+              {voiceSettings.ttsEnabled && message.content && showUserIdentity && (
+                <button
+                  onClick={handleSpeakUserToggle}
+                  className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[12px] cursor-pointer ${
+                    isSpeaking
+                      ? 'text-accent bg-accent-soft font-medium'
+                      : 'text-dim hover:text-ink hover:bg-hover'
+                  }`}
+                >
+                  {isSpeaking ? (
+                    <>
+                      <Square className="w-3 h-3 fill-current" />
+                      <span>停止朗读</span>
+                    </>
+                  ) : (
+                    <>
+                      <Volume2 className="w-3.5 h-3.5" />
+                      <span>朗读</span>
+                    </>
+                  )}
+                </button>
+              )}
               <button
                 onClick={() => {
                   setDraftEdit(message.content);

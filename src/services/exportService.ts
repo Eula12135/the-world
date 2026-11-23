@@ -424,6 +424,9 @@ export async function importFullBackupJson(rawText: string): Promise<{
             avatarImage: typeof p.avatarImage === 'string' ? p.avatarImage : undefined,
             avatarColor:
               typeof p.avatarColor === 'string' && p.avatarColor ? p.avatarColor : '#4d6bfe',
+            voiceProfileId:
+              typeof p.voiceProfileId === 'string' ? p.voiceProfileId : undefined,
+            voiceName: typeof p.voiceName === 'string' ? p.voiceName : undefined,
             sourceCharacterId:
               typeof p.sourceCharacterId === 'string' ? p.sourceCharacterId : undefined,
             createdAt: typeof p.createdAt === 'number' ? p.createdAt : Date.now(),
