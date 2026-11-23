@@ -28,6 +28,21 @@ const NARRATION_CUE_RE =
 /** 以引号开口的内容按台词处理，避免把「（"好啊"）」误判成旁白 */
 const LEADING_QUOTE_RE = /^[“”"「」『』]/;
 
+/**
+ * 可发声的拟声词 / 语气词。
+ *
+ * 旁白要整句丢掉，但「噗的一下笑出来」这种句子里真正该被念出来的是「噗」——
+ * 那是一个声音，不是一句描述。所以丢描述、留拟声。
+ */
+const VOICEABLE_SOUND_RE =
+  /哈哈哈+|哈哈|嘿嘿|呵呵|噗嗤|噗|嘻嘻|嘻|哼哼|哼|嘁|啧啧|啧|唔|嗯+|唉|哎呀|哎哟|哇塞|哇|咳咳|咳|嗷呜|嗷|嘶|呵/;
+
+/** 取句子里的第一个拟声词；没有就返回空串 */
+export function extractVoiceableSound(text: string): string {
+  const match = text.match(VOICEABLE_SOUND_RE);
+  return match ? match[0] : '';
+}
+
 export function classifyParenthetical(inner: string): RoleplaySegmentKind {
   const clean = inner.trim();
   if (!clean) return 'dialogue';
@@ -208,7 +223,12 @@ export function stripActionsForSpeech(content: string): string {
     if (tokens.length === 0) {
       const trimmed = line.trim();
       if (!trimmed) continue;
-      if (isNarrationOnlyLine(trimmed)) continue;
+      if (isNarrationOnlyLine(trimmed)) {
+        // 整行是旁白：丢掉描述，但保住里面的笑声/拟声词
+        const sound = extractVoiceableSound(trimmed);
+        if (sound) keptLines.push(sound);
+        continue;
+      }
       keptLines.push(trimmed);
       continue;
     }
@@ -219,12 +239,19 @@ export function stripActionsForSpeech(content: string): string {
       out += line.slice(cursor, tok.index);
       if (tok.kind === 'dialogue') {
         out += tok.raw;
+      } else {
+        // 括号里的动作/语气：同样只保留可发声的拟声词，并留一个短停顿
+        const sound = extractVoiceableSound(tok.inner);
+        if (sound) out += `${sound}，`;
       }
       cursor = tok.index + tok.raw.length;
     }
     out += line.slice(cursor);
 
-    const cleaned = out.replace(/\s{2,}/g, ' ').trim();
+    const cleaned = out
+      .replace(/^[，,、]+|[，,、]+$/g, '')
+      .replace(/\s{2,}/g, ' ')
+      .trim();
     if (cleaned) {
       keptLines.push(cleaned);
     }

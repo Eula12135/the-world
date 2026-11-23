@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   classifyParenthetical,
+  extractVoiceableSound,
   parseRoleplayContent,
   stripActionsForSpeech,
 } from '../utils/dialogueParser';
@@ -119,5 +120,16 @@ describe('dialogueParser', () => {
     );
     // 以动作词收尾但含「你/我」的，仍然保留
     expect(stripActionsForSpeech('我意味深长地笑')).toBe('我意味深长地笑');
+  });
+
+  it('keeps the laugh when a narration line contains an actual sound', () => {
+    // 旁白要丢，但「噗」是声音，不能被一起吞掉
+    expect(stripActionsForSpeech('噗的一下笑出来。\n“你来了。”')).toBe('噗\n“你来了。”');
+    expect(extractVoiceableSound('噗的一下笑出来。')).toBe('噗');
+    expect(extractVoiceableSound('意味深长的笑')).toBe('');
+    // 括号里的拟声词同样保留，纯描述则丢弃
+    expect(stripActionsForSpeech('（噗嗤一声笑了）')).toBe('噗嗤');
+    expect(stripActionsForSpeech('（噗嗤）你来了。')).toBe('噗嗤，你来了。');
+    expect(stripActionsForSpeech('（轻叹）你总是这样。')).toBe('你总是这样。');
   });
 });
