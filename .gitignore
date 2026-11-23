@@ -19,3 +19,4 @@ release-notes.md
 # 调试产物
 *.log
 npm-debug.log*
+imports/
