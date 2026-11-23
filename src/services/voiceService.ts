@@ -39,6 +39,7 @@ export {
 export {
   buildTtsSpeechPayload,
   listNativeVoices,
+  shouldAutoPlaySpeech,
   speakText,
   stopSpeaking,
 } from './voice/tts';

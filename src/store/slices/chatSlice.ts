@@ -3,7 +3,8 @@ import type { ChatMessage } from '../../types';
 import { buildSessionSystemPrompt } from '../../services/contextBuilder';
 import { streamChat } from '../../services/llm';
 import { compressConversationMemory } from '../../services/memoryService';
-import { speakText, stopSpeaking } from '../../services/voiceService';
+import { speakText, shouldAutoPlaySpeech, stopSpeaking } from '../../services/voiceService';
+import { resolveUserIdentity } from '../../services/userIdentity';
 import { stripActionsForSpeech } from '../../utils/dialogueParser';
 import { createId } from '../../utils/platform';
 import { loadSessionContextData, pickDefaultModelConfig } from '../helpers';
@@ -11,6 +12,12 @@ import type { AppSliceCreator, ChatSlice, DraftSessionConfig } from '../types';
 
 let selectSessionSeq = 0;
 let isSendingLock = false;
+
+// 自动朗读串行队列：先把「我」这句播完，再播角色的回复，避免后一句把前一句打断
+let autoPlayChain: Promise<void> = Promise.resolve();
+function enqueueAutoPlay(task: () => Promise<void>): void {
+  autoPlayChain = autoPlayChain.then(task, task).catch(() => undefined);
+}
 
 export const createChatSlice: AppSliceCreator<ChatSlice> = (set, get) => ({
   sessions: [],
@@ -185,6 +192,47 @@ export const createChatSlice: AppSliceCreator<ChatSlice> = (set, get) => ({
         streamingError: null,
       });
 
+      const voiceCfg = get().settings.voice;
+      if (
+        shouldAutoPlaySpeech({
+          enabled: voiceCfg.ttsEnabled,
+          target: voiceCfg.ttsAutoPlayTarget,
+          side: 'user',
+        })
+      ) {
+        const identity = resolveUserIdentity(
+          session.userIdentity,
+          get().userPersonas,
+          get().characters
+        );
+        const userProfileId = identity?.voiceProfileId || voiceCfg.activeVoiceProfileId;
+        const userProfile = userProfileId
+          ? get().voiceProfiles.find((vp) => vp.id === userProfileId)
+          : undefined;
+        const userVoiceOverride = userProfile ? undefined : identity?.voiceName;
+        enqueueAutoPlay(async () => {
+          set({ speakingMessageId: userMsg.id });
+          await speakText({
+            text: trimmed,
+            config: voiceCfg,
+            providers: get().providers,
+            profile: userProfile,
+            voiceOverride: userVoiceOverride,
+            onEnd: () => {
+              if (get().speakingMessageId === userMsg.id) {
+                set({ speakingMessageId: null });
+              }
+            },
+            onError: (msg) => {
+              if (get().speakingMessageId === userMsg.id) {
+                set({ speakingMessageId: null });
+              }
+              get().showToast(msg, 'error');
+            },
+          });
+        });
+      }
+
       const { world, ...worldData } = await loadSessionContextData(session);
 
       // Only send unsummarized recent turns when rollingSummary is active
@@ -294,8 +342,11 @@ export const createChatSlice: AppSliceCreator<ChatSlice> = (set, get) => ({
 
             const currentSettings = get().settings;
             if (
-              currentSettings.voice.ttsEnabled &&
-              currentSettings.voice.ttsAutoPlay &&
+              shouldAutoPlaySpeech({
+                enabled: currentSettings.voice.ttsEnabled,
+                target: currentSettings.voice.ttsAutoPlayTarget,
+                side: 'assistant',
+              }) &&
               content.trim()
             ) {
               const latestSess = freshSessions.find((s) => s.id === targetSessionId);
@@ -323,24 +374,26 @@ export const createChatSlice: AppSliceCreator<ChatSlice> = (set, get) => ({
                   preset
               );
               const textToSpeak = isRoleplay ? stripActionsForSpeech(content) : content;
-              set({ speakingMessageId: finalMsg.id });
-              speakText({
-                text: textToSpeak,
-                config: currentSettings.voice,
-                providers: get().providers,
-                profile: voiceProfile,
-                voiceOverride,
-                onEnd: () => {
-                  if (get().speakingMessageId === finalMsg.id) {
-                    set({ speakingMessageId: null });
-                  }
-                },
-                onError: (msg) => {
-                  if (get().speakingMessageId === finalMsg.id) {
-                    set({ speakingMessageId: null });
-                  }
-                  get().showToast(msg, 'error');
-                },
+              enqueueAutoPlay(async () => {
+                set({ speakingMessageId: finalMsg.id });
+                await speakText({
+                  text: textToSpeak,
+                  config: currentSettings.voice,
+                  providers: get().providers,
+                  profile: voiceProfile,
+                  voiceOverride,
+                  onEnd: () => {
+                    if (get().speakingMessageId === finalMsg.id) {
+                      set({ speakingMessageId: null });
+                    }
+                  },
+                  onError: (msg) => {
+                    if (get().speakingMessageId === finalMsg.id) {
+                      set({ speakingMessageId: null });
+                    }
+                    get().showToast(msg, 'error');
+                  },
+                });
               });
             }
           },

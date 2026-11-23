@@ -32,6 +32,7 @@ export const DEFAULT_IMAGE_GEN_CONFIG: ImageGenConfig = {
 export const DEFAULT_VOICE_CONFIG: VoiceConfig = {
   ttsEnabled: true,
   ttsAutoPlay: false,
+  ttsAutoPlayTarget: 'assistant',
   ttsEngine: 'native',
   ttsRate: 1,
   ttsPitch: 1,

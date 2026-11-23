@@ -14,7 +14,12 @@ import {
   Wand2,
 } from 'lucide-react';
 import { useAppStore } from '../../store/useAppStore';
-import type { MediaProviderCredential, VoiceConfig, VoiceProfile } from '../../types';
+import type {
+  MediaProviderCredential,
+  TtsAutoPlayTarget,
+  VoiceConfig,
+  VoiceProfile,
+} from '../../types';
 import { resolveMediaApiKey } from '../../services/imageGenService';
 import {
   type BreezeVoiceItem,
@@ -320,10 +325,14 @@ export const VoiceStudioTab: React.FC<VoiceStudioTabProps> = ({
     setRemoteCloned([]);
   };
 
-  const handleToggleQuickSetting = async (field: 'ttsEnabled' | 'ttsAutoPlay', checked: boolean) => {
-    setDraftVoice((prev) => ({ ...prev, [field]: checked }));
+  const handleQuickVoicePatch = async (patch: Partial<VoiceConfig>) => {
+    setDraftVoice((prev) => ({ ...prev, ...patch }));
     const savedVoice = useAppStore.getState().settings.voice;
-    await updateSettings({ voice: { ...savedVoice, [field]: checked } });
+    await updateSettings({ voice: { ...savedVoice, ...patch } });
+  };
+
+  const handleToggleQuickSetting = async (field: 'ttsEnabled' | 'ttsAutoPlay', checked: boolean) => {
+    await handleQuickVoicePatch({ [field]: checked } as Partial<VoiceConfig>);
   };
 
   const handleRefreshTtsModels = async () => {
@@ -682,7 +691,29 @@ export const VoiceStudioTab: React.FC<VoiceStudioTabProps> = ({
               onChange={(e) => handleToggleQuickSetting('ttsAutoPlay', e.target.checked)}
               className="accent-[var(--accent)]"
             />
-            <span>AI 回复后自动朗读</span>
+            <span>自动朗读</span>
+          </label>
+          <label
+            className={`flex items-center gap-2 text-secondary ${
+              draftVoice.ttsAutoPlay ? '' : 'opacity-45'
+            }`}
+            title="选择自动朗读时读到哪些台词"
+          >
+            <span className="text-[12px] whitespace-nowrap">朗读范围</span>
+            <select
+              value={draftVoice.ttsAutoPlayTarget || 'assistant'}
+              disabled={!draftVoice.ttsAutoPlay}
+              onChange={(e) =>
+                void handleQuickVoicePatch({
+                  ttsAutoPlayTarget: e.target.value as TtsAutoPlayTarget,
+                })
+              }
+              className="px-2 py-1 rounded-lg bg-canvas border border-line text-[12px] text-ink outline-none focus:border-accent disabled:cursor-not-allowed"
+            >
+              <option value="assistant">只读角色台词</option>
+              <option value="user">只读我的台词</option>
+              <option value="both">两边都读</option>
+            </select>
           </label>
           {activeDefaultProfile && (
             <span className="text-[11.5px] px-2.5 py-0.5 rounded-full bg-accent-soft text-accent border border-accent/25">

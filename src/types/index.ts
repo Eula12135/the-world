@@ -54,9 +54,14 @@ export interface ImageGenConfig {
 export type TtsEngine = 'native' | 'openai_api';
 export type SttEngine = 'native' | 'openai_api';
 
+/** 自动朗读的范围：只读角色台词 / 只读我的台词 / 两边都读 */
+export type TtsAutoPlayTarget = 'assistant' | 'user' | 'both';
+
 export interface VoiceConfig {
   ttsEnabled: boolean;
   ttsAutoPlay: boolean;
+  /** 自动朗读只读哪一侧；缺省按 'assistant' 处理，兼容旧数据 */
+  ttsAutoPlayTarget?: TtsAutoPlayTarget;
   ttsEngine: TtsEngine;
   ttsRate: number;
   ttsPitch: number;

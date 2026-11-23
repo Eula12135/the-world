@@ -275,6 +275,10 @@ export const ChatView: React.FC = () => {
     });
   };
 
+  const autoPlayTarget = settings.voice.ttsAutoPlayTarget || 'assistant';
+  const autoPlayScopeLabel =
+    autoPlayTarget === 'user' ? '只读我' : autoPlayTarget === 'both' ? '两边都读' : '只读角色';
+
   const lastAssistantId = useMemo(() => {
     for (let i = messages.length - 1; i >= 0; i--) {
       if (messages[i].role === 'assistant') return messages[i].id;
@@ -352,14 +356,17 @@ export const ChatView: React.FC = () => {
                     ? 'border-accent/50 bg-accent-soft text-accent font-medium'
                     : 'border-line text-secondary hover:bg-hover hover:text-ink'
                 }`}
-                title="AI 回复完成后自动朗读"
+                title={`自动朗读：${autoPlayScopeLabel}（可在 设置 → 声音 里改范围）`}
               >
                 {settings.voice.ttsAutoPlay ? (
                   <Volume2 className="w-3.5 h-3.5" />
                 ) : (
                   <VolumeX className="w-3.5 h-3.5" />
                 )}
-                <span>自动朗读</span>
+                <span>
+                  自动朗读
+                  {autoPlayTarget !== 'assistant' ? `·${autoPlayTarget === 'both' ? '两边' : '我'}` : ''}
+                </span>
               </button>
             )}
 

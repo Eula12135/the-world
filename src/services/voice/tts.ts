@@ -1,4 +1,4 @@
-import type { ProviderConfig, VoiceConfig, VoiceProfile } from '../../types';
+import type { ProviderConfig, TtsAutoPlayTarget, VoiceConfig, VoiceProfile } from '../../types';
 import { base64ToUint8Array, crossPlatformFetchBinary } from '../llm';
 import { extractEndpointHost, isLocalEndpointUrl } from '../imageGenService';
 import { createId, detectUnreachableLocalhost } from '../../utils/platform';
@@ -79,6 +79,21 @@ let activeAudioUrl: string | null = null;
 let activeAudioAbort: (() => void) | null = null;
 let activeNativeTtsCleanup: (() => void) | null = null;
 let speechGenerationId = 0;
+
+/**
+ * 自动朗读是否需要朗读某一侧。
+ * 旧数据没有 ttsAutoPlayTarget，按「只读角色」处理，与改动前行为一致。
+ */
+export function shouldAutoPlaySpeech(params: {
+  enabled: boolean;
+  target?: TtsAutoPlayTarget;
+  side: 'assistant' | 'user';
+}): boolean {
+  if (!params.enabled) return false;
+  const target = params.target || 'assistant';
+  if (target === 'both') return true;
+  return target === params.side;
+}
 
 export function stopSpeaking(): void {
   speechGenerationId++;
