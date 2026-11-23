@@ -3,7 +3,7 @@ import type { ChatMessage } from '../../types';
 import { buildSessionSystemPrompt } from '../../services/contextBuilder';
 import { streamChat } from '../../services/llm';
 import { compressConversationMemory } from '../../services/memoryService';
-import { speakText, shouldAutoPlaySpeech, stopSpeaking } from '../../services/voiceService';
+import { isVoiceSetupMissing, shouldAutoPlaySpeech, speakText, stopSpeaking } from '../../services/voiceService';
 import { resolveUserIdentity } from '../../services/userIdentity';
 import { stripActionsForSpeech } from '../../utils/dialogueParser';
 import { createId } from '../../utils/platform';
@@ -213,28 +213,37 @@ export const createChatSlice: AppSliceCreator<ChatSlice> = (set, get) => ({
         const isRoleplaySession =
           session.chatMode === 'character_role' || session.chatMode === 'custom_persona';
         const userSpeechText = isRoleplaySession ? stripActionsForSpeech(trimmed) : trimmed;
-        enqueueAutoPlay(async () => {
-          set({ speakingMessageId: userMsg.id });
-          await speakText({
-            text: userSpeechText,
-            config: voiceCfg,
-            providers: get().providers,
-            profile: userProfile,
+        // 没有可用声音时不自动朗读；用户手动点「朗读」时会看到配置提示
+        if (
+          !isVoiceSetupMissing({
+            engine: voiceCfg.ttsEngine,
+            profileId: userProfileId,
             voiceOverride: userVoiceOverride,
-            sessionId: targetSessionId || undefined,
-            onEnd: () => {
-              if (get().speakingMessageId === userMsg.id) {
-                set({ speakingMessageId: null });
-              }
-            },
-            onError: (msg) => {
-              if (get().speakingMessageId === userMsg.id) {
-                set({ speakingMessageId: null });
-              }
-              get().showToast(msg, 'error');
-            },
+          })
+        ) {
+          enqueueAutoPlay(async () => {
+            set({ speakingMessageId: userMsg.id });
+            await speakText({
+              text: userSpeechText,
+              config: voiceCfg,
+              providers: get().providers,
+              profile: userProfile,
+              voiceOverride: userVoiceOverride,
+              sessionId: targetSessionId || undefined,
+              onEnd: () => {
+                if (get().speakingMessageId === userMsg.id) {
+                  set({ speakingMessageId: null });
+                }
+              },
+              onError: (msg) => {
+                if (get().speakingMessageId === userMsg.id) {
+                  set({ speakingMessageId: null });
+                }
+                get().showToast(msg, 'error');
+              },
+            });
           });
-        });
+        }
       }
 
       const { world, ...worldData } = await loadSessionContextData(session);
@@ -378,28 +387,37 @@ export const createChatSlice: AppSliceCreator<ChatSlice> = (set, get) => ({
                   preset
               );
               const textToSpeak = isRoleplay ? stripActionsForSpeech(content) : content;
-              enqueueAutoPlay(async () => {
-                set({ speakingMessageId: finalMsg.id });
-                await speakText({
-                  text: textToSpeak,
-                  config: currentSettings.voice,
-                  providers: get().providers,
-                  profile: voiceProfile,
+              // 无可用声音时不自动朗读，避免静默借用别人的音色
+              if (
+                !isVoiceSetupMissing({
+                  engine: currentSettings.voice.ttsEngine,
+                  profileId: voiceProfileId,
                   voiceOverride,
-                  sessionId: targetSessionId || undefined,
-                  onEnd: () => {
-                    if (get().speakingMessageId === finalMsg.id) {
-                      set({ speakingMessageId: null });
-                    }
-                  },
-                  onError: (msg) => {
-                    if (get().speakingMessageId === finalMsg.id) {
-                      set({ speakingMessageId: null });
-                    }
-                    get().showToast(msg, 'error');
-                  },
+                })
+              ) {
+                enqueueAutoPlay(async () => {
+                  set({ speakingMessageId: finalMsg.id });
+                  await speakText({
+                    text: textToSpeak,
+                    config: currentSettings.voice,
+                    providers: get().providers,
+                    profile: voiceProfile,
+                    voiceOverride,
+                    sessionId: targetSessionId || undefined,
+                    onEnd: () => {
+                      if (get().speakingMessageId === finalMsg.id) {
+                        set({ speakingMessageId: null });
+                      }
+                    },
+                    onError: (msg) => {
+                      if (get().speakingMessageId === finalMsg.id) {
+                        set({ speakingMessageId: null });
+                      }
+                      get().showToast(msg, 'error');
+                    },
+                  });
                 });
-              });
+              }
             }
           },
           onError: async (err) => {

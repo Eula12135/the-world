@@ -38,6 +38,7 @@ export {
 
 export {
   buildTtsSpeechPayload,
+  isVoiceSetupMissing,
   listNativeVoices,
   shouldAutoPlaySpeech,
   speakText,

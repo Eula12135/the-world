@@ -18,7 +18,7 @@ import {
 } from 'lucide-react';
 import type { Character, ChatMessage, PersonaPreset, ResolvedUserIdentity } from '../../types';
 import { useAppStore } from '../../store/useAppStore';
-import { speakText, stopSpeaking } from '../../services/voiceService';
+import { isVoiceSetupMissing, speakText, stopSpeaking } from '../../services/voiceService';
 import { parseRoleplayContent, stripActionsForSpeech } from '../../utils/dialogueParser';
 import { openExternalUrl } from '../../utils/platform';
 
@@ -108,6 +108,28 @@ export const MessageItem: React.FC<MessageItemProps> = React.memo(({
     const voiceProfile = voiceProfileId
       ? voiceProfiles.find((vp) => vp.id === voiceProfileId)
       : undefined;
+    // 绑定了音色档案时以档案为准；只有在没有档案时才用旧的自定义音色 ID 兜底，
+    // 否则角色卡上残留的 voiceName 会盖掉用户精心调好的档案。
+    const roleVoiceOverride = voiceProfile
+      ? undefined
+      : roleCharacter?.voiceName || personaPreset?.voiceName;
+
+    // 没有角色音色、也没有全局默认时不要静默借用别人的声音，直接提示去配置
+    if (
+      isVoiceSetupMissing({
+        engine: voiceSettings.ttsEngine,
+        profileId: voiceProfileId,
+        voiceOverride: roleVoiceOverride,
+      })
+    ) {
+      setSpeakingMessageId(null);
+      showToast(
+        '这个角色还没有配置声音：给角色卡绑定音色，或在 设置 → 声音 里指定一个全局默认声音',
+        'error'
+      );
+      return;
+    }
+
     const isRoleplay = Boolean(roleCharacter || personaPreset);
     const textToSpeak = isRoleplay ? stripActionsForSpeech(message.content) : message.content;
     await speakText({
@@ -116,11 +138,7 @@ export const MessageItem: React.FC<MessageItemProps> = React.memo(({
       providers,
       profile: voiceProfile,
       sessionId: message.sessionId,
-      // 绑定了音色档案时以档案为准；只有在没有档案时才用旧的自定义音色 ID 兜底，
-      // 否则角色卡上残留的 voiceName 会盖掉用户精心调好的档案。
-      voiceOverride: voiceProfile
-        ? undefined
-        : roleCharacter?.voiceName || personaPreset?.voiceName,
+      voiceOverride: roleVoiceOverride,
       onEnd: () => {
         if (useAppStore.getState().speakingMessageId === message.id) {
           setSpeakingMessageId(null);
@@ -146,6 +164,21 @@ export const MessageItem: React.FC<MessageItemProps> = React.memo(({
     setSpeakingMessageId(message.id);
     const profileId = userIdentity?.voiceProfileId || voiceSettings.activeVoiceProfileId;
     const profile = profileId ? voiceProfiles.find((vp) => vp.id === profileId) : undefined;
+    const userVoiceOverride = profile ? undefined : userIdentity?.voiceName;
+    if (
+      isVoiceSetupMissing({
+        engine: voiceSettings.ttsEngine,
+        profileId,
+        voiceOverride: userVoiceOverride,
+      })
+    ) {
+      setSpeakingMessageId(null);
+      showToast(
+        '「我」还没有配置声音：给身份绑定音色，或在 设置 → 声音 里指定一个全局默认声音',
+        'error'
+      );
+      return;
+    }
     // 角色扮演时「我」的消息也可能带（动作描写），朗读前同样要剥掉
     const isRoleplay = Boolean(roleCharacter || personaPreset || userIdentity);
     await speakText({
@@ -154,7 +187,7 @@ export const MessageItem: React.FC<MessageItemProps> = React.memo(({
       providers,
       profile,
       sessionId: message.sessionId,
-      voiceOverride: profile ? undefined : userIdentity?.voiceName,
+      voiceOverride: userVoiceOverride,
       onEnd: () => {
         if (useAppStore.getState().speakingMessageId === message.id) {
           setSpeakingMessageId(null);

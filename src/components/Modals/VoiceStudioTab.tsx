@@ -95,6 +95,7 @@ export const VoiceStudioTab: React.FC<VoiceStudioTabProps> = ({
   const [cacheStats, setCacheStats] = useState<{ count: number; bytes: number } | null>(null);
   const [cacheGroups, setCacheGroups] = useState<TtsCacheGroup[]>([]);
   const [cacheManagerOpen, setCacheManagerOpen] = useState(false);
+  const [saveAsDefault, setSaveAsDefault] = useState(false);
   const [nativeVoices, setNativeVoices] = useState<SpeechSynthesisVoice[]>(() => listNativeVoices());
   const [styleBriefCharacterId, setStyleBriefCharacterId] = useState(() =>
     pendingVoiceBindTarget?.kind === 'character' ? pendingVoiceBindTarget.characterId : ''
@@ -564,7 +565,7 @@ export const VoiceStudioTab: React.FC<VoiceStudioTabProps> = ({
     };
   };
 
-  const handleSaveToLibrary = async (mode: 'library' | 'default' | 'bind') => {
+  const handleSaveToLibrary = async (mode: 'library' | 'bind') => {
     if (
       draftVoice.ttsEngine === 'openai_api' &&
       isBreezeActive &&
@@ -577,7 +578,16 @@ export const VoiceStudioTab: React.FC<VoiceStudioTabProps> = ({
     const profile = buildVoiceProfileFromDraft();
     await upsertVoiceProfile(profile);
 
-    if (mode === 'default') {
+    if (mode === 'bind') {
+      await onSaveVoice({ keepActiveProfile: true });
+      await completePendingVoiceBind(profile.id);
+      setEditingProfileId(null);
+      setNewProfileName('');
+      return;
+    }
+
+    // 只有用户勾了「同时设为全局默认」才动全局默认，保存本身不再顺手改
+    if (saveAsDefault) {
       const nextVoice: VoiceConfig = {
         ...draftVoice,
         activeVoiceProfileId: profile.id,
@@ -598,21 +608,22 @@ export const VoiceStudioTab: React.FC<VoiceStudioTabProps> = ({
       };
       setDraftVoice(nextVoice);
       await updateSettings({ voice: nextVoice });
-      showToast(`已保存「${profile.name}」并设为全局默认声音`, 'success');
+      showToast(`已保存「${profile.name}」并设为全局默认`, 'success');
     } else {
       await onSaveVoice({ keepActiveProfile: true });
-      if (mode === 'bind') {
-        await completePendingVoiceBind(profile.id);
-        setEditingProfileId(null);
-        setNewProfileName('');
-        return;
-      }
       showToast(`已将「${profile.name}」保存到我的声音库`, 'success');
     }
 
     setEditingProfileId(null);
     setNewProfileName('');
     setVoiceStudioSubTab('library');
+  };
+
+  const handleClearDefaultProfile = async () => {
+    const nextVoice: VoiceConfig = { ...draftVoice, activeVoiceProfileId: undefined };
+    setDraftVoice(nextVoice);
+    await updateSettings({ voice: nextVoice });
+    showToast('已取消全局默认声音', 'success');
   };
 
   const handleLoadProfileIntoEditor = (vp: VoiceProfile) => {
@@ -783,9 +794,16 @@ export const VoiceStudioTab: React.FC<VoiceStudioTabProps> = ({
             />
             <span className="text-[12px] whitespace-nowrap">换音色后沿用旧语音</span>
           </label>
-          {activeDefaultProfile && (
+          {activeDefaultProfile ? (
             <span className="text-[11.5px] px-2.5 py-0.5 rounded-full bg-accent-soft text-accent border border-accent/25">
               当前默认：{activeDefaultProfile.name}
+            </span>
+          ) : (
+            <span
+              className="text-[11.5px] px-2.5 py-0.5 rounded-full bg-canvas text-dim border border-line"
+              title="未设置全局默认时，没绑定音色的角色不会自动借用别人的声音，朗读会提示先配置"
+            >
+              当前默认：未设置
             </span>
           )}
           {cacheStats && cacheStats.count > 0 && (
@@ -917,6 +935,7 @@ export const VoiceStudioTab: React.FC<VoiceStudioTabProps> = ({
           onPlayProfile={handlePlayLibraryProfile}
           onBindProfile={(id) => void completePendingVoiceBind(id)}
           onSetDefaultProfile={handleSetDefaultProfile}
+          onClearDefaultProfile={() => void handleClearDefaultProfile()}
           onEditProfile={handleLoadProfileIntoEditor}
           onDeleteProfile={handleDeleteProfile}
         />
@@ -1467,20 +1486,22 @@ export const VoiceStudioTab: React.FC<VoiceStudioTabProps> = ({
                     <Plus className="w-4 h-4" />
                     <span>{editingProfileId ? '更新声音库档案' : '保存到我的声音库'}</span>
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => handleSaveToLibrary('default')}
-                    className="px-3.5 py-2 rounded-xl border border-accent/50 bg-accent-soft text-accent font-medium hover:opacity-90 cursor-pointer"
-                  >
-                    保存并设为默认
-                  </button>
+                  <label className="flex items-center gap-1.5 text-[12px] text-secondary cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={saveAsDefault}
+                      onChange={(e) => setSaveAsDefault(e.target.checked)}
+                      className="accent-[var(--accent)]"
+                    />
+                    <span>同时设为全局默认</span>
+                  </label>
                 </>
               )}
               <button
                 type="button"
                 onClick={() => onSaveVoice({ keepActiveProfile: false })}
                 className="px-3 py-2 rounded-xl border border-line text-secondary hover:text-ink hover:bg-hover cursor-pointer"
-                title="仅应用下方接口/音色参数作为全局默认（不新增声音库条目）"
+                title="仅应用下方接口/音色参数，不改动全局默认声音"
               >
                 仅保存基础配置
               </button>

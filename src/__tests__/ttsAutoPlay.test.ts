@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { shouldAutoPlaySpeech } from '../services/voice/tts';
+import { isVoiceSetupMissing, shouldAutoPlaySpeech } from '../services/voice/tts';
 
 describe('shouldAutoPlaySpeech', () => {
   it('never fires when auto play is off, regardless of scope', () => {
@@ -28,5 +28,22 @@ describe('shouldAutoPlaySpeech', () => {
   it('reads both sides', () => {
     expect(shouldAutoPlaySpeech({ enabled: true, target: 'both', side: 'user' })).toBe(true);
     expect(shouldAutoPlaySpeech({ enabled: true, target: 'both', side: 'assistant' })).toBe(true);
+  });
+});
+
+describe('isVoiceSetupMissing', () => {
+  it('never blocks the native engine, which always has a system voice', () => {
+    expect(isVoiceSetupMissing({ engine: 'native' })).toBe(false);
+    expect(isVoiceSetupMissing({ engine: 'native', profileId: undefined })).toBe(false);
+  });
+
+  it('flags API engines that have neither a profile nor an external voice id', () => {
+    expect(isVoiceSetupMissing({ engine: 'openai_api' })).toBe(true);
+    expect(isVoiceSetupMissing({ engine: 'openai_api', voiceOverride: '   ' })).toBe(true);
+  });
+
+  it('is satisfied by either a bound profile or an explicit voice id', () => {
+    expect(isVoiceSetupMissing({ engine: 'openai_api', profileId: 'vp_x' })).toBe(false);
+    expect(isVoiceSetupMissing({ engine: 'openai_api', voiceOverride: 'FunAudioLLM:anna' })).toBe(false);
   });
 });

@@ -88,6 +88,22 @@ let activeNativeTtsCleanup: (() => void) | null = null;
 let speechGenerationId = 0;
 
 /**
+ * 没有绑定音色、也没有全局默认声音时，API 引擎其实无声音可用。
+ * 原生引擎走系统语音，始终可用，不参与判断。
+ *
+ * 用途：避免"未配置音色的角色静默借用别人的声音"，改为明确提示用户去配置。
+ */
+export function isVoiceSetupMissing(params: {
+  engine: string;
+  profileId?: string;
+  voiceOverride?: string;
+}): boolean {
+  if (params.engine !== 'openai_api') return false;
+  if (params.profileId) return false;
+  return !(params.voiceOverride || '').trim();
+}
+
+/**
  * 自动朗读是否需要朗读某一侧。
  * 旧数据没有 ttsAutoPlayTarget，按「只读角色」处理，与改动前行为一致。
  */

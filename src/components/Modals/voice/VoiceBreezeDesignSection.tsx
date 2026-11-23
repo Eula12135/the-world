@@ -201,7 +201,8 @@ export const VoiceBreezeDesignSection: React.FC<VoiceBreezeDesignSectionProps> =
         ttsEngine: 'openai_api',
         ttsVoice: saved.voiceId,
         ttsProviderConfigs: nextCreds,
-        activeVoiceProfileId: pendingVoiceBindTarget ? draftVoice.activeVoiceProfileId : profile.id,
+        // 保存音色不再顺手设为全局默认，用户可在声音库里自行指定
+        activeVoiceProfileId: draftVoice.activeVoiceProfileId,
       };
       setDraftVoice(nextVoice);
       await updateSettings({ voice: nextVoice });
@@ -211,7 +212,7 @@ export const VoiceBreezeDesignSection: React.FC<VoiceBreezeDesignSectionProps> =
       if (pendingVoiceBindTarget) {
         await completePendingVoiceBind(profile.id);
       } else {
-        showToast(`已保存并启用「${profile.name}」`, 'success');
+        showToast(`已保存音色「${profile.name}」，可在声音库设为默认`, 'success');
         setVoiceStudioSubTab('library');
       }
     } catch (err) {

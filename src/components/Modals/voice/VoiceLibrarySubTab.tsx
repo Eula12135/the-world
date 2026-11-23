@@ -17,6 +17,7 @@ interface VoiceLibrarySubTabProps {
   onPlayProfile: (vp: VoiceProfile) => void;
   onBindProfile: (profileId: string) => void;
   onSetDefaultProfile: (vp: VoiceProfile) => void;
+  onClearDefaultProfile: () => void;
   onEditProfile: (vp: VoiceProfile) => void;
   onDeleteProfile: (vp: VoiceProfile) => void;
 }
@@ -33,6 +34,7 @@ export const VoiceLibrarySubTab: React.FC<VoiceLibrarySubTabProps> = ({
   onPlayProfile,
   onBindProfile,
   onSetDefaultProfile,
+  onClearDefaultProfile,
   onEditProfile,
   onDeleteProfile,
 }) => {
@@ -155,16 +157,23 @@ export const VoiceLibrarySubTab: React.FC<VoiceLibrarySubTabProps> = ({
                         <Check className="w-3.5 h-3.5" />
                         <span>选用并绑定</span>
                       </button>
+                    ) : isDefault ? (
+                      <button
+                        type="button"
+                        onClick={onClearDefaultProfile}
+                        className="px-2.5 py-1 rounded-lg border border-line bg-canvas text-[12px] text-secondary hover:text-ink cursor-pointer"
+                        title="取消后，未绑定音色的角色不会自动使用这个声音"
+                      >
+                        取消默认
+                      </button>
                     ) : (
-                      !isDefault && (
-                        <button
-                          type="button"
-                          onClick={() => onSetDefaultProfile(vp)}
-                          className="px-2.5 py-1 rounded-lg border border-line bg-canvas text-[12px] text-secondary hover:text-accent hover:border-accent cursor-pointer"
-                        >
-                          设为默认
-                        </button>
-                      )
+                      <button
+                        type="button"
+                        onClick={() => onSetDefaultProfile(vp)}
+                        className="px-2.5 py-1 rounded-lg border border-line bg-canvas text-[12px] text-secondary hover:text-accent hover:border-accent cursor-pointer"
+                      >
+                        设为默认
+                      </button>
                     )}
                   </div>
 

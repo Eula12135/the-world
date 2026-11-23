@@ -367,8 +367,8 @@ export const ProvidersModal: React.FC = () => {
       sttApiKey: draftVoice.sttApiKey.trim(),
       sttModel: draftVoice.sttModel.trim(),
       sttProviderConfigs: nextSttConfigs,
-      activeVoiceProfileId:
-        options?.keepActiveProfile === false ? undefined : draftVoice.activeVoiceProfileId,
+      // 保存基础配置不应顺带清掉用户选好的默认声音
+      activeVoiceProfileId: draftVoice.activeVoiceProfileId,
     };
     setDraftVoice(nextVoice);
     await updateSettings({ voice: nextVoice });
