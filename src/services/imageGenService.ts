@@ -131,6 +131,44 @@ export function resolveMediaApiKey(params: {
 const IMAGE_MODEL_PATTERN =
   /cogview|flux|kolors|dall-e|gpt-image|sdxl|stable-diffusion|image|wanx|jimeng|seedream|imagen|ideogram|recraft|qwen-image/i;
 
+const GPT_IMAGE_SIZES = ['1024x1024', '1536x1024', '1024x1536'];
+const DALLE3_SIZES = ['1024x1024', '1792x1024', '1024x1792'];
+
+function sizeAspect(size: string): 'square' | 'landscape' | 'portrait' | null {
+  const m = /^(\d+)\s*[x×]\s*(\d+)$/.exec(size.trim());
+  if (!m) return null;
+  const w = Number(m[1]);
+  const h = Number(m[2]);
+  if (!w || !h) return null;
+  const ratio = w / h;
+  if (ratio > 1.05) return 'landscape';
+  if (ratio < 0.95) return 'portrait';
+  return 'square';
+}
+
+/**
+ * gpt-image 系列和 dall-e-3 只接受固定几档尺寸，传其它值服务端直接 400。
+ * 所以按模型白名单过滤：不合法就按宽高比换成最接近的一档，
+ * 连比例都解析不出来就干脆不传，交给服务端默认值 —— 绝不硬塞非法参数。
+ */
+export function resolveImageSize(model: string, size: string): string | undefined {
+  const wanted = (size || '').trim();
+  const m = (model || '').trim().toLowerCase();
+  const allowed = m.startsWith('gpt-image')
+    ? GPT_IMAGE_SIZES
+    : m.startsWith('dall-e-3')
+      ? DALLE3_SIZES
+      : null;
+
+  if (!allowed) return wanted || undefined;
+  if (!wanted) return undefined;
+  if (allowed.includes(wanted)) return wanted;
+
+  const aspect = sizeAspect(wanted);
+  if (!aspect) return undefined;
+  return allowed.find((candidate) => sizeAspect(candidate) === aspect);
+}
+
 export async function fetchImageGenModels(params: {
   baseUrl: string;
   apiKey: string;
@@ -326,6 +364,7 @@ export async function generateImage(params: {
     headers.Authorization = `Bearer ${apiKey}`;
   }
 
+  const size = resolveImageSize(model, config.size);
   const resp = await crossPlatformFetchJson({
     url: `${cleanBase}/images/generations`,
     method: 'POST',
@@ -333,7 +372,7 @@ export async function generateImage(params: {
     body: JSON.stringify({
       model,
       prompt: prompt.trim(),
-      size: config.size || '1024x1024',
+      ...(size ? { size } : {}),
       n: 1,
     }),
   });

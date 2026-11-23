@@ -34,6 +34,7 @@ export const DEFAULT_VOICE_CONFIG: VoiceConfig = {
   ttsEnabled: true,
   ttsAutoPlay: false,
   ttsAutoPlayTarget: 'assistant',
+  ttsCacheKeepOldVoice: false,
   ttsEngine: 'native',
   ttsRate: 1,
   ttsPitch: 1,
@@ -382,6 +383,22 @@ export class TheWorldDatabase extends Dexie {
       personaPresets: 'id, updatedAt',
       userPersonas: 'id, updatedAt',
       ttsCache: 'key, lastUsedAt, bytes',
+      voiceProfiles: 'id, updatedAt',
+      settings: 'id',
+    });
+
+    // v10：语音缓存补「音色无关键」与所属会话，支持换音色沿用旧音频、按会话清理。
+    this.version(10).stores({
+      providers: 'id, enabled, isCustom',
+      sessions: 'id, updatedAt, pinned, worldId, sourceId',
+      messages: 'id, sessionId, createdAt, [sessionId+createdAt]',
+      worlds: 'id, updatedAt',
+      characters: 'id, worldId, updatedAt',
+      relations: 'id, worldId, sourceId, targetId',
+      timelineEvents: 'id, worldId, orderIndex',
+      personaPresets: 'id, updatedAt',
+      userPersonas: 'id, updatedAt',
+      ttsCache: 'key, lastUsedAt, agnosticKey, sessionId, bytes',
       voiceProfiles: 'id, updatedAt',
       settings: 'id',
     });

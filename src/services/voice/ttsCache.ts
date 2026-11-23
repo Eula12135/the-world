@@ -59,6 +59,30 @@ export function buildTtsSpeechCacheKey(parts: {
   return hashKey(canonical);
 }
 
+/**
+ * 去掉音色的同源键。用户开启「换音色后沿用旧语音」时，用它兜底命中旧音频，
+ * 避免为同一段文字在新音色下再花一次额度。
+ */
+export function buildTtsVoiceAgnosticKey(parts: {
+  baseUrl: string;
+  model: string;
+  synthRate: number;
+  gain: number;
+  styleInstruction: string;
+  text: string;
+}): string {
+  const canonical = [
+    'v1',
+    parts.baseUrl.trim().toLowerCase(),
+    parts.model.trim(),
+    String(Math.round(parts.synthRate * 1000) / 1000),
+    String(Math.round(parts.gain * 1000) / 1000),
+    parts.styleInstruction.trim(),
+    parts.text,
+  ].join('\u0000');
+  return hashKey(canonical);
+}
+
 /** 命中即刷新 LRU 时间戳；写失败不影响播放 */
 export async function readTtsCache(key: string): Promise<TtsCacheEntry | null> {
   const hit = await db.ttsCache.get(key);
@@ -71,14 +95,17 @@ export async function readTtsCache(key: string): Promise<TtsCacheEntry | null> {
 
 export async function writeTtsCache(entry: {
   key: string;
+  agnosticKey?: string;
   base64: string;
   contentType: string;
   textPreview: string;
   voiceLabel: string;
+  sessionId?: string;
 }): Promise<void> {
   const now = Date.now();
   await db.ttsCache.put({
     key: entry.key,
+    agnosticKey: entry.agnosticKey,
     base64: entry.base64,
     contentType: entry.contentType,
     bytes: entry.base64.length,
@@ -87,8 +114,22 @@ export async function writeTtsCache(entry: {
     hits: 0,
     textPreview: entry.textPreview,
     voiceLabel: entry.voiceLabel,
+    sessionId: entry.sessionId,
   });
   await evictTtsCache();
+}
+
+/** 按「音色无关键」找最近一条旧音频，用于换音色后沿用 */
+export async function findTtsCacheByAgnosticKey(
+  agnosticKey: string
+): Promise<TtsCacheEntry | null> {
+  const list = await db.ttsCache.where('agnosticKey').equals(agnosticKey).toArray();
+  if (list.length === 0) return null;
+  const latest = list.reduce((a, b) => (b.lastUsedAt > a.lastUsedAt ? b : a));
+  void db.ttsCache
+    .update(latest.key, { lastUsedAt: Date.now(), hits: (latest.hits || 0) + 1 })
+    .catch(() => undefined);
+  return latest;
 }
 
 /** 按 LRU 清理到容量之内，返回删掉的条数 */
@@ -117,6 +158,46 @@ export async function getTtsCacheStats(): Promise<{ count: number; bytes: number
     count: all.length,
     bytes: all.reduce((sum, item) => sum + item.bytes, 0),
   };
+}
+
+export interface TtsCacheGroup {
+  sessionId: string | null;
+  count: number;
+  bytes: number;
+  lastUsedAt: number;
+  sample: string;
+}
+
+/** 按会话聚合，供「选择删掉哪一场对话的语音」使用 */
+export async function getTtsCacheGroups(): Promise<TtsCacheGroup[]> {
+  const all = await db.ttsCache.toArray();
+  const map = new Map<string | null, TtsCacheGroup>();
+
+  for (const entry of all) {
+    const sessionId = entry.sessionId || null;
+    const group =
+      map.get(sessionId) ??
+      ({ sessionId, count: 0, bytes: 0, lastUsedAt: 0, sample: '' } satisfies TtsCacheGroup);
+    group.count += 1;
+    group.bytes += entry.bytes;
+    group.lastUsedAt = Math.max(group.lastUsedAt, entry.lastUsedAt);
+    if (!group.sample && entry.textPreview) group.sample = entry.textPreview;
+    map.set(sessionId, group);
+  }
+
+  return Array.from(map.values()).sort((a, b) => b.lastUsedAt - a.lastUsedAt);
+}
+
+/** 删除某一场对话的语音缓存；传 null 表示清理没有会话归属的散条 */
+export async function deleteTtsCacheBySession(sessionId: string | null): Promise<number> {
+  const all = await db.ttsCache.toArray();
+  const doomed = all
+    .filter((entry) => (entry.sessionId || null) === sessionId)
+    .map((entry) => entry.key);
+  if (doomed.length > 0) {
+    await db.ttsCache.bulkDelete(doomed);
+  }
+  return doomed.length;
 }
 
 export async function clearTtsCache(): Promise<void> {

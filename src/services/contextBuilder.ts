@@ -172,6 +172,11 @@ export function buildRoleCharacterPrompt(params: {
         world ? `（所属作品：《${world.name}》${world.genre ? ` · ${world.genre}` : ''}）` : ''
       }。除非用户在正文中要求跳出视角，否则不要以“AI助手”口吻自称或说教。`
     );
+    // 动作/神态写进括号，朗读时才能被正确剥离；否则模型常把旁白写成裸行，
+    // 「意味深长地笑」这种动作就会被当成台词念出来。
+    lines.push(
+      '【输出格式】\n动作、神态、心理与环境描写一律写在全角括号（）内；括号外只写角色说出口的台词，不要在括号外写旁白。'
+    );
 
     const profile: string[] = [];
     if (character.identity) profile.push(`- 身份定位：${character.identity}`);

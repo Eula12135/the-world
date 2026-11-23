@@ -15,7 +15,13 @@ import {
   splitSpeechChunks,
   stripMarkdownForSpeech,
 } from './textUtils';
-import { buildTtsSpeechCacheKey, readTtsCache, writeTtsCache } from './ttsCache';
+import {
+  buildTtsSpeechCacheKey,
+  buildTtsVoiceAgnosticKey,
+  findTtsCacheByAgnosticKey,
+  readTtsCache,
+  writeTtsCache,
+} from './ttsCache';
 
 export function buildTtsSpeechPayload(params: {
   model: string;
@@ -145,10 +151,12 @@ export async function speakText(params: {
   providers: ProviderConfig[];
   profile?: VoiceProfile | null;
   voiceOverride?: string;
+  /** 语音缓存归属的会话，用于按会话选择性清理 */
+  sessionId?: string;
   onEnd?: () => void;
   onError?: (msg: string) => void;
 }): Promise<void> {
-  const { text, config, providers, profile, voiceOverride, onEnd, onError } = params;
+  const { text, config, providers, profile, voiceOverride, sessionId, onEnd, onError } = params;
   const effective = resolveEffectiveVoiceConfig(config, profile);
   const cleanText = stripMarkdownForSpeech(text);
   if (!cleanText) {
@@ -356,15 +364,19 @@ export async function speakText(params: {
      * 所以换音色、换模型、改语气、编辑消息都会自然变成未命中，重新合成。
      */
     const synthesize = async (chunkText: string): Promise<SynthBin> => {
-      const cacheKey = buildTtsSpeechCacheKey({
+      const sharedParts = {
         baseUrl: isBreezeCloud ? breezeBase : cleanBase,
         model,
-        voice: isBreezeCloud ? breezeVoiceId : ttsVoice,
         synthRate: speedHandledByServer ? rate : 1,
         gain: effective.ttsGain ?? 0,
         styleInstruction: effective.ttsStyleInstruction || '',
         text: chunkText,
+      };
+      const cacheKey = buildTtsSpeechCacheKey({
+        ...sharedParts,
+        voice: isBreezeCloud ? breezeVoiceId : ttsVoice,
       });
+      const agnosticKey = buildTtsVoiceAgnosticKey(sharedParts);
 
       try {
         const hit = await readTtsCache(cacheKey);
@@ -377,6 +389,19 @@ export async function speakText(params: {
             errorText: '',
           };
         }
+        // 用户选择「换音色后沿用旧语音」时，用无音色键兜底，省一次额度
+        if (config.ttsCacheKeepOldVoice) {
+          const fallback = await findTtsCacheByAgnosticKey(agnosticKey);
+          if (fallback) {
+            return {
+              ok: true,
+              status: 200,
+              contentType: fallback.contentType,
+              base64: fallback.base64,
+              errorText: '',
+            };
+          }
+        }
       } catch {
         // 缓存读失败就当未命中，不能因为缓存问题导致读不出来
       }
@@ -385,10 +410,12 @@ export async function speakText(params: {
       if (bin.ok && bin.base64) {
         void writeTtsCache({
           key: cacheKey,
+          agnosticKey,
           base64: bin.base64,
           contentType: bin.contentType,
           textPreview: chunkText.slice(0, 40),
           voiceLabel: isBreezeCloud ? breezeVoiceId : ttsVoice,
+          sessionId,
         }).catch(() => undefined);
       }
       return bin;

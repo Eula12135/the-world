@@ -349,6 +349,8 @@ describe('buildSessionSystemPrompt (progressive disclosure + temporal + rolling 
     expect(roleRes.prompt).toContain('对 苏岚：疏离敌对');
     expect(roleRes.prompt).toContain('此时你正在修理导航仪');
     expect(roleRes.prompt).not.toContain('清晰、理性且富有洞察力的 AI 助手');
+    // 动作必须写进括号，否则朗读时剥不掉
+    expect(roleRes.prompt).toContain('【输出格式】');
   });
 
   it('omits character relations when includeCharacters is false and handles stale selectedSections in full mode', () => {

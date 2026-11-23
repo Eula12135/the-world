@@ -115,6 +115,7 @@ export const MessageItem: React.FC<MessageItemProps> = React.memo(({
       config: voiceSettings,
       providers,
       profile: voiceProfile,
+      sessionId: message.sessionId,
       // 绑定了音色档案时以档案为准；只有在没有档案时才用旧的自定义音色 ID 兜底，
       // 否则角色卡上残留的 voiceName 会盖掉用户精心调好的档案。
       voiceOverride: voiceProfile
@@ -145,11 +146,14 @@ export const MessageItem: React.FC<MessageItemProps> = React.memo(({
     setSpeakingMessageId(message.id);
     const profileId = userIdentity?.voiceProfileId || voiceSettings.activeVoiceProfileId;
     const profile = profileId ? voiceProfiles.find((vp) => vp.id === profileId) : undefined;
+    // 角色扮演时「我」的消息也可能带（动作描写），朗读前同样要剥掉
+    const isRoleplay = Boolean(roleCharacter || personaPreset || userIdentity);
     await speakText({
-      text: message.content,
+      text: isRoleplay ? stripActionsForSpeech(message.content) : message.content,
       config: voiceSettings,
       providers,
       profile,
+      sessionId: message.sessionId,
       voiceOverride: profile ? undefined : userIdentity?.voiceName,
       onEnd: () => {
         if (useAppStore.getState().speakingMessageId === message.id) {

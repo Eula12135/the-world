@@ -64,6 +64,8 @@ export type TtsAutoPlayTarget = 'assistant' | 'user' | 'both';
 export interface TtsCacheEntry {
   /** 影响合成结果的参数 + 文本的哈希，见 services/voice/ttsCache.ts */
   key: string;
+  /** 不含音色的同源键，用于「换音色后沿用旧语音、不重新消耗额度」 */
+  agnosticKey?: string;
   base64: string;
   contentType: string;
   /** 近似占用（base64 字符数），用于容量上限与清理 */
@@ -75,6 +77,8 @@ export interface TtsCacheEntry {
   /** 便于排查：这段缓存对应哪句话 */
   textPreview: string;
   voiceLabel: string;
+  /** 所属会话，用于按会话选择性清理 */
+  sessionId?: string;
 }
 
 export interface VoiceConfig {
@@ -82,6 +86,11 @@ export interface VoiceConfig {
   ttsAutoPlay: boolean;
   /** 自动朗读只读哪一侧；缺省按 'assistant' 处理，兼容旧数据 */
   ttsAutoPlayTarget?: TtsAutoPlayTarget;
+  /**
+   * 换音色后是否沿用旧语音缓存。
+   * 默认 false（重新合成，声音是对的但要花额度）；开启后省额度但会播出旧音色。
+   */
+  ttsCacheKeepOldVoice?: boolean;
   ttsEngine: TtsEngine;
   ttsRate: number;
   ttsPitch: number;

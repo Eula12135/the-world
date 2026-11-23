@@ -17,9 +17,24 @@ const TONE_CUE_RE =
 
 const CJK_CHAR_RE = /[\u4e00-\u9fff]/;
 
+/**
+ * 旁白/动作提示词。和上面两类分开是因为它更宽：只要命中就说明这句不是台词。
+ * 典型漏网案例：「（意味深长的笑）」——没有「笑容」两个字，不含标点，长度也短，
+ * 旧逻辑会掉进「台词」分支，于是被 TTS 当成一句念出来。
+ */
+const NARRATION_CUE_RE =
+  /笑|笑意|神情|神色|表情|眉|眼|目光|视线|唇角|嘴角|沉默|颔首|深吸|呼出|语气|声线|姿态|动作|表情复杂|欲言又止/;
+
+/** 以引号开口的内容按台词处理，避免把「（"好啊"）」误判成旁白 */
+const LEADING_QUOTE_RE = /^[“”"「」『』]/;
+
 export function classifyParenthetical(inner: string): RoleplaySegmentKind {
   const clean = inner.trim();
   if (!clean) return 'dialogue';
+
+  if (LEADING_QUOTE_RE.test(clean)) {
+    return 'dialogue';
+  }
 
   if (PHYSICAL_ACTION_RE.test(clean)) {
     return 'action';
@@ -27,6 +42,10 @@ export function classifyParenthetical(inner: string): RoleplaySegmentKind {
 
   if (TONE_CUE_RE.test(clean) && clean.length <= 20) {
     return 'tone';
+  }
+
+  if (NARRATION_CUE_RE.test(clean)) {
+    return 'action';
   }
 
   if (/[，。；,;]/.test(clean) || (clean.length >= 10 && CJK_CHAR_RE.test(clean))) {
@@ -161,6 +180,21 @@ export function parseRoleplayContent(content: string): {
   return { hasActions, hasTones, blocks };
 }
 
+/**
+ * 整行旁白判定：模型有时不加括号，直接写「特蕾娜意味深长的笑了一下。」
+ * 这种行没有引号、没有冒号、含旁白词、以句号收尾且很短，朗读时应当跳过。
+ * 含「你/我」的行一律保留 —— 那多半是台词（"你笑起来真好看"）。
+ */
+function isNarrationOnlyLine(line: string): boolean {
+  if (line.length > 24) return false;
+  if (/[“”"「」『』：:]/.test(line)) return false;
+  if (/[你我]/.test(line)) return false;
+  if (!NARRATION_CUE_RE.test(line)) return false;
+  // 常见于模型把动作写成裸行：「意味深长地笑」没有句号，但要按「以动作词收尾」识别
+  if ((/。$|……$/.test(line))) return true;
+  return /(?:地)?(?:笑|叹气|沉默|点头|摇头|皱眉|蹙眉|垂眸|抬眼|挑眉|转身|颔首)$/.test(line);
+}
+
 export function stripActionsForSpeech(content: string): string {
   if (!content || content.includes('```') || /(?:^|\n)\|/.test(content)) {
     return content;
@@ -172,7 +206,10 @@ export function stripActionsForSpeech(content: string): string {
   for (const line of lines) {
     const tokens = scanParentheticals(line);
     if (tokens.length === 0) {
-      if (line.trim()) keptLines.push(line.trim());
+      const trimmed = line.trim();
+      if (!trimmed) continue;
+      if (isNarrationOnlyLine(trimmed)) continue;
+      keptLines.push(trimmed);
       continue;
     }
 

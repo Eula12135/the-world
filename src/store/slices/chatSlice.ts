@@ -210,14 +210,18 @@ export const createChatSlice: AppSliceCreator<ChatSlice> = (set, get) => ({
           ? get().voiceProfiles.find((vp) => vp.id === userProfileId)
           : undefined;
         const userVoiceOverride = userProfile ? undefined : identity?.voiceName;
+        const isRoleplaySession =
+          session.chatMode === 'character_role' || session.chatMode === 'custom_persona';
+        const userSpeechText = isRoleplaySession ? stripActionsForSpeech(trimmed) : trimmed;
         enqueueAutoPlay(async () => {
           set({ speakingMessageId: userMsg.id });
           await speakText({
-            text: trimmed,
+            text: userSpeechText,
             config: voiceCfg,
             providers: get().providers,
             profile: userProfile,
             voiceOverride: userVoiceOverride,
+            sessionId: targetSessionId || undefined,
             onEnd: () => {
               if (get().speakingMessageId === userMsg.id) {
                 set({ speakingMessageId: null });
@@ -382,6 +386,7 @@ export const createChatSlice: AppSliceCreator<ChatSlice> = (set, get) => ({
                   providers: get().providers,
                   profile: voiceProfile,
                   voiceOverride,
+                  sessionId: targetSessionId || undefined,
                   onEnd: () => {
                     if (get().speakingMessageId === finalMsg.id) {
                       set({ speakingMessageId: null });

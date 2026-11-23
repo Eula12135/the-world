@@ -3,8 +3,12 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { db } from '../db/database';
 import {
   buildTtsSpeechCacheKey,
+  buildTtsVoiceAgnosticKey,
   clearTtsCache,
+  deleteTtsCacheBySession,
   evictTtsCache,
+  findTtsCacheByAgnosticKey,
+  getTtsCacheGroups,
   getTtsCacheStats,
   readTtsCache,
   TTS_CACHE_MAX_ENTRIES,
@@ -124,5 +128,84 @@ describe('ttsCache storage & LRU', () => {
     });
     await clearTtsCache();
     expect((await getTtsCacheStats()).count).toBe(0);
+  });
+});
+
+describe('换音色沿用旧语音 / 按会话清理', () => {
+  const agnosticParts = {
+    baseUrl: 'https://api.example.com/v1',
+    model: 'tts-1',
+    synthRate: 1,
+    gain: 0,
+    styleInstruction: '',
+    text: '你好，我是林澈。',
+  };
+
+  beforeEach(async () => {
+    await db.ttsCache.clear();
+  });
+
+  it('builds the same agnostic key across voices, but a different one across text', () => {
+    const a = buildTtsVoiceAgnosticKey(agnosticParts);
+    expect(buildTtsVoiceAgnosticKey({ ...agnosticParts })).toBe(a);
+    expect(buildTtsVoiceAgnosticKey({ ...agnosticParts, text: '再见。' })).not.toBe(a);
+  });
+
+  it('recovers the old audio through the agnostic key', async () => {
+    const agnosticKey = buildTtsVoiceAgnosticKey(agnosticParts);
+    await writeTtsCache({
+      key: 'old-voice',
+      agnosticKey,
+      base64: 'OLD',
+      contentType: 'audio/mpeg',
+      textPreview: '你好，我是林澈。',
+      voiceLabel: 'old',
+    });
+    expect((await findTtsCacheByAgnosticKey(agnosticKey))?.base64).toBe('OLD');
+    expect(await findTtsCacheByAgnosticKey('nope')).toBeNull();
+  });
+
+  it('groups by conversation and deletes one group at a time', async () => {
+    await writeTtsCache({
+      key: 'a',
+      base64: 'A',
+      contentType: 'audio/mpeg',
+      textPreview: 'a',
+      voiceLabel: 'v',
+      sessionId: 's1',
+    });
+    await writeTtsCache({
+      key: 'b',
+      base64: 'B',
+      contentType: 'audio/mpeg',
+      textPreview: 'b',
+      voiceLabel: 'v',
+      sessionId: 's1',
+    });
+    await writeTtsCache({
+      key: 'c',
+      base64: 'C',
+      contentType: 'audio/mpeg',
+      textPreview: 'c',
+      voiceLabel: 'v',
+      sessionId: 's2',
+    });
+    await writeTtsCache({
+      key: 'd',
+      base64: 'D',
+      contentType: 'audio/mpeg',
+      textPreview: 'd',
+      voiceLabel: 'v',
+    });
+
+    const groups = await getTtsCacheGroups();
+    expect(groups).toHaveLength(3);
+    expect(groups.find((g) => g.sessionId === 's1')?.count).toBe(2);
+    expect(groups.find((g) => g.sessionId === null)?.count).toBe(1);
+
+    expect(await deleteTtsCacheBySession('s1')).toBe(2);
+    expect((await getTtsCacheStats()).count).toBe(2);
+    expect(await db.ttsCache.get('a')).toBeUndefined();
+    expect(await db.ttsCache.get('c')).toBeDefined();
   });
 });

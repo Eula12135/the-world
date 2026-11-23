@@ -93,4 +93,31 @@ describe('dialogueParser', () => {
     const onlyAction = '（微微颔首，转身离开）';
     expect(stripActionsForSpeech(onlyAction)).toBe(onlyAction);
   });
+
+  it('treats short narrative parentheticals as actions instead of reading them aloud', () => {
+    // 曾经的漏网案例：「（意味深长的笑）」没有「笑容」、不含标点、长度也短，
+    // 会被判成台词然后被 TTS 念出来
+    expect(classifyParenthetical('意味深长的笑')).toBe('action');
+    expect(classifyParenthetical('沉默')).toBe('action');
+    expect(classifyParenthetical('“好啊”')).toBe('dialogue');
+
+    const sample = '（意味深长的笑）你倒是说说看。';
+    expect(parseRoleplayContent(sample).blocks[0]).toEqual({
+      kind: 'action',
+      text: '意味深长的笑',
+    });
+    expect(stripActionsForSpeech(sample)).toBe('你倒是说说看。');
+  });
+
+  it('drops bare narration lines but keeps lines that look like speech', () => {
+    expect(stripActionsForSpeech('特蕾娜意味深长的笑了一下。\n“你来了。”')).toBe('“你来了。”');
+    // 含「你/我」的行按台词保留
+    expect(stripActionsForSpeech('你笑起来真好看。')).toBe('你笑起来真好看。');
+    // 模型把动作写成裸行、还带「地」的情况（真机抓到的原文）
+    expect(stripActionsForSpeech('意味深长地笑\n“当然，我可是不会帮忙的哦。”')).toBe(
+      '“当然，我可是不会帮忙的哦。”'
+    );
+    // 以动作词收尾但含「你/我」的，仍然保留
+    expect(stripActionsForSpeech('我意味深长地笑')).toBe('我意味深长地笑');
+  });
 });

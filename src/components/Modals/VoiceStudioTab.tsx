@@ -14,7 +14,13 @@ import {
   Wand2,
 } from 'lucide-react';
 import { useAppStore } from '../../store/useAppStore';
-import { clearTtsCache, getTtsCacheStats } from '../../services/voice/ttsCache';
+import {
+  clearTtsCache,
+  deleteTtsCacheBySession,
+  getTtsCacheGroups,
+  getTtsCacheStats,
+  type TtsCacheGroup,
+} from '../../services/voice/ttsCache';
 import type {
   MediaProviderCredential,
   TtsAutoPlayTarget,
@@ -87,6 +93,8 @@ export const VoiceStudioTab: React.FC<VoiceStudioTabProps> = ({
 
   const [showVoiceKey, setShowVoiceKey] = useState(false);
   const [cacheStats, setCacheStats] = useState<{ count: number; bytes: number } | null>(null);
+  const [cacheGroups, setCacheGroups] = useState<TtsCacheGroup[]>([]);
+  const [cacheManagerOpen, setCacheManagerOpen] = useState(false);
   const [nativeVoices, setNativeVoices] = useState<SpeechSynthesisVoice[]>(() => listNativeVoices());
   const [styleBriefCharacterId, setStyleBriefCharacterId] = useState(() =>
     pendingVoiceBindTarget?.kind === 'character' ? pendingVoiceBindTarget.characterId : ''
@@ -341,7 +349,26 @@ export const VoiceStudioTab: React.FC<VoiceStudioTabProps> = ({
   const handleClearTtsCache = async () => {
     await clearTtsCache();
     setCacheStats(await getTtsCacheStats());
+    setCacheGroups([]);
+    setCacheManagerOpen(false);
     showToast('语音缓存已清空', 'success');
+  };
+
+  const refreshTtsCache = async () => {
+    const [stats, groups] = await Promise.all([getTtsCacheStats(), getTtsCacheGroups()]);
+    setCacheStats(stats);
+    setCacheGroups(groups);
+  };
+
+  const handleToggleCacheManager = async () => {
+    if (!cacheManagerOpen) await refreshTtsCache();
+    setCacheManagerOpen((v) => !v);
+  };
+
+  const handleDeleteCacheGroup = async (sessionId: string | null) => {
+    await deleteTtsCacheBySession(sessionId);
+    await refreshTtsCache();
+    showToast('已删除该场对话的语音缓存', 'success');
   };
 
   useEffect(() => {
@@ -740,6 +767,22 @@ export const VoiceStudioTab: React.FC<VoiceStudioTabProps> = ({
               <option value="both">两边都读</option>
             </select>
           </label>
+          <label
+            className={`flex items-center gap-2 text-secondary ${
+              draftVoice.ttsAutoPlay ? '' : 'opacity-45'
+            }`}
+            title="开启后，换了音色仍会重用旧音频缓存，省额度但播出的是旧音色"
+          >
+            <input
+              type="checkbox"
+              checked={Boolean(draftVoice.ttsCacheKeepOldVoice)}
+              onChange={(e) =>
+                void handleQuickVoicePatch({ ttsCacheKeepOldVoice: e.target.checked })
+              }
+              className="accent-[var(--accent)]"
+            />
+            <span className="text-[12px] whitespace-nowrap">换音色后沿用旧语音</span>
+          </label>
           {activeDefaultProfile && (
             <span className="text-[11.5px] px-2.5 py-0.5 rounded-full bg-accent-soft text-accent border border-accent/25">
               当前默认：{activeDefaultProfile.name}
@@ -750,6 +793,13 @@ export const VoiceStudioTab: React.FC<VoiceStudioTabProps> = ({
               <span>
                 语音缓存 {cacheStats.count} 条 · {formatCacheBytes(cacheStats.bytes)}
               </span>
+              <button
+                type="button"
+                onClick={() => void handleToggleCacheManager()}
+                className="underline hover:text-accent cursor-pointer"
+              >
+                {cacheManagerOpen ? '收起' : '按对话管理'}
+              </button>
               <button
                 type="button"
                 onClick={() => void handleClearTtsCache()}
@@ -800,6 +850,54 @@ export const VoiceStudioTab: React.FC<VoiceStudioTabProps> = ({
           </button>
         </div>
       </div>
+
+      {cacheManagerOpen && (
+        <div className="p-3 rounded-2xl bg-sidebar border border-line space-y-2">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-[12px] font-medium text-secondary">
+              按对话清理语音缓存
+            </span>
+            <span className="text-[11px] text-dim">
+              共 {cacheStats?.count ?? 0} 条 · {formatCacheBytes(cacheStats?.bytes ?? 0)}
+            </span>
+          </div>
+          {cacheGroups.length === 0 ? (
+            <p className="text-[11.5px] text-dim">还没有可清理的缓存。</p>
+          ) : (
+            <div className="rounded-xl border border-line bg-canvas divide-y divide-line overflow-hidden">
+              {cacheGroups.map((group) => {
+                const sessionTitle = group.sessionId
+                  ? sessions.find((s) => s.id === group.sessionId)?.title || '已删除的对话'
+                  : '未归属对话（较早的朗读）';
+                return (
+                  <div
+                    key={group.sessionId ?? '__none__'}
+                    className="flex items-center justify-between gap-3 px-2.5 py-2"
+                  >
+                    <div className="min-w-0">
+                      <div className="text-[12px] text-ink truncate">{sessionTitle}</div>
+                      <div className="text-[11px] text-dim truncate">
+                        {group.count} 条 · {formatCacheBytes(group.bytes)}
+                        {group.sample ? ` · ${group.sample.slice(0, 16)}…` : ''}
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => void handleDeleteCacheGroup(group.sessionId)}
+                      className="shrink-0 text-[11.5px] text-dim hover:text-red-500 underline cursor-pointer"
+                    >
+                      删除
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+          <p className="text-[11px] text-dim">
+            删除后，对应消息再点「朗读」会重新请求合成（会消耗额度）。
+          </p>
+        </div>
+      )}
 
       {/* SUBTAB 1: Saved Voice Library */}
       {voiceStudioSubTab === 'library' && (
