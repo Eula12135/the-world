@@ -33,14 +33,28 @@ const LEADING_QUOTE_RE = /^[“”"「」『』]/;
  *
  * 旁白要整句丢掉，但「噗的一下笑出来」这种句子里真正该被念出来的是「噗」——
  * 那是一个声音，不是一句描述。所以丢描述、留拟声。
+ *
+ * 单字（呵 / 嘶 / 咳 / 哼…）容易误伤「呵斥」「嘶哑」这类普通词，
+ * 所以只认后面紧跟停顿、或「了/地/的/着」的单个字（见 extractVoiceableSound）。
  */
 const VOICEABLE_SOUND_RE =
-  /哈哈哈+|哈哈|嘿嘿|呵呵|噗嗤|噗|嘻嘻|嘻|哼哼|哼|嘁|啧啧|啧|唔|嗯+|唉|哎呀|哎哟|哇塞|哇|咳咳|咳|嗷呜|嗷|嘶|呵/;
+  /哈哈哈+|哈哈|嘿嘿|呵呵|噗嗤|噗|嘻嘻|嘻|哼哼|哼|嘁|啧啧|啧|唔|嗯+|唉|哎呀|哎哟|哇塞|哇|咳咳|咳|嗷呜|嗷|嘶|呵/g;
 
 /** 取句子里的第一个拟声词；没有就返回空串 */
 export function extractVoiceableSound(text: string): string {
-  const match = text.match(VOICEABLE_SOUND_RE);
-  return match ? match[0] : '';
+  VOICEABLE_SOUND_RE.lastIndex = 0;
+  let match: RegExpExecArray | null;
+  while ((match = VOICEABLE_SOUND_RE.exec(text)) !== null) {
+    const sound = match[0];
+    if (sound.length === 1) {
+      const next = text[match.index + 1] || '';
+      // 单字后面还跟着实词，说明它只是某个词的一部分（呵斥 / 嘶哑 / 咳声）
+      const isPartOfWord = Boolean(next) && /[\u4e00-\u9fff]/.test(next) && !/[了地着的]/.test(next);
+      if (isPartOfWord) continue;
+    }
+    return sound;
+  }
+  return '';
 }
 
 export function classifyParenthetical(inner: string): RoleplaySegmentKind {

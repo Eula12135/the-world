@@ -132,4 +132,14 @@ describe('dialogueParser', () => {
     expect(stripActionsForSpeech('（噗嗤）你来了。')).toBe('噗嗤，你来了。');
     expect(stripActionsForSpeech('（轻叹）你总是这样。')).toBe('你总是这样。');
   });
+
+  it('does not pull a single character out of an ordinary word', () => {
+    // 「呵斥」「嘶哑」里的单字不是声音
+    expect(extractVoiceableSound('轻声呵斥')).toBe('');
+    expect(extractVoiceableSound('嘶哑着嗓子')).toBe('');
+    expect(stripActionsForSpeech('（轻声呵斥）你再说一遍。')).toBe('你再说一遍。');
+    // 跟随停顿或「了/地/的/着」的单字才算拟声
+    expect(extractVoiceableSound('哼了一声')).toBe('哼');
+    expect(extractVoiceableSound('噗的一下')).toBe('噗');
+  });
 });

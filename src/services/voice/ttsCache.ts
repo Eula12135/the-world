@@ -132,19 +132,29 @@ export async function findTtsCacheByAgnosticKey(
   return latest;
 }
 
-/** 按 LRU 清理到容量之内，返回删掉的条数 */
+/**
+ * 按 LRU 清理到容量之内，返回删掉的条数。
+ *
+ * 用 `.each()` 流式遍历，避免把整张表（每条都带 base64）一次性读进内存 ——
+ * Android WebView 上缓存接近上限时，`toArray()` 会有明显的瞬时内存尖峰。
+ */
 export async function evictTtsCache(): Promise<number> {
-  const all = await db.ttsCache.orderBy('lastUsedAt').toArray();
-  let totalBytes = all.reduce((sum, item) => sum + item.bytes, 0);
-  let count = all.length;
+  let count = 0;
+  let totalBytes = 0;
+  await db.ttsCache.each((entry) => {
+    count += 1;
+    totalBytes += entry.bytes;
+  });
+
+  if (count <= TTS_CACHE_MAX_ENTRIES && totalBytes <= TTS_CACHE_MAX_BYTES) return 0;
 
   const doomed: string[] = [];
-  for (const item of all) {
-    if (count <= TTS_CACHE_MAX_ENTRIES && totalBytes <= TTS_CACHE_MAX_BYTES) break;
-    doomed.push(item.key);
-    totalBytes -= item.bytes;
+  await db.ttsCache.orderBy('lastUsedAt').each((entry) => {
+    if (count <= TTS_CACHE_MAX_ENTRIES && totalBytes <= TTS_CACHE_MAX_BYTES) return;
+    doomed.push(entry.key);
     count -= 1;
-  }
+    totalBytes -= entry.bytes;
+  });
 
   if (doomed.length > 0) {
     await db.ttsCache.bulkDelete(doomed);
@@ -153,11 +163,13 @@ export async function evictTtsCache(): Promise<number> {
 }
 
 export async function getTtsCacheStats(): Promise<{ count: number; bytes: number }> {
-  const all = await db.ttsCache.toArray();
-  return {
-    count: all.length,
-    bytes: all.reduce((sum, item) => sum + item.bytes, 0),
-  };
+  let count = 0;
+  let bytes = 0;
+  await db.ttsCache.each((entry) => {
+    count += 1;
+    bytes += entry.bytes;
+  });
+  return { count, bytes };
 }
 
 export interface TtsCacheGroup {
@@ -170,10 +182,9 @@ export interface TtsCacheGroup {
 
 /** 按会话聚合，供「选择删掉哪一场对话的语音」使用 */
 export async function getTtsCacheGroups(): Promise<TtsCacheGroup[]> {
-  const all = await db.ttsCache.toArray();
   const map = new Map<string | null, TtsCacheGroup>();
 
-  for (const entry of all) {
+  await db.ttsCache.each((entry) => {
     const sessionId = entry.sessionId || null;
     const group =
       map.get(sessionId) ??
@@ -183,21 +194,25 @@ export async function getTtsCacheGroups(): Promise<TtsCacheGroup[]> {
     group.lastUsedAt = Math.max(group.lastUsedAt, entry.lastUsedAt);
     if (!group.sample && entry.textPreview) group.sample = entry.textPreview;
     map.set(sessionId, group);
-  }
+  });
 
   return Array.from(map.values()).sort((a, b) => b.lastUsedAt - a.lastUsedAt);
 }
 
 /** 删除某一场对话的语音缓存；传 null 表示清理没有会话归属的散条 */
 export async function deleteTtsCacheBySession(sessionId: string | null): Promise<number> {
-  const all = await db.ttsCache.toArray();
-  const doomed = all
-    .filter((entry) => (entry.sessionId || null) === sessionId)
-    .map((entry) => entry.key);
-  if (doomed.length > 0) {
-    await db.ttsCache.bulkDelete(doomed);
+  // 有会话归属时直接走索引取主键，不必把 base64 读出来
+  if (sessionId) {
+    const keys = await db.ttsCache.where('sessionId').equals(sessionId).primaryKeys();
+    if (keys.length > 0) await db.ttsCache.bulkDelete(keys);
+    return keys.length;
   }
-  return doomed.length;
+
+  const keys = await db.ttsCache
+    .filter((entry) => !entry.sessionId)
+    .primaryKeys();
+  if (keys.length > 0) await db.ttsCache.bulkDelete(keys);
+  return keys.length;
 }
 
 export async function clearTtsCache(): Promise<void> {
