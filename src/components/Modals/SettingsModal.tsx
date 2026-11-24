@@ -5,10 +5,13 @@ import {
   ChevronRight,
   Download,
   ExternalLink,
+  Image as ImageIcon,
+  KeyRound,
   Loader2,
   Lock,
   RefreshCw,
   ShieldCheck,
+  Volume2,
   X,
 } from 'lucide-react';
 import { useAppStore } from '../../store/useAppStore';
@@ -22,7 +25,7 @@ import {
   startInAppAndroidUpdate,
   type UpdateCheckResult,
 } from '../../services/updateChecker';
-import { openExternalUrl } from '../../utils/platform';
+import { openExternalUrl, isProviderReady } from '../../utils/platform';
 
 const WORLD_CHAR_PRESETS = [
   { label: '3万字', value: 30000 },
@@ -40,13 +43,23 @@ function formatCharLimitBadge(chars: number): string {
 }
 
 export const SettingsModal: React.FC = () => {
-  const { activeModal, setActiveModal, settings, updateSettings, setUpdateNotice } = useAppStore(
+  const {
+    activeModal,
+    setActiveModal,
+    settings,
+    updateSettings,
+    setUpdateNotice,
+    providers,
+    openProvidersModal,
+  } = useAppStore(
     useShallow((s) => ({
       activeModal: s.activeModal,
       setActiveModal: s.setActiveModal,
       settings: s.settings,
       updateSettings: s.updateSettings,
       setUpdateNotice: s.setUpdateNotice,
+      providers: s.providers,
+      openProvidersModal: s.openProvidersModal,
     }))
   );
   const [desktopEncrypted, setDesktopEncrypted] = useState<boolean | null>(null);
@@ -97,6 +110,32 @@ export const SettingsModal: React.FC = () => {
 
   if (activeModal !== 'settings') return null;
 
+  const readyProvider = providers.find((p) => p.enabled && isProviderReady(p));
+  const voiceSummary = settings.voice.ttsEngine === 'native' ? '系统原生' : 'API 音色';
+  const modelRows = [
+    {
+      key: 'llm',
+      icon: <KeyRound className="w-4 h-4" />,
+      label: '文本模型',
+      value: readyProvider?.name || '未配置',
+      onOpen: () => openProvidersModal('llm'),
+    },
+    {
+      key: 'image',
+      icon: <ImageIcon className="w-4 h-4" />,
+      label: '生图模型',
+      value: settings.imageGen.model || '未配置',
+      onOpen: () => openProvidersModal('image'),
+    },
+    {
+      key: 'voice',
+      icon: <Volume2 className="w-4 h-4" />,
+      label: '朗读音色',
+      value: voiceSummary,
+      onOpen: () => openProvidersModal('voice'),
+    },
+  ];
+
   const handleCheckUpdate = async () => {
     setCheckingUpdate(true);
     setCheckErr(null);
@@ -132,6 +171,30 @@ export const SettingsModal: React.FC = () => {
         </div>
 
         <div className="p-4 md:p-5 overflow-y-auto space-y-4 text-[13px]">
+          {/* 模型与声音：原底部「模型」tab 合并进来，作为设置的第一节 */}
+          <section className="space-y-1.5">
+            <div className="px-1 text-[11.5px] text-dim">模型与声音</div>
+            <div className="rounded-xl border border-line bg-card overflow-hidden">
+              {modelRows.map((row, i) => (
+                <button
+                  key={row.key}
+                  type="button"
+                  onClick={row.onOpen}
+                  className={`flex w-full items-center gap-3 px-3.5 py-3 text-left hover:bg-hover cursor-pointer ${
+                    i > 0 ? 'border-t border-line' : ''
+                  }`}
+                >
+                  <span className="text-secondary">{row.icon}</span>
+                  <span className="text-ink">{row.label}</span>
+                  <span className="ml-auto truncate max-w-[45%] text-[11.5px] text-dim">
+                    {row.value}
+                  </span>
+                  <ChevronRight className="w-3.5 h-3.5 shrink-0 text-dim" />
+                </button>
+              ))}
+            </div>
+          </section>
+
           {/* Card 1: Appearance & Model Parameters */}
           <section className="p-4 rounded-xl bg-sidebar border border-line space-y-4">
             <div className="text-[13px] font-semibold text-secondary">外观与对话参数</div>

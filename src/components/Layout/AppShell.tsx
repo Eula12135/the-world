@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import { useShallow } from 'zustand/react/shallow';
-import { BookOpen, KeyRound, MessageSquare, Settings } from 'lucide-react';
+import { BookOpen, MessageSquare, Settings } from 'lucide-react';
 import { useAppStore } from '../../store/useAppStore';
 import { useMobileKeyboardOpen } from '../../utils/keyboard';
 import { isProviderReady } from '../../utils/platform';
@@ -46,7 +46,7 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
         {!keyboardOpen && (
           <nav
             data-testid="mobile-bottom-nav"
-            className="md:hidden shrink-0 grid grid-cols-4 border-t border-line bg-sidebar safe-bottom"
+            className="md:hidden shrink-0 grid grid-cols-3 border-t border-line bg-sidebar safe-bottom"
           >
           <button
             onClick={() => {
@@ -79,29 +79,17 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
           </button>
 
           <button
-            onClick={() => setActiveModal('providers')}
-            className={`relative flex flex-col items-center justify-center py-2 gap-0.5 text-[11.5px] cursor-pointer ${
-              activeModal === 'providers' ? 'text-accent font-medium' : 'text-secondary'
-            }`}
-          >
-            <div className="relative">
-              <KeyRound className="w-4.5 h-4.5" />
-              <span
-                className={`absolute -top-0.5 -right-1 w-2 h-2 rounded-full ${
-                  readyCount > 0 ? 'bg-emerald-500' : 'bg-amber-400'
-                }`}
-              />
-            </div>
-            <span>模型</span>
-          </button>
-
-          <button
             onClick={() => setActiveModal('settings')}
-            className={`flex flex-col items-center justify-center py-2 gap-0.5 text-[11.5px] cursor-pointer ${
+            className={`relative flex flex-col items-center justify-center py-2 gap-0.5 text-[11.5px] cursor-pointer ${
               activeModal === 'settings' ? 'text-accent font-medium' : 'text-secondary'
             }`}
           >
-            <Settings className="w-4.5 h-4.5" />
+            <div className="relative">
+              <Settings className="w-4.5 h-4.5" />
+              {readyCount === 0 && (
+                <span className="absolute -top-0.5 -right-1 w-2 h-2 rounded-full bg-amber-400" />
+              )}
+            </div>
             <span>设置</span>
           </button>
         </nav>

@@ -4,7 +4,6 @@ import {
   BookOpen,
   Download,
   Edit3,
-  KeyRound,
   MessageSquare,
   MoreHorizontal,
   PanelLeftClose,
@@ -203,18 +202,6 @@ export const Sidebar: React.FC = () => {
 
         <div className="flex flex-col items-center gap-2">
           <button
-            onClick={() => setActiveModal('providers')}
-            className="relative w-10 h-10 rounded-xl flex items-center justify-center text-secondary hover:bg-hover hover:text-ink cursor-pointer"
-            title="模型厂商与 API Key"
-          >
-            <KeyRound className="w-4.5 h-4.5" />
-            <span
-              className={`absolute top-2 right-2 w-2 h-2 rounded-full ${
-                configuredCount > 0 ? 'bg-emerald-500' : 'bg-amber-400'
-              }`}
-            />
-          </button>
-          <button
             onClick={() => setActiveModal('dataTransfer')}
             className="w-10 h-10 rounded-xl flex items-center justify-center text-secondary hover:bg-hover hover:text-ink cursor-pointer"
             title="导入 DeepSeek 记录与备份"
@@ -223,10 +210,13 @@ export const Sidebar: React.FC = () => {
           </button>
           <button
             onClick={() => setActiveModal('settings')}
-            className="w-10 h-10 rounded-xl flex items-center justify-center text-secondary hover:bg-hover hover:text-ink cursor-pointer"
-            title="全局设置"
+            className="relative w-10 h-10 rounded-xl flex items-center justify-center text-secondary hover:bg-hover hover:text-ink cursor-pointer"
+            title="全局设置（含模型厂商与 API Key）"
           >
             <Settings className="w-4.5 h-4.5" />
+            {configuredCount === 0 && (
+              <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-amber-400" />
+            )}
           </button>
         </div>
       </nav>
