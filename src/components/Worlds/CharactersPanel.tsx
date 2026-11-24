@@ -34,6 +34,7 @@ import {
 import { RELATION_TYPE_META } from '../../services/temporalGraph';
 import { generateImagePrompt } from '../../services/imagePromptService';
 import { createId, isProviderReady } from '../../utils/platform';
+import { resolveImageFraming } from '../../utils/imageFraming';
 
 /** 清掉空白字段；全空则整个钩子不落库，避免老卡被写入一堆空串 */
 function normalizeUserHook(hook?: Character['userRelation']): Character['userRelation'] {
@@ -95,6 +96,12 @@ export const CharactersPanel: React.FC<{ worldId: string }> = ({ worldId }) => {
   const [previewingVoice, setPreviewingVoice] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // 当前生图尺寸对应的取景，提示词与界面提示共用这一份定义
+  const imgFraming = useMemo(
+    () => resolveImageFraming(settings.imageGen.size),
+    [settings.imageGen.size]
+  );
+
   useEffect(() => {
     if (!editing || !lastCreatedVoiceForTarget) return;
     if (lastCreatedVoiceForTarget.targetKey === `character:${editing.id}`) {
@@ -145,7 +152,9 @@ export const CharactersPanel: React.FC<{ worldId: string }> = ({ worldId }) => {
     setShowUserHookBox(Boolean(normalizeUserHook(char.userRelation)));
     setImgPromptOpen(false);
     setImgError(null);
-    setImgPrompt(buildCharacterImagePrompt(char, targetWorld, settings.imageGen.styleHint));
+    setImgPrompt(
+      buildCharacterImagePrompt(char, targetWorld, settings.imageGen.styleHint, settings.imageGen.size)
+    );
   };
 
   useEffect(() => {
@@ -289,6 +298,7 @@ export const CharactersPanel: React.FC<{ worldId: string }> = ({ worldId }) => {
         model,
         character: editing,
         world: editingWorld,
+        size: settings.imageGen.size,
       });
       if (!text) {
         showToast('模型没有返回有效的画面描述，请重试', 'error');
@@ -307,7 +317,13 @@ export const CharactersPanel: React.FC<{ worldId: string }> = ({ worldId }) => {
   const handleGenerateAvatar = async () => {
     if (!editing) return;
     const promptToUse =
-      imgPrompt.trim() || buildCharacterImagePrompt(editing, editingWorld, settings.imageGen.styleHint);
+      imgPrompt.trim() ||
+      buildCharacterImagePrompt(
+        editing,
+        editingWorld,
+        settings.imageGen.styleHint,
+        settings.imageGen.size
+      );
     if (!imgPrompt.trim()) setImgPrompt(promptToUse);
 
     setGeneratingImg(true);
@@ -440,7 +456,8 @@ export const CharactersPanel: React.FC<{ worldId: string }> = ({ worldId }) => {
                             buildCharacterImagePrompt(
                               editing,
                               editingWorld,
-                              settings.imageGen.styleHint
+                              settings.imageGen.styleHint,
+                              settings.imageGen.size
                             )
                           );
                         }
@@ -489,7 +506,12 @@ export const CharactersPanel: React.FC<{ worldId: string }> = ({ worldId }) => {
                         type="button"
                         onClick={() =>
                           setImgPrompt(
-                            buildCharacterImagePrompt(editing, editingWorld, settings.imageGen.styleHint)
+                            buildCharacterImagePrompt(
+                              editing,
+                              editingWorld,
+                              settings.imageGen.styleHint,
+                              settings.imageGen.size
+                            )
                           )
                         }
                         className="text-dim hover:text-accent hover:underline cursor-pointer"
@@ -498,6 +520,15 @@ export const CharactersPanel: React.FC<{ worldId: string }> = ({ worldId }) => {
                         按设定快速拼装
                       </button>
                     </div>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-1.5 text-[11.5px] text-dim">
+                    <span>当前取景</span>
+                    <span className="px-1.5 py-0.5 rounded bg-accent-soft text-accent font-medium">
+                      {imgFraming.label}
+                    </span>
+                    <span>
+                      （{settings.imageGen.size}，跟随「模型 → 生图模型 → 分辨率尺寸」，已写进提示词）
+                    </span>
                   </div>
                   <textarea
                     rows={3}

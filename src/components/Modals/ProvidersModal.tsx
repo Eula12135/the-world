@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import {
+  Check,
   CheckCircle2,
   ChevronDown,
   ChevronRight,
@@ -11,12 +12,15 @@ import {
   Loader2,
   Plus,
   RefreshCw,
+  Search,
   Sparkles,
   Trash2,
   Volume2,
   X,
   XCircle,
 } from 'lucide-react';
+import { BUILTIN_PROVIDERS } from '../../data/providers';
+import { IMAGE_FRAMINGS } from '../../utils/imageFraming';
 import { useAppStore } from '../../store/useAppStore';
 import type {
   ImageGenConfig,
@@ -58,6 +62,8 @@ export const ProvidersModal: React.FC = () => {
   const [fetchingImgModels, setFetchingImgModels] = useState(false);
   const [statusMsg, setStatusMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [showLlmAdvanced, setShowLlmAdvanced] = useState(false);
+  const [fetchedModels, setFetchedModels] = useState<string[]>([]);
+  const [fetchedModelQuery, setFetchedModelQuery] = useState('');
 
   const [draftImg, setDraftImg] = useState<ImageGenConfig>(settings.imageGen);
   const [showImgKey, setShowImgKey] = useState(false);
@@ -80,6 +86,8 @@ export const ProvidersModal: React.FC = () => {
   useEffect(() => {
     setStatusMsg(null);
     setShowLlmAdvanced(false);
+    setFetchedModels([]);
+    setFetchedModelQuery('');
   }, [activeModal, selectedId]);
 
   useEffect(() => {
@@ -140,19 +148,58 @@ export const ProvidersModal: React.FC = () => {
         baseUrl: draft.baseUrl.trim(),
         apiKey: draft.apiKey.trim(),
       });
-      const next: ProviderConfig = {
-        ...draft,
-        models,
-        selectedModel: models.includes(draft.selectedModel) ? draft.selectedModel : models[0],
-      };
-      setDraft(next);
-      await saveProvider(next);
-      setStatusMsg({ ok: true, text: `成功拉取 ${models.length} 个可用模型` });
+      setFetchedModels(models);
+      setFetchedModelQuery('');
+      setStatusMsg({
+        ok: true,
+        text: `已拉取 ${models.length} 个远程模型，请在下方勾选要加入已配置列表的模型`,
+      });
     } catch (err) {
       setStatusMsg({ ok: false, text: err instanceof Error ? err.message : '拉取模型失败' });
     } finally {
       setFetchingModels(false);
     }
+  };
+
+  const handleToggleFetchedModel = (modelId: string) => {
+    if (draft.models.includes(modelId)) {
+      if (draft.models.length <= 1) return;
+      const nextModels = draft.models.filter((m) => m !== modelId);
+      setDraft({
+        ...draft,
+        models: nextModels,
+        selectedModel: draft.selectedModel === modelId ? nextModels[0] : draft.selectedModel,
+      });
+    } else {
+      setDraft({
+        ...draft,
+        models: [...draft.models, modelId],
+        selectedModel: draft.selectedModel || modelId,
+      });
+    }
+  };
+
+  const handleKeepOnlySelected = () => {
+    const target =
+      draft.selectedModel && draft.models.includes(draft.selectedModel)
+        ? draft.selectedModel
+        : draft.models[0];
+    if (!target) return;
+    setDraft({
+      ...draft,
+      models: [target],
+      selectedModel: target,
+    });
+  };
+
+  const handleRestoreDefaultModels = () => {
+    const builtin = BUILTIN_PROVIDERS.find((p) => p.id === draft.id);
+    if (!builtin) return;
+    setDraft({
+      ...draft,
+      models: [...builtin.models],
+      selectedModel: builtin.selectedModel,
+    });
   };
 
   const handleAddCustomProvider = async () => {
@@ -556,18 +603,44 @@ export const ProvidersModal: React.FC = () => {
 
                 {/* Card 2: Model Configuration */}
                 <div className="p-3.5 md:p-4 rounded-2xl bg-sidebar border border-line space-y-3">
-                  <div className="flex items-center justify-between gap-2">
-                    <label className="font-medium text-ink">
-                      可用模型（默认：<span className="font-mono text-accent">{draft.selectedModel}</span>）
-                    </label>
-                    <button
-                      onClick={handleFetchModels}
-                      disabled={fetchingModels}
-                      className="flex items-center gap-1 px-2.5 py-1 rounded-lg border border-line bg-canvas text-[12px] text-accent hover:bg-accent-soft cursor-pointer disabled:opacity-50 shrink-0"
-                    >
-                      <RefreshCw className={`w-3 h-3 ${fetchingModels ? 'animate-spin' : ''}`} />
-                      <span>拉取模型</span>
-                    </button>
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <div>
+                      <label className="font-medium text-ink">
+                        已配置模型（默认：<span className="font-mono text-accent">{draft.selectedModel}</span>）
+                      </label>
+                      <p className="mt-0.5 text-[11.5px] text-dim">
+                        主界面下拉框仅显示此处已配置的模型
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-1.5 shrink-0">
+                      {draft.models.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={handleKeepOnlySelected}
+                          className="px-2.5 py-1 rounded-lg border border-line bg-canvas text-[12px] text-secondary hover:text-ink hover:bg-hover cursor-pointer"
+                        >
+                          仅保留当前
+                        </button>
+                      )}
+                      {!draft.isCustom && BUILTIN_PROVIDERS.some((p) => p.id === draft.id) && (
+                        <button
+                          type="button"
+                          onClick={handleRestoreDefaultModels}
+                          className="px-2.5 py-1 rounded-lg border border-line bg-canvas text-[12px] text-secondary hover:text-ink hover:bg-hover cursor-pointer"
+                        >
+                          恢复默认
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={handleFetchModels}
+                        disabled={fetchingModels}
+                        className="flex items-center gap-1 px-2.5 py-1 rounded-lg border border-line bg-canvas text-[12px] text-accent hover:bg-accent-soft cursor-pointer disabled:opacity-50"
+                      >
+                        <RefreshCw className={`w-3 h-3 ${fetchingModels ? 'animate-spin' : ''}`} />
+                        <span>拉取模型</span>
+                      </button>
+                    </div>
                   </div>
 
                   <div className="flex flex-wrap gap-1.5">
@@ -584,6 +657,7 @@ export const ProvidersModal: React.FC = () => {
                         <span className="font-mono">{m}</span>
                         {draft.models.length > 1 && (
                           <button
+                            type="button"
                             onClick={(e) => {
                               e.stopPropagation();
                               const nextModels = draft.models.filter((x) => x !== m);
@@ -603,6 +677,78 @@ export const ProvidersModal: React.FC = () => {
                     ))}
                   </div>
 
+                  {fetchedModels.length > 0 &&
+                    (() => {
+                      const q = fetchedModelQuery.trim().toLowerCase();
+                      const filteredFetched = q
+                        ? fetchedModels.filter((m) => m.toLowerCase().includes(q))
+                        : fetchedModels;
+                      const selectedFetchedCount = fetchedModels.filter((m) =>
+                        draft.models.includes(m)
+                      ).length;
+
+                      return (
+                        <div className="p-3 rounded-xl bg-canvas border border-line space-y-2.5">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-[12px] font-medium text-ink">
+                              远程可用模型（已选 {selectedFetchedCount} / 共 {fetchedModels.length}）
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => setFetchedModels([])}
+                              className="text-[11.5px] text-secondary hover:text-ink cursor-pointer"
+                            >
+                              收起
+                            </button>
+                          </div>
+
+                          <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-sidebar border border-line focus-within:border-accent">
+                            <Search className="w-3.5 h-3.5 text-dim shrink-0" />
+                            <input
+                              value={fetchedModelQuery}
+                              onChange={(e) => setFetchedModelQuery(e.target.value)}
+                              placeholder="搜索拉取的模型 ID..."
+                              className="w-full bg-transparent text-[12px] font-mono text-ink outline-none placeholder:text-dim"
+                            />
+                          </div>
+
+                          <div className="max-h-52 overflow-y-auto space-y-1 pr-0.5">
+                            {filteredFetched.length === 0 ? (
+                              <div className="py-4 text-center text-[12px] text-dim">
+                                没有匹配的远程模型
+                              </div>
+                            ) : (
+                              filteredFetched.map((m) => {
+                                const checked = draft.models.includes(m);
+                                const disabledRemove = checked && draft.models.length <= 1;
+                                return (
+                                  <button
+                                    key={m}
+                                    type="button"
+                                    disabled={disabledRemove}
+                                    onClick={() => handleToggleFetchedModel(m)}
+                                    title={disabledRemove ? '至少保留一个已配置模型' : undefined}
+                                    className={`w-full flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg text-[12px] text-left transition ${
+                                      checked
+                                        ? 'bg-accent-soft text-accent font-medium'
+                                        : 'text-ink hover:bg-hover'
+                                    } ${disabledRemove ? 'opacity-70 cursor-not-allowed' : 'cursor-pointer'}`}
+                                  >
+                                    <span className="truncate font-mono">{m}</span>
+                                    {checked && <Check className="w-3.5 h-3.5 shrink-0" />}
+                                  </button>
+                                );
+                              })
+                            )}
+                          </div>
+
+                          <p className="text-[11px] text-dim">
+                            勾选后请点击下方「保存配置」生效（至少保留 1 个已配置模型）。
+                          </p>
+                        </div>
+                      );
+                    })()}
+
                   <div className="flex gap-2">
                     <input
                       value={newModelInput}
@@ -614,6 +760,7 @@ export const ProvidersModal: React.FC = () => {
                       className="flex-1 px-3 py-2 rounded-xl bg-canvas border border-line text-ink outline-none font-mono text-[12.5px] focus:border-accent"
                     />
                     <button
+                      type="button"
                       onClick={handleAddModel}
                       className="px-3.5 py-2 rounded-xl border border-line bg-canvas text-secondary hover:bg-hover cursor-pointer"
                     >
@@ -918,16 +1065,27 @@ export const ProvidersModal: React.FC = () => {
                 </div>
               </div>
               <div>
-                <label className="block mb-1.5 font-medium text-secondary">分辨率尺寸</label>
+                <label className="block mb-1.5 font-medium text-secondary">
+                  分辨率尺寸（决定取景与构图）
+                </label>
                 <select
                   value={draftImg.size}
                   onChange={(e) => setDraftImg({ ...draftImg, size: e.target.value })}
                   className="w-full px-3 py-2 rounded-xl bg-canvas border border-line text-ink outline-none focus:border-accent"
                 >
-                  <option value="1024x1024">1024x1024（正方形头像）</option>
-                  <option value="768x1024">768x1024（竖版半身立绘）</option>
-                  <option value="1024x768">1024x768（横版场景）</option>
+                  {IMAGE_FRAMINGS.map((framing) => (
+                    <option key={framing.id} value={framing.size}>
+                      {framing.size}（{framing.label}）
+                    </option>
+                  ))}
+                  {draftImg.size && !IMAGE_FRAMINGS.some((f) => f.size === draftImg.size) && (
+                    <option value={draftImg.size}>{draftImg.size}（自定义尺寸）</option>
+                  )}
                 </select>
+                <p className="mt-1.5 text-[11.5px] text-dim">
+                  头像只画头肩、半身到膝盖、横版带背景 —— 取景会写进内置提示词，
+                  避免选了头像却画出全身像。
+                </p>
               </div>
             </div>
 

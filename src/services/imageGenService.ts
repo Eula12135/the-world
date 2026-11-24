@@ -13,6 +13,7 @@ import {
   uint8ArrayToBase64,
 } from './llm';
 import { detectUnreachableLocalhost } from '../utils/platform';
+import { resolveImageFraming } from '../utils/imageFraming';
 
 export interface ImageGenPreset {
   id: string;
@@ -130,6 +131,24 @@ export function resolveMediaApiKey(params: {
 
 const IMAGE_MODEL_PATTERN =
   /cogview|flux|kolors|dall-e|gpt-image|sdxl|stable-diffusion|image|wanx|jimeng|seedream|imagen|ideogram|recraft|qwen-image/i;
+
+export function isGeminiNativeImageModel(baseUrl: string, model: string): boolean {
+  const cleanModel = model.trim().replace(/^models\//i, '');
+  if (!/^gemini-[^/]*image/i.test(cleanModel)) return false;
+  return (
+    extractEndpointHost(baseUrl).includes('generativelanguage.googleapis.com') ||
+    /\/v1beta(?:\/openai)?\/?$/i.test(baseUrl.trim())
+  );
+}
+
+export function buildGeminiGenerateContentUrl(baseUrl: string, model: string): string {
+  let apiBase = baseUrl.trim().replace(/\/+$/, '').replace(/\/openai$/i, '');
+  if (!/\/v1(?:beta)?$/i.test(apiBase)) {
+    apiBase = `${apiBase}/v1beta`;
+  }
+  const cleanModel = model.trim().replace(/^models\//i, '');
+  return `${apiBase}/models/${encodeURIComponent(cleanModel)}:generateContent`;
+}
 
 const GPT_IMAGE_SIZES = ['1024x1024', '1536x1024', '1024x1536'];
 const DALLE3_SIZES = ['1024x1024', '1792x1024', '1024x1792'];
@@ -296,12 +315,14 @@ export function extractVisualTraits(text: string, maxLen: number): string {
 export function buildCharacterImagePrompt(
   character: Character,
   world?: WorldProject | null,
-  styleHint?: string
+  styleHint?: string,
+  size?: string
 ): string {
+  const framing = resolveImageFraming(size);
   const parts: string[] = [];
   if (styleHint?.trim()) parts.push(styleHint.trim());
-  if (world?.genre) parts.push(`${world.genre}题材小说角色立绘`);
-  else parts.push('小说角色半身立绘');
+  if (world?.genre) parts.push(`${world.genre}题材小说${framing.subject}`);
+  else parts.push(`小说${framing.subject}`);
 
   parts.push(`角色姓名：${character.name}`);
 
@@ -314,7 +335,8 @@ export function buildCharacterImagePrompt(
   const temperament = extractVisualTraits(character.personality, 60);
   if (temperament) parts.push(`气质神态：${temperament}`);
 
-  parts.push('单人正面或半侧面特写，构图清晰，光影质感细腻');
+  parts.push(framing.composition);
+  parts.push(framing.avoid);
 
   return parts.join('，');
 }
@@ -388,6 +410,97 @@ export async function compressImageDataToDataUrl(
   });
 }
 
+function extractImageErrorMessage(status: number, text: string): string {
+  let msg = `生图请求失败 (HTTP ${status})`;
+  try {
+    const parsed = JSON.parse(text);
+    if (parsed?.error?.message) msg = parsed.error.message;
+    else if (parsed?.message) msg = parsed.message;
+  } catch {
+    if (text) msg = `${msg}: ${text.slice(0, 160)}`;
+  }
+  return msg;
+}
+
+async function decodeBase64ImageToDataUrl(
+  base64Data: string,
+  mimeType = 'image/png'
+): Promise<string> {
+  const bytes = base64ToUint8Array(base64Data);
+  const blob = new Blob([bytes.buffer as ArrayBuffer], { type: mimeType });
+  return compressImageDataToDataUrl(blob, 512, 0.86);
+}
+
+interface GeminiGenerateImageResponse {
+  candidates?: Array<{
+    content?: {
+      parts?: Array<{
+        text?: string;
+        inlineData?: { mimeType?: string; data?: string };
+        inline_data?: { mime_type?: string; data?: string };
+      }>;
+    };
+  }>;
+  promptFeedback?: {
+    blockReason?: string;
+  };
+}
+
+async function generateGeminiNativeImage(params: {
+  baseUrl: string;
+  apiKey: string;
+  model: string;
+  prompt: string;
+}): Promise<string> {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (params.apiKey) {
+    headers['x-goog-api-key'] = params.apiKey;
+  }
+
+  const resp = await crossPlatformFetchJson({
+    url: buildGeminiGenerateContentUrl(params.baseUrl, params.model),
+    method: 'POST',
+    headers,
+    body: JSON.stringify({
+      contents: [{ parts: [{ text: params.prompt.trim() }] }],
+      generationConfig: { responseModalities: ['IMAGE'] },
+    }),
+  });
+
+  if (!resp.ok) {
+    throw new Error(extractImageErrorMessage(resp.status, resp.text));
+  }
+
+  const parsed = safeJsonParse<GeminiGenerateImageResponse>(
+    resp.text,
+    '生图接口返回了非 JSON 响应'
+  );
+  const parts = (parsed?.candidates || []).flatMap((c) => c?.content?.parts || []);
+  for (const part of parts) {
+    const inlineCamel = part?.inlineData;
+    const inlineSnake = part?.inline_data;
+    const data = (inlineCamel?.data || inlineSnake?.data || '').trim();
+    if (data) {
+      const mimeType = inlineCamel?.mimeType || inlineSnake?.mime_type || 'image/png';
+      return decodeBase64ImageToDataUrl(data, mimeType);
+    }
+  }
+
+  const textSnippet = parts
+    .map((p) => (typeof p?.text === 'string' ? p.text.trim() : ''))
+    .filter(Boolean)
+    .join(' ')
+    .slice(0, 160);
+  if (textSnippet) {
+    throw new Error(`Gemini 生图接口未返回图像数据：${textSnippet}`);
+  }
+  const blockReason = parsed?.promptFeedback?.blockReason;
+  if (blockReason) {
+    throw new Error(`Gemini 生图请求被拦截（${blockReason}）`);
+  }
+  throw new Error('Gemini 生图接口未返回图像数据');
+}
+
 export async function generateImage(params: {
   config: ImageGenConfig;
   providers: ProviderConfig[];
@@ -415,6 +528,15 @@ export async function generateImage(params: {
     throw new Error('请先在「模型 → 生图模型」填写 API Key（同域名文本厂商的 Key 可留空自动复用）');
   }
 
+  if (isGeminiNativeImageModel(cleanBase, model)) {
+    return generateGeminiNativeImage({
+      baseUrl: cleanBase,
+      apiKey,
+      model,
+      prompt,
+    });
+  }
+
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
   if (apiKey) {
     headers.Authorization = `Bearer ${apiKey}`;
@@ -434,15 +556,7 @@ export async function generateImage(params: {
   });
 
   if (!resp.ok) {
-    let msg = `生图请求失败 (HTTP ${resp.status})`;
-    try {
-      const parsed = JSON.parse(resp.text);
-      if (parsed?.error?.message) msg = parsed.error.message;
-      else if (parsed?.message) msg = parsed.message;
-    } catch {
-      if (resp.text) msg = `${msg}: ${resp.text.slice(0, 160)}`;
-    }
-    throw new Error(msg);
+    throw new Error(extractImageErrorMessage(resp.status, resp.text));
   }
 
   const parsed = safeJsonParse<{ data?: Array<{ b64_json?: string; url?: string }> }>(
@@ -455,9 +569,7 @@ export async function generateImage(params: {
   }
 
   if (typeof first.b64_json === 'string' && first.b64_json.trim()) {
-    const bytes = base64ToUint8Array(first.b64_json);
-    const blob = new Blob([bytes.buffer as ArrayBuffer], { type: 'image/png' });
-    return compressImageDataToDataUrl(blob, 512, 0.86);
+    return decodeBase64ImageToDataUrl(first.b64_json, 'image/png');
   }
 
   if (typeof first.url === 'string' && first.url.trim()) {
@@ -465,11 +577,7 @@ export async function generateImage(params: {
     if (!bin.ok || !bin.base64) {
       return first.url.trim();
     }
-    const bytes = base64ToUint8Array(bin.base64);
-    const blob = new Blob([bytes.buffer as ArrayBuffer], {
-      type: bin.contentType || 'image/png',
-    });
-    return compressImageDataToDataUrl(blob, 512, 0.86);
+    return decodeBase64ImageToDataUrl(bin.base64, bin.contentType || 'image/png');
   }
 
   throw new Error('生图返回结果中缺少 b64_json 或 url');

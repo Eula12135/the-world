@@ -50,18 +50,15 @@ export const ModelPicker: React.FC<ModelPickerProps> = ({ providerId, model, onS
 
   const grouped = useMemo(() => {
     const q = query.trim().toLowerCase();
-    const list = providers
-      .filter((p) => p.enabled)
+    return providers
+      .filter((p) => p.enabled && (!p.requiresKey || p.apiKey.trim().length > 0))
       .map((p) => {
-        const ready = !p.requiresKey || p.apiKey.trim().length > 0;
         const models = p.models.filter(
           (m) => !q || m.toLowerCase().includes(q) || p.name.toLowerCase().includes(q)
         );
-        return { provider: p, ready, models };
+        return { provider: p, models };
       })
       .filter((g) => g.models.length > 0);
-
-    return list.sort((a, b) => Number(b.ready) - Number(a.ready));
   }, [providers, query]);
 
   return (
@@ -128,20 +125,18 @@ export const ModelPicker: React.FC<ModelPickerProps> = ({ providerId, model, onS
 
               <div className="flex-1 overflow-y-auto p-2 space-y-3">
                 {grouped.length === 0 ? (
-                  <div className="py-8 text-center text-[13px] text-dim">没有匹配的模型</div>
+                  <div className="py-8 px-4 text-center text-[13px] text-dim">
+                    {query.trim()
+                      ? '没有匹配的模型'
+                      : '尚未配置可用模型，请先前往管理模型厂商配置 API Key'}
+                  </div>
                 ) : (
-                  grouped.map(({ provider, ready, models }) => (
+                  grouped.map(({ provider, models }) => (
                     <div key={provider.id} className="space-y-1">
                       <div className="flex items-center justify-between px-2.5 py-1 text-[12px] font-medium text-dim">
                         <span>{provider.name}</span>
-                        <span
-                          className={`text-[11px] px-1.5 py-0.5 rounded ${
-                            ready
-                              ? 'bg-emerald-500/12 text-emerald-500'
-                              : 'bg-amber-500/12 text-amber-500'
-                          }`}
-                        >
-                          {ready ? '已就绪' : '未填 Key'}
+                        <span className="text-[11px] px-1.5 py-0.5 rounded bg-emerald-500/12 text-emerald-500">
+                          已就绪
                         </span>
                       </div>
                       {models.map((m) => {

@@ -1,11 +1,15 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
   buildCharacterImagePrompt,
+  buildGeminiGenerateContentUrl,
   fetchImageGenModels,
+  generateImage,
+  isGeminiNativeImageModel,
   resolveMediaApiKey,
   resolveReusableApiKey,
 } from '../services/imageGenService';
-import { buildImageBrief, sanitizeImagePrompt } from '../services/imagePromptService';
+import { buildImageBrief, generateImagePrompt, sanitizeImagePrompt } from '../services/imagePromptService';
+import { buildFramingClause, resolveImageFraming } from '../utils/imageFraming';
 import {
   buildBreezeTtsPayload,
   buildTtsSpeechPayload,
@@ -568,5 +572,193 @@ describe('image prompt service', () => {
   it('caps an overlong prompt at a sentence boundary', () => {
     const raw = '银白长发，红瞳，'.repeat(40);
     expect(sanitizeImagePrompt(raw).length).toBeLessThanOrEqual(240);
+  });
+});
+
+describe('Gemini native image generation', () => {
+  it('detects Gemini native image models on Google / v1beta endpoints only', () => {
+    expect(
+      isGeminiNativeImageModel(
+        'https://generativelanguage.googleapis.com/v1beta/openai',
+        'models/gemini-2.5-flash-image'
+      )
+    ).toBe(true);
+    expect(
+      isGeminiNativeImageModel(
+        'https://generativelanguage.googleapis.com/v1beta',
+        'gemini-2.5-flash-image'
+      )
+    ).toBe(true);
+    expect(
+      isGeminiNativeImageModel(
+        'https://generativelanguage.googleapis.com/v1beta/openai',
+        'imagen-3.0-generate-002'
+      )
+    ).toBe(false);
+    expect(
+      isGeminiNativeImageModel('https://openrouter.ai/api/v1', 'google/gemini-2.5-flash-image')
+    ).toBe(false);
+  });
+
+  it('builds native :generateContent URL by stripping /openai and models/ prefix', () => {
+    expect(
+      buildGeminiGenerateContentUrl(
+        'https://generativelanguage.googleapis.com/v1beta/openai/',
+        'models/gemini-2.5-flash-image'
+      )
+    ).toBe(
+      'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent'
+    );
+    expect(
+      buildGeminiGenerateContentUrl(
+        'https://generativelanguage.googleapis.com',
+        'gemini-2.5-flash-image'
+      )
+    ).toBe(
+      'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent'
+    );
+  });
+
+  it('routes gemini-*-image requests to :generateContent and extracts inlineData', async () => {
+    const origFetch = globalThis.fetch;
+    const fetchMock = vi.fn().mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          candidates: [
+            {
+              content: {
+                parts: [{ inlineData: { mimeType: 'image/png', data: 'AQID' } }],
+              },
+            },
+          ],
+        }),
+        { status: 200 }
+      )
+    );
+    globalThis.fetch = fetchMock;
+
+    try {
+      const result = await generateImage({
+        config: {
+          enabled: true,
+          presetId: 'custom',
+          baseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai',
+          apiKey: 'gem_key',
+          model: 'models/gemini-2.5-flash-image',
+          size: '1024x1024',
+          styleHint: '',
+        },
+        providers: [],
+        prompt: '红发少女立绘',
+      });
+
+      expect(result).toBe('data:image/png;base64,AQID');
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+      expect(url).toBe(
+        'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent'
+      );
+      expect((init.headers as Record<string, string>)['x-goog-api-key']).toBe('gem_key');
+      const sentBody = JSON.parse(String(init.body));
+      expect(sentBody.contents).toEqual([{ parts: [{ text: '红发少女立绘' }] }]);
+      expect(sentBody.generationConfig).toEqual({ responseModalities: ['IMAGE'] });
+    } finally {
+      globalThis.fetch = origFetch;
+    }
+  });
+});
+
+describe('image framing (尺寸决定取景)', () => {
+  const framingChar: Character = {
+    id: 'c-frame',
+    worldId: '',
+    name: '林澈',
+    identity: '游侠剑士',
+    personality: '',
+    status: '',
+    relationsNote: '',
+    notes: '银色长发，玄黑披风',
+    avatarColor: '#4d6bfe',
+    updatedAt: 1,
+  };
+
+  const textProvider: ProviderConfig = {
+    id: 'deepseek',
+    name: 'DeepSeek',
+    description: '',
+    protocol: 'openai',
+    baseUrl: 'https://api.deepseek.com/v1',
+    apiKey: 'sk-test',
+    models: ['deepseek-chat'],
+    selectedModel: 'deepseek-chat',
+    consoleUrl: '',
+    docsUrl: '',
+    websiteUrl: '',
+    requiresKey: true,
+    enabled: true,
+    isCustom: false,
+  };
+
+  it('maps the three preset sizes to the matching framing', () => {
+    expect(resolveImageFraming('1024x1024').id).toBe('avatar');
+    expect(resolveImageFraming('768x1024').id).toBe('halfBody');
+    expect(resolveImageFraming('1024x768').id).toBe('scene');
+  });
+
+  it('falls back to aspect ratio for custom sizes', () => {
+    expect(resolveImageFraming('1024x1536').id).toBe('halfBody');
+    expect(resolveImageFraming('1792x1024').id).toBe('scene');
+    expect(resolveImageFraming('1536x1536').id).toBe('avatar');
+    expect(resolveImageFraming(undefined).id).toBe('avatar');
+  });
+
+  it('writes the framing into the locally assembled prompt', () => {
+    const avatar = buildCharacterImagePrompt(framingChar, null, '', '1024x1024');
+    expect(avatar).toContain('小说角色头像');
+    expect(avatar).toContain('只画头部与肩颈');
+    expect(avatar).toContain('不要画出腰部以下');
+
+    const halfBody = buildCharacterImagePrompt(framingChar, null, '', '768x1024');
+    expect(halfBody).toContain('小说角色立绘');
+    expect(halfBody).toContain('膝盖以上');
+
+    const scene = buildCharacterImagePrompt(framingChar, null, '', '1024x768');
+    expect(scene).toContain('横版场景构图');
+  });
+
+  it('tells the text model the framing and appends the clause after refining', async () => {
+    const origFetch = globalThis.fetch;
+    const fetchMock = vi.fn().mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({ choices: [{ message: { content: '银色长发，玄黑披风，游侠剑士' } }] }),
+        { status: 200 }
+      )
+    );
+    globalThis.fetch = fetchMock;
+
+    try {
+      const prompt = await generateImagePrompt({
+        provider: textProvider,
+        model: 'deepseek-chat',
+        character: framingChar,
+        size: '1024x1024',
+      });
+
+      // 提炼出的特征在前，程序追加的取景约束在后
+      expect(prompt.startsWith('银色长发')).toBe(true);
+      expect(prompt).toContain('只画头部与肩颈');
+      expect(prompt).toContain('不要全身像');
+
+      const sent = JSON.parse(String((fetchMock.mock.calls[0] as [string, RequestInit])[1].body));
+      expect(sent.messages[0].content).toContain('头像特写');
+      expect(sent.messages[0].content).toContain('看不见的');
+    } finally {
+      globalThis.fetch = origFetch;
+    }
+  });
+
+  it('builds a reusable clause that names the composition', () => {
+    expect(buildFramingClause('1024x768')).toContain('横版场景构图');
+    expect(buildFramingClause('768x1024')).toContain('膝盖以上');
   });
 });
