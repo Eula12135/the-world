@@ -108,11 +108,14 @@ export function isVoiceSetupMissing(params: {
  * 旧数据没有 ttsAutoPlayTarget，按「只读角色」处理，与改动前行为一致。
  */
 export function shouldAutoPlaySpeech(params: {
+  /** 语音功能总开关（设置里的「语音」） */
   enabled: boolean;
+  /** 「自动朗读」开关；关掉时任何一侧都不该自动播 */
+  autoPlay: boolean;
   target?: TtsAutoPlayTarget;
   side: 'assistant' | 'user';
 }): boolean {
-  if (!params.enabled) return false;
+  if (!params.enabled || !params.autoPlay) return false;
   const target = params.target || 'assistant';
   if (target === 'both') return true;
   return target === params.side;

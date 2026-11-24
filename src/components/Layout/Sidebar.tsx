@@ -196,7 +196,10 @@ export const Sidebar: React.FC = () => {
           </button>
 
           <button
-            onClick={() => setActiveView('worlds')}
+            onClick={() => {
+              setActiveView('worlds');
+              if (typeof window !== 'undefined' && window.innerWidth < 768) setSidebarOpen(false);
+            }}
             className={`w-10 h-10 rounded-xl flex flex-col items-center justify-center gap-0.5 text-[11.5px] font-medium transition cursor-pointer ${
               activeView === 'worlds'
                 ? 'bg-accent-soft text-accent-strong'
@@ -218,7 +221,10 @@ export const Sidebar: React.FC = () => {
             <Upload className="w-4.5 h-4.5" />
           </button>
           <button
-            onClick={() => setActiveModal('settings')}
+            onClick={() => {
+              setActiveModal('settings');
+              if (typeof window !== 'undefined' && window.innerWidth < 768) setSidebarOpen(false);
+            }}
             className="relative w-10 h-10 rounded-xl flex items-center justify-center text-secondary hover:bg-hover hover:text-ink cursor-pointer"
             title="全局设置（含模型厂商与 API Key）"
           >
@@ -443,10 +449,20 @@ export const Sidebar: React.FC = () => {
                 setSidebarOpen(false);
                 setActiveModal('dataTransfer');
               }}
-              className="w-full flex items-center gap-2 px-3 py-2 rounded-xl bg-card border border-line text-[13px] text-secondary cursor-pointer"
+              className="w-full flex items-center gap-2 px-3 py-2 rounded-control bg-card border border-line text-body text-secondary cursor-pointer"
             >
               <Upload className="w-4 h-4" />
               <span>导入 DeepSeek 记录 / 备份</span>
+            </button>
+            <button
+              onClick={() => {
+                setSidebarOpen(false);
+                setActiveModal('settings');
+              }}
+              className="w-full flex items-center gap-2 px-3 py-2 rounded-control bg-card border border-line text-body text-secondary cursor-pointer"
+            >
+              <Settings className="w-4 h-4" />
+              <span>设置（模型 · 外观 · 语音）</span>
             </button>
           </div>
         </aside>

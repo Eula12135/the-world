@@ -8,8 +8,11 @@ import {
   ChevronDown,
   ChevronRight,
   Copy,
+  BookmarkPlus,
   Edit3,
   Globe,
+  MoreHorizontal,
+  RefreshCw,
   Square,
   Trash2,
   Volume2,
@@ -489,56 +492,76 @@ export const MessageItem: React.FC<MessageItemProps> = React.memo(({
         )}
 
         {(!isSessionStreaming || !isLastAssistant) && (
-          <div className="pt-0.5 text-caption text-secondary">
-            <div className="flex items-baseline gap-4">
-              <button onClick={handleCopy} className="hover:text-ink cursor-pointer">
-                {copied ? '已复制' : '复制'}
+          <div className="pt-0.5 text-caption text-dim">
+            <div className="flex items-center gap-3.5">
+              <button
+                onClick={handleCopy}
+                title={copied ? '已复制' : '复制'}
+                aria-label="复制"
+                className="hover:text-ink cursor-pointer"
+              >
+                {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
               </button>
 
               {isLastAssistant && (
-                <button onClick={regenerateLastAssistant} className="hover:text-ink cursor-pointer">
-                  重新生成
+                <button
+                  onClick={regenerateLastAssistant}
+                  title="重新生成"
+                  aria-label="重新生成"
+                  className="hover:text-ink cursor-pointer"
+                >
+                  <RefreshCw className="w-4 h-4" />
                 </button>
               )}
 
               <button
                 onClick={() => setMoreActionsOpen((v) => !v)}
-                className="hover:text-ink cursor-pointer"
+                title="更多"
+                aria-label="更多操作"
                 aria-expanded={moreActionsOpen}
+                className={`cursor-pointer ${moreActionsOpen ? 'text-ink' : 'hover:text-ink'}`}
               >
-                {moreActionsOpen ? '收起' : '更多'}
+                <MoreHorizontal className="w-4 h-4" />
               </button>
 
               {isLastAssistant && contextTokens ? (
-                <span className="ml-auto tabular-nums text-dim">{contextTokens} tokens</span>
+                <span className="ml-auto tabular-nums">{contextTokens} tokens</span>
               ) : null}
             </div>
 
             {moreActionsOpen && (
-              <div className="mt-1 flex items-baseline gap-4">
+              <div className="mt-1.5 flex items-center gap-3.5">
                 {voiceSettings.ttsEnabled && message.content && (
                   <button
                     onClick={handleSpeakToggle}
+                    title={isSpeaking ? '停止朗读' : '朗读'}
+                    aria-label={isSpeaking ? '停止朗读' : '朗读'}
                     className={`cursor-pointer ${
-                      isSpeaking ? 'text-accent-strong font-medium' : 'hover:text-ink'
+                      isSpeaking ? 'text-accent-strong' : 'hover:text-ink'
                     }`}
                   >
-                    {isSpeaking ? '停止朗读' : '朗读'}
+                    {isSpeaking ? <Square className="w-4 h-4 fill-current" /> : <Volume2 className="w-4 h-4" />}
                   </button>
                 )}
 
                 {sessionWorldId && message.content && (
-                  <button onClick={handleAppendToWorld} className="hover:text-ink cursor-pointer">
-                    存档
+                  <button
+                    onClick={handleAppendToWorld}
+                    title="存为设定：把这条回复追加到作品设定文档"
+                    aria-label="存为设定"
+                    className="hover:text-ink cursor-pointer"
+                  >
+                    <BookmarkPlus className="w-4 h-4" />
                   </button>
                 )}
 
                 <button
                   onClick={handleDelete}
-                  className="text-danger hover:underline cursor-pointer"
+                  title="删除"
                   aria-label="删除此条回复"
+                  className="text-danger hover:opacity-80 cursor-pointer"
                 >
-                  删除
+                  <Trash2 className="w-4 h-4" />
                 </button>
               </div>
             )}

@@ -196,6 +196,7 @@ export const createChatSlice: AppSliceCreator<ChatSlice> = (set, get) => ({
       if (
         shouldAutoPlaySpeech({
           enabled: voiceCfg.ttsEnabled,
+          autoPlay: voiceCfg.ttsAutoPlay,
           target: voiceCfg.ttsAutoPlayTarget,
           side: 'user',
         })
@@ -357,6 +358,7 @@ export const createChatSlice: AppSliceCreator<ChatSlice> = (set, get) => ({
             if (
               shouldAutoPlaySpeech({
                 enabled: currentSettings.voice.ttsEnabled,
+                autoPlay: currentSettings.voice.ttsAutoPlay,
                 target: currentSettings.voice.ttsAutoPlayTarget,
                 side: 'assistant',
               }) &&

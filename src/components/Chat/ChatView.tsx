@@ -299,6 +299,15 @@ export const ChatView: React.FC = () => {
     return null;
   }, [messages]);
 
+  // 输入框跟随内容长高，超过上限就在框内滚动
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  useEffect(() => {
+    const el = textareaRef.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = `${Math.min(el.scrollHeight, 176)}px`;
+  }, [input]);
+
   const inputPlaceholder =
     activeChatMode === 'character_role' && roleCharacter
       ? `与「${roleCharacter.name}」开始对话...`
@@ -329,8 +338,10 @@ export const ChatView: React.FC = () => {
               el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
             }, 120);
           }}
+          ref={textareaRef}
+          style={{ height: 'auto' }}
           placeholder={inputPlaceholder}
-          rows={messages.length === 0 ? 3 : 2}
+          rows={1}
           className="w-full max-h-44 bg-transparent text-[16px] md:text-read text-ink outline-none resize-none placeholder:text-dim leading-relaxed"
         />
 
@@ -540,7 +551,7 @@ export const ChatView: React.FC = () => {
             </div>
           )}
 
-          <div className="shrink-0 px-3 md:px-6 pb-3 pt-1">{inputDock}</div>
+          <div className="shrink-0 px-3 md:px-6 pb-3 pt-1 safe-bottom">{inputDock}</div>
         </>
       )}
     </div>
