@@ -66,6 +66,8 @@ export const ProvidersModal: React.FC = () => {
   const [showLlmAdvanced, setShowLlmAdvanced] = useState(false);
   const [fetchedModels, setFetchedModels] = useState<string[]>([]);
   const [fetchedModelQuery, setFetchedModelQuery] = useState('');
+  /** 勾选框里的临时选择；点「加入列表」才写回已配置模型 */
+  const [pickerSelection, setPickerSelection] = useState<string[]>([]);
 
   const [draftImg, setDraftImg] = useState<ImageGenConfig>(settings.imageGen);
   const [showImgKey, setShowImgKey] = useState(false);
@@ -90,6 +92,7 @@ export const ProvidersModal: React.FC = () => {
     setShowLlmAdvanced(false);
     setFetchedModels([]);
     setFetchedModelQuery('');
+    setPickerSelection([]);
   }, [activeModal, selectedId]);
 
   useEffect(() => {
@@ -152,9 +155,10 @@ export const ProvidersModal: React.FC = () => {
       });
       setFetchedModels(models);
       setFetchedModelQuery('');
+      setPickerSelection(draft.models.filter((m) => models.includes(m)));
       setStatusMsg({
         ok: true,
-        text: `已拉取 ${models.length} 个远程模型，请在下方勾选要加入已配置列表的模型`,
+        text: `已拉取 ${models.length} 个可用模型，请选择要加入列表的几个`,
       });
     } catch (err) {
       setStatusMsg({ ok: false, text: err instanceof Error ? err.message : '拉取模型失败' });
@@ -164,21 +168,26 @@ export const ProvidersModal: React.FC = () => {
   };
 
   const handleToggleFetchedModel = (modelId: string) => {
-    if (draft.models.includes(modelId)) {
-      if (draft.models.length <= 1) return;
-      const nextModels = draft.models.filter((m) => m !== modelId);
-      setDraft({
-        ...draft,
-        models: nextModels,
-        selectedModel: draft.selectedModel === modelId ? nextModels[0] : draft.selectedModel,
-      });
-    } else {
-      setDraft({
-        ...draft,
-        models: [...draft.models, modelId],
-        selectedModel: draft.selectedModel || modelId,
-      });
-    }
+    setPickerSelection((prev) =>
+      prev.includes(modelId) ? prev.filter((m) => m !== modelId) : [...prev, modelId]
+    );
+  };
+
+  /** 确认选择：保留不在远程列表里的自定义模型，再把勾选的并进去 */
+  const handleConfirmFetchedModels = () => {
+    const kept = draft.models.filter((m) => !fetchedModels.includes(m));
+    const merged = [...kept, ...pickerSelection];
+    const models = merged.length > 0 ? merged : draft.models;
+    setDraft({
+      ...draft,
+      models,
+      selectedModel: models.includes(draft.selectedModel) ? draft.selectedModel : models[0],
+    });
+    setFetchedModels([]);
+    setFetchedModelQuery('');
+    setPickerSelection([]);
+    // 选择框关掉后「去勾选」的提示就过期了
+    setStatusMsg(null);
   };
 
   const handleKeepOnlySelected = () => {
@@ -713,77 +722,6 @@ export const ProvidersModal: React.FC = () => {
                     ))}
                   </div>
 
-                  {fetchedModels.length > 0 &&
-                    (() => {
-                      const q = fetchedModelQuery.trim().toLowerCase();
-                      const filteredFetched = q
-                        ? fetchedModels.filter((m) => m.toLowerCase().includes(q))
-                        : fetchedModels;
-                      const selectedFetchedCount = fetchedModels.filter((m) =>
-                        draft.models.includes(m)
-                      ).length;
-
-                      return (
-                        <div className="p-3 rounded-xl bg-canvas border border-line space-y-2.5">
-                          <div className="flex items-center justify-between gap-2">
-                            <span className="text-[13px] font-medium text-ink">
-                              远程可用模型（已选 {selectedFetchedCount} / 共 {fetchedModels.length}）
-                            </span>
-                            <button
-                              type="button"
-                              onClick={() => setFetchedModels([])}
-                              className="text-[11.5px] text-secondary hover:text-ink cursor-pointer"
-                            >
-                              收起
-                            </button>
-                          </div>
-
-                          <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-sidebar border border-line focus-within:border-accent">
-                            <Search className="w-3.5 h-3.5 text-dim shrink-0" />
-                            <input
-                              value={fetchedModelQuery}
-                              onChange={(e) => setFetchedModelQuery(e.target.value)}
-                              placeholder="搜索拉取的模型 ID..."
-                              className="w-full bg-transparent text-[13px] font-mono text-ink outline-none placeholder:text-dim"
-                            />
-                          </div>
-
-                          <div className="max-h-52 overflow-y-auto space-y-1 pr-0.5">
-                            {filteredFetched.length === 0 ? (
-                              <div className="py-4 text-center text-[13px] text-dim">
-                                没有匹配的远程模型
-                              </div>
-                            ) : (
-                              filteredFetched.map((m) => {
-                                const checked = draft.models.includes(m);
-                                const disabledRemove = checked && draft.models.length <= 1;
-                                return (
-                                  <button
-                                    key={m}
-                                    type="button"
-                                    disabled={disabledRemove}
-                                    onClick={() => handleToggleFetchedModel(m)}
-                                    title={disabledRemove ? '至少保留一个已配置模型' : undefined}
-                                    className={`w-full flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg text-[13px] text-left transition ${
-                                      checked
-                                        ? 'bg-accent-soft text-accent font-medium'
-                                        : 'text-ink hover:bg-hover'
-                                    } ${disabledRemove ? 'opacity-70 cursor-not-allowed' : 'cursor-pointer'}`}
-                                  >
-                                    <span className="truncate font-mono">{m}</span>
-                                    {checked && <Check className="w-3.5 h-3.5 shrink-0" />}
-                                  </button>
-                                );
-                              })
-                            )}
-                          </div>
-
-                          <p className="text-[11.5px] text-dim">
-                            勾选后请点击下方「保存配置」生效（至少保留 1 个已配置模型）。
-                          </p>
-                        </div>
-                      );
-                    })()}
 
                   <div className="flex gap-2">
                     <input
@@ -1157,7 +1095,131 @@ export const ProvidersModal: React.FC = () => {
             onSaveVoice={handleSaveVoice}
           />
         )}
-      </div>
-    </div>
+        {/* 从远程可用模型里挑几个加入列表（不直接改已配置列表） */}
+        {fetchedModels.length > 0 &&
+          (() => {
+            const q = fetchedModelQuery.trim().toLowerCase();
+            const filtered = q
+              ? fetchedModels.filter((m) => m.toLowerCase().includes(q))
+              : fetchedModels;
+            const allSelected =
+              filtered.length > 0 && filtered.every((m) => pickerSelection.includes(m));
+
+            return (
+              <div
+                className="fixed inset-0 z-[80] bg-black/45 flex items-end md:items-center justify-center p-0 md:p-4 anim-overlay"
+                onClick={() => {
+                  setFetchedModels([]);
+                  setPickerSelection([]);
+                }}
+              >
+                <div
+                  className="w-full md:max-w-md max-h-[82vh] bg-card rounded-t-2xl md:rounded-card border border-line flex flex-col overflow-hidden anim-panel"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <div className="px-4 pt-3 pb-2 border-b border-line">
+                    <div className="flex items-center justify-between">
+                      <span className="text-title font-semibold text-ink">选择模型</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setFetchedModels([]);
+                          setPickerSelection([]);
+                        }}
+                        className="p-1.5 rounded-control text-dim hover:text-ink hover:bg-hover cursor-pointer"
+                        aria-label="关闭"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                    <p className="mt-1 text-caption text-dim">
+                      以下是这个厂商拉到的可用模型，勾选后会加入已配置列表；主界面的下拉只显示已配置的那些。
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-2 px-4 py-2 border-b border-line">
+                    <div className="flex flex-1 items-center gap-2 rounded-control border border-line px-2 py-1">
+                      <Search className="w-3.5 h-3.5 shrink-0 text-dim" />
+                      <input
+                        value={fetchedModelQuery}
+                        onChange={(e) => setFetchedModelQuery(e.target.value)}
+                        placeholder="搜索模型"
+                        className="w-full bg-transparent text-body text-ink outline-none placeholder:text-dim"
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const target = filtered;
+                        setPickerSelection((prev) => {
+                          if (allSelected) {
+                            return prev.filter((m) => !target.includes(m));
+                          }
+                          return Array.from(new Set([...prev, ...target]));
+                        });
+                      }}
+                      className="shrink-0 text-body text-accent-strong hover:underline cursor-pointer"
+                    >
+                      {allSelected ? '取消全选' : '全选'}
+                    </button>
+                  </div>
+
+                  <div className="flex-1 overflow-y-auto px-2 py-1">
+                    {filtered.length === 0 ? (
+                      <div className="py-8 text-center text-body text-dim">没有匹配的模型</div>
+                    ) : (
+                      filtered.map((m) => {
+                        const checked = pickerSelection.includes(m);
+                        return (
+                          <button
+                            key={m}
+                            type="button"
+                            onClick={() => handleToggleFetchedModel(m)}
+                            className="flex w-full items-center gap-3 rounded-control px-2 py-2 text-left hover:bg-hover cursor-pointer"
+                          >
+                            <span
+                              className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-[4px] border ${
+                                checked ? 'border-accent bg-accent text-white' : 'border-line'
+                              }`}
+                            >
+                              {checked && <Check className="w-3 h-3" />}
+                            </span>
+                            <span className="truncate font-mono text-body text-ink" title={m}>
+                              {m.replace(/^models\//i, '')}
+                            </span>
+                          </button>
+                        );
+                      })
+                    )}
+                  </div>
+
+                  <div className="flex items-center justify-between gap-2 px-4 py-3 border-t border-line">
+                    <span className="text-caption text-dim">已选 {pickerSelection.length} 个</span>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setFetchedModels([]);
+                          setPickerSelection([]);
+                        }}
+                        className="px-3.5 py-2 rounded-control border border-line text-body text-ink hover:bg-hover cursor-pointer"
+                      >
+                        取消
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleConfirmFetchedModels}
+                        className="px-4 py-2 rounded-control text-body font-medium bg-accent text-white hover:opacity-95 cursor-pointer"
+                      >
+                        加入列表
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
+
+      </div>    </div>
   );
 };
