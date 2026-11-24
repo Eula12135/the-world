@@ -331,7 +331,7 @@ export const ChatView: React.FC = () => {
           }}
           placeholder={inputPlaceholder}
           rows={messages.length === 0 ? 3 : 2}
-          className="w-full max-h-44 bg-transparent text-read text-ink outline-none resize-none placeholder:text-dim leading-relaxed"
+          className="w-full max-h-44 bg-transparent text-[16px] md:text-read text-ink outline-none resize-none placeholder:text-dim leading-relaxed"
         />
 
         <div className="flex items-center justify-between gap-2 pt-2">
@@ -340,10 +340,10 @@ export const ChatView: React.FC = () => {
               type="button"
               onClick={handleToggleVoiceInput}
               disabled={voiceState === 'transcribing'}
-              className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-xl text-body border transition cursor-pointer ${
+              className={`inline-flex items-center gap-1 px-1.5 py-1 rounded-control text-body transition cursor-pointer ${
                 voiceState === 'listening'
-                  ? 'border-red-500/60 bg-red-500/12 text-red-500 font-medium animate-pulse'
-                  : 'border-line text-secondary hover:bg-hover hover:text-ink'
+                  ? 'text-danger font-medium animate-pulse'
+                  : 'text-secondary hover:text-ink'
               }`}
               title="语音输入"
             >
@@ -367,10 +367,10 @@ export const ChatView: React.FC = () => {
               <button
                 type="button"
                 onClick={handleToggleAutoSpeak}
-                className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-xl text-body border transition cursor-pointer ${
+                className={`inline-flex items-center gap-1 px-1.5 py-1 rounded-control text-body transition cursor-pointer ${
                   settings.voice.ttsAutoPlay
-                    ? 'border-accent/50 bg-accent-soft text-accent font-medium'
-                    : 'border-line text-secondary hover:bg-hover hover:text-ink'
+                    ? 'text-accent font-medium'
+                    : 'text-secondary hover:text-ink'
                 }`}
                 title={`自动朗读：${autoPlayScopeLabel}（可在 设置 → 声音 里改范围）`}
               >

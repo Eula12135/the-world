@@ -205,8 +205,8 @@ export const SettingsModal: React.FC = () => {
           </section>
 
           {/* Card 1: Appearance & Model Parameters */}
-          <section className="p-4 rounded-xl bg-sidebar border border-line space-y-4">
-            <div className="text-body font-semibold text-secondary">外观与对话参数</div>
+          <section className="border-t border-line pt-4 space-y-4">
+            <div className="px-1 text-caption text-dim">外观与对话参数</div>
 
             <div>
               <label className="block mb-2 font-medium text-ink">界面主题</label>
@@ -265,7 +265,7 @@ export const SettingsModal: React.FC = () => {
                     setMaxTokensText(String(clamped));
                     updateSettings({ maxTokens: clamped });
                   }}
-                  className="w-full px-3 py-1.5 rounded-xl bg-canvas border border-line text-ink outline-none focus:border-accent"
+                  className="w-full px-3 py-1.5 rounded-control bg-canvas border border-line text-ink outline-none focus:border-accent"
                 />
               </div>
             </div>
@@ -287,7 +287,7 @@ export const SettingsModal: React.FC = () => {
                     setContextLimitText(String(clamped));
                     updateSettings({ contextMessagesLimit: clamped });
                   }}
-                  className="w-full px-3 py-1.5 rounded-xl bg-canvas border border-line text-ink outline-none focus:border-accent"
+                  className="w-full px-3 py-1.5 rounded-control bg-canvas border border-line text-ink outline-none focus:border-accent"
                 />
               </div>
               <div>
@@ -320,7 +320,7 @@ export const SettingsModal: React.FC = () => {
                       updateSettings({ maxWorldContextChars: 1000 });
                     }
                   }}
-                  className="w-full px-3 py-1.5 rounded-xl bg-canvas border border-line text-ink outline-none focus:border-accent"
+                  className="w-full px-3 py-1.5 rounded-control bg-canvas border border-line text-ink outline-none focus:border-accent"
                 />
                 <div className="flex flex-wrap gap-1.5 mt-2">
                   {WORLD_CHAR_PRESETS.map((preset) => {
@@ -346,23 +346,23 @@ export const SettingsModal: React.FC = () => {
           </section>
 
           {/* Card 2: Global System Prompt */}
-          <section className="p-4 rounded-xl bg-sidebar border border-line space-y-2">
-            <label className="block text-body font-semibold text-secondary">
+          <section className="border-t border-line pt-4 space-y-2">
+            <label className="block px-1 text-caption text-dim">
               全局系统提示词 (System Prompt)
             </label>
             <textarea
               rows={3}
               value={settings.globalSystemPrompt}
               onChange={(e) => updateSettings({ globalSystemPrompt: e.target.value })}
-              className="w-full px-3.5 py-2.5 rounded-xl bg-canvas border border-line text-ink outline-none focus:border-accent"
+              className="w-full px-3.5 py-2.5 rounded-control bg-canvas border border-line text-ink outline-none focus:border-accent"
             />
           </section>
 
           {/* Card 3: Version & Updates */}
-          <section className="p-4 rounded-xl bg-sidebar border border-line space-y-3">
+          <section className="border-t border-line pt-4 space-y-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-2">
-                <span className="font-semibold text-ink">版本与更新</span>
+                <span className="px-1 text-caption text-dim">版本与更新</span>
                 <span className="text-body font-mono px-2 py-0.5 rounded-lg bg-canvas border border-line text-secondary">
                   v{APP_VERSION}
                 </span>
@@ -394,7 +394,7 @@ export const SettingsModal: React.FC = () => {
             {checkErr && <div className="text-body text-red-500">{checkErr}</div>}
 
             {checkResult && (
-              <div className="p-3 rounded-xl bg-canvas border border-line space-y-1.5 text-body">
+              <div className="p-3 rounded-control bg-canvas border border-line space-y-1.5 text-body">
                 {checkResult.hasUpdate ? (
                   <>
                     <div className="font-semibold text-emerald-500">
@@ -526,7 +526,7 @@ export const SettingsModal: React.FC = () => {
                         ? `默认：${DEFAULT_UPDATE_SOURCE}（可留空或自定义）`
                         : 'owner/the-world 或 gitee:owner/repo 或 latest.json 链接'
                     }
-                    className="w-full px-3 py-1.5 rounded-xl bg-canvas border border-line text-ink text-body font-mono outline-none focus:border-accent"
+                    className="w-full px-3 py-1.5 rounded-control bg-canvas border border-line text-ink text-body font-mono outline-none focus:border-accent"
                   />
                   <div className="text-caption text-dim leading-relaxed space-y-0.5">
                     <div>支持多种更新源（空格或逗号分隔，按顺序优先尝试）：</div>
@@ -564,7 +564,7 @@ export const SettingsModal: React.FC = () => {
             {showAbout && (
               <div className="px-4 pb-3.5 pt-2 border-t border-line space-y-2.5 text-body text-secondary leading-relaxed">
                 {desktopEncrypted !== null && (
-                  <div className="p-2.5 rounded-xl bg-canvas border border-line flex items-center gap-2">
+                  <div className="p-2.5 rounded-control bg-canvas border border-line flex items-center gap-2">
                     <Lock className="w-4 h-4 text-accent shrink-0" />
                     <span>
                       {desktopEncrypted

@@ -177,7 +177,7 @@ export const Sidebar: React.FC = () => {
             }}
             className={`w-10 h-10 rounded-xl flex flex-col items-center justify-center gap-0.5 text-[11.5px] font-medium transition cursor-pointer ${
               activeView === 'chat'
-                ? 'bg-accent-soft text-accent'
+                ? 'bg-accent-soft text-accent-strong'
                 : 'text-secondary hover:bg-hover hover:text-ink'
             }`}
             title="对话"
@@ -190,7 +190,7 @@ export const Sidebar: React.FC = () => {
             onClick={() => setActiveView('worlds')}
             className={`w-10 h-10 rounded-xl flex flex-col items-center justify-center gap-0.5 text-[11.5px] font-medium transition cursor-pointer ${
               activeView === 'worlds'
-                ? 'bg-accent-soft text-accent'
+                ? 'bg-accent-soft text-accent-strong'
                 : 'text-secondary hover:bg-hover hover:text-ink'
             }`}
             title="作品与世界观"
@@ -336,7 +336,7 @@ export const Sidebar: React.FC = () => {
                                 )}
                                 <span className="truncate text-[13px]">{s.title}</span>
                                 {s.importedFrom === 'deepseek' && (
-                                  <span className="text-[11.5px] px-1 rounded bg-accent-soft text-accent shrink-0">
+                                  <span className="text-caption px-1 rounded bg-accent-soft text-accent-strong shrink-0">
                                     DS
                                   </span>
                                 )}

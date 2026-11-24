@@ -55,7 +55,7 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
             }}
             className={`flex flex-col items-center justify-center py-2 gap-0.5 text-[11.5px] cursor-pointer ${
               activeView === 'chat' && activeModal === 'none'
-                ? 'text-accent font-medium'
+                ? 'text-accent-strong font-medium'
                 : 'text-secondary'
             }`}
           >
@@ -70,7 +70,7 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
             }}
             className={`flex flex-col items-center justify-center py-2 gap-0.5 text-[11.5px] cursor-pointer ${
               activeView === 'worlds' && activeModal === 'none'
-                ? 'text-accent font-medium'
+                ? 'text-accent-strong font-medium'
                 : 'text-secondary'
             }`}
           >
@@ -81,7 +81,7 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
           <button
             onClick={() => setActiveModal('settings')}
             className={`relative flex flex-col items-center justify-center py-2 gap-0.5 text-[11.5px] cursor-pointer ${
-              activeModal === 'settings' ? 'text-accent font-medium' : 'text-secondary'
+              activeModal === 'settings' ? 'text-accent-strong font-medium' : 'text-secondary'
             }`}
           >
             <div className="relative">

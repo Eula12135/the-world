@@ -11,8 +11,8 @@
   /* 原 #9ca3af 在白底只有 2.54:1，11–12px 下读不清；提到 4.83:1 */
   --text-muted: #6b7280;
   --border-line: #e5e7eb;
-  --accent: #4d6bfe;
-  --accent-hover: #3b57e8;
+  --accent: #3b57e8;
+  --accent-hover: #2f4bd8;
   /* 小字号强调文字用（#4d6bfe 只有 4.33:1，擦着 AA 线） */
   --accent-strong: #3b57e8;
   --accent-soft: rgba(77, 107, 254, 0.1);
@@ -34,8 +34,8 @@ html.dark {
   --text-secondary: #a1a8b8;
   --text-muted: #8b93a5;
   --border-line: #272c3a;
-  --accent: #4d6bfe;
-  --accent-hover: #647eff;
+  --accent: #4a64f5;
+  --accent-hover: #5f77ff;
   --accent-strong: #93a5ff;
   --accent-soft: rgba(77, 107, 254, 0.16);
   --user-bubble: #22293b;
