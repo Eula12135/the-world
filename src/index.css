@@ -105,8 +105,57 @@ body,
   background: rgba(156, 163, 175, 0.5);
 }
 
-/* Markdown Typography */
-.markdown-body {
+/* 弹层与整页转场：进入时淡入 + 轻微上移，避免「硬切」的突兀感 */
+@keyframes shell-overlay-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes shell-panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.995);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes shell-page-in {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.anim-overlay {
+  animation: shell-overlay-in 0.16s ease-out both;
+}
+.anim-panel {
+  animation: shell-panel-in 0.22s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.anim-page {
+  animation: shell-page-in 0.26s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .anim-overlay,
+  .anim-panel,
+  .anim-page {
+    animation: none;
+  }
+}
+
+/* Markdown Typography */.markdown-body {
   font-size: 15px;
   line-height: 1.72;
   word-break: break-word;

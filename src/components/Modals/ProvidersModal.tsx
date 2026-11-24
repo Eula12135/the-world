@@ -3,6 +3,7 @@ import {
   Check,
   CheckCircle2,
   ChevronDown,
+  ChevronLeft,
   ChevronRight,
   ExternalLink,
   Eye,
@@ -426,19 +427,28 @@ export const ProvidersModal: React.FC = () => {
 
   return (
     <div
-      className="fixed inset-0 z-50 bg-black/55 backdrop-blur-[2px] flex items-center justify-center p-2 md:p-4"
+      className="fixed inset-0 z-50 bg-black/55 md:bg-black/45 backdrop-blur-[2px] flex items-stretch md:items-center justify-center p-0 md:p-4 anim-overlay"
       onClick={() => setActiveModal('none')}
     >
       <div
-        className="w-full max-w-4xl h-[90vh] md:h-[670px] rounded-xl bg-card border border-line shadow-2xl flex flex-col overflow-hidden"
+        className="w-full h-full md:max-w-4xl md:h-[670px] bg-card md:rounded-xl md:border md:border-line md:shadow-2xl flex flex-col overflow-hidden anim-page"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2.5 px-4 md:px-5 py-3 border-b border-line shrink-0">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2.5 px-3 md:px-5 py-2.5 md:py-3 border-b border-line shrink-0 safe-top">
           <div className="flex items-center justify-between gap-2">
-            <h2 className="text-[17px] font-semibold text-ink">模型与多模态配置</h2>
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => setActiveModal('none')}
+                className="p-1.5 -ml-1 rounded-lg text-dim hover:text-ink hover:bg-hover cursor-pointer md:hidden"
+                aria-label="返回"
+              >
+                <ChevronLeft className="w-5 h-5" />
+              </button>
+              <h2 className="text-[17px] font-semibold text-ink">模型与多模态配置</h2>
+            </div>
             <button
               onClick={() => setActiveModal('none')}
-              className="p-1.5 rounded-lg text-dim hover:text-ink hover:bg-hover cursor-pointer md:hidden"
+              className="p-1.5 rounded-lg text-dim hover:text-ink hover:bg-hover cursor-pointer hidden md:inline-flex"
               aria-label="关闭"
             >
               <X className="w-4 h-4" />
@@ -559,7 +569,7 @@ export const ProvidersModal: React.FC = () => {
               </div>
 
               {/* Config Detail */}
-              <div className="flex-1 overflow-y-auto p-4 md:p-5 space-y-4 text-[13px]">
+              <div className="flex-1 overflow-y-auto p-4 md:p-5 pb-[max(env(safe-area-inset-bottom),20px)] md:pb-5 space-y-4 text-[13px]">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
                     <h3 className="text-[17px] font-semibold text-ink">{draft.name}</h3>
@@ -916,7 +926,7 @@ export const ProvidersModal: React.FC = () => {
 
         {/* TAB 2: Image Generation Models */}
         {providersModalTab === 'image' && (
-          <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-4 text-[13px]">
+          <div className="flex-1 overflow-y-auto p-4 md:p-6 pb-[max(env(safe-area-inset-bottom),20px)] md:pb-6 space-y-4 text-[13px]">
             <div className="p-3.5 rounded-xl bg-accent-soft border border-accent/25 text-[13px] text-ink">
               支持所有兼容 OpenAI <code className="font-mono">/v1/images/generations</code>{' '}
               协议的生图服务。各厂商 API Key 独立保存、切换互不覆盖；生成后的角色图会压缩并直接存放在本机。

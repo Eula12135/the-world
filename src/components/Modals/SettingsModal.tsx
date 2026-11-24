@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import {
   ChevronDown,
+  ChevronLeft,
   ChevronRight,
   Download,
   ExternalLink,
@@ -153,24 +154,32 @@ export const SettingsModal: React.FC = () => {
 
   return (
     <div
-      className="fixed inset-0 z-50 bg-black/55 backdrop-blur-[2px] flex items-center justify-center p-4"
+      className="fixed inset-0 z-50 bg-black/55 md:bg-black/45 backdrop-blur-[2px] flex items-stretch md:items-center justify-center p-0 md:p-4 anim-overlay"
       onClick={() => setActiveModal('none')}
     >
       <div
-        className="w-full max-w-lg max-h-[88vh] rounded-xl bg-card border border-line shadow-2xl flex flex-col overflow-hidden"
+        className="w-full h-full md:h-auto md:max-w-lg md:max-h-[88vh] bg-card md:rounded-xl md:border md:border-line md:shadow-2xl flex flex-col overflow-hidden anim-page"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between px-5 py-3.5 border-b border-line shrink-0">
+        <div className="flex items-center gap-2 px-3 md:px-5 py-2.5 md:py-3.5 border-b border-line shrink-0 safe-top">
+          <button
+            onClick={() => setActiveModal('none')}
+            className="p-1.5 rounded-lg text-dim hover:text-ink hover:bg-hover cursor-pointer md:hidden"
+            aria-label="返回"
+          >
+            <ChevronLeft className="w-5 h-5" />
+          </button>
           <h2 className="text-[17px] font-semibold text-ink">应用设置</h2>
           <button
             onClick={() => setActiveModal('none')}
-            className="p-1.5 rounded-lg text-dim hover:text-ink hover:bg-hover cursor-pointer"
+            className="ml-auto hidden md:inline-flex p-1.5 rounded-lg text-dim hover:text-ink hover:bg-hover cursor-pointer"
+            aria-label="关闭"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
 
-        <div className="p-4 md:p-5 overflow-y-auto space-y-4 text-[13px]">
+        <div className="p-4 md:p-5 pb-[max(env(safe-area-inset-bottom),24px)] md:pb-5 overflow-y-auto space-y-4 text-[13px]">
           {/* 模型与声音：原底部「模型」tab 合并进来，作为设置的第一节 */}
           <section className="space-y-1.5">
             <div className="px-1 text-[11.5px] text-dim">模型与声音</div>
