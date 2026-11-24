@@ -54,6 +54,7 @@ export const Sidebar: React.FC = () => {
   const {
     sidebarOpen,
     setSidebarOpen,
+    swipeOffset,
     sessions,
     activeSessionId,
     activeView,
@@ -73,6 +74,7 @@ export const Sidebar: React.FC = () => {
     useShallow((s) => ({
       sidebarOpen: s.sidebarOpen,
       setSidebarOpen: s.setSidebarOpen,
+      swipeOffset: s.swipeOffset,
       sessions: s.sessions,
       activeSessionId: s.activeSessionId,
       activeView: s.activeView,
@@ -111,6 +113,8 @@ export const Sidebar: React.FC = () => {
 
   // 手机端抽屉也算一层浮层：返回键先收抽屉，而不是直接退出 App
   const drawerOpen = sidebarOpen;
+  // 右滑过程中还没「打开」，但抽屉要跟着手指走
+  const drawerDragging = !sidebarOpen && swipeOffset > 0;
   useEffect(() => {
     if (!drawerOpen) return;
     if (typeof window === 'undefined' || window.innerWidth >= 768) return;
@@ -236,10 +240,11 @@ export const Sidebar: React.FC = () => {
         </div>
       </nav>
 
-      {/* Mobile Drawer Backdrop */}
-      {sidebarOpen && (
+      {/* Mobile Drawer Backdrop：拖动时跟着手指变浓 */}
+      {(sidebarOpen || drawerDragging) && (
         <div
           className="fixed inset-0 z-30 bg-black/50 md:hidden"
+          style={drawerDragging ? { opacity: Math.min(0.5, (swipeOffset / 288) * 0.5) } : undefined}
           onClick={() => {
             setMenuSessionId(null);
             setSidebarOpen(false);
@@ -248,14 +253,23 @@ export const Sidebar: React.FC = () => {
       )}
 
       {/* Session List Column (only shown in Chat view on Desktop, or as drawer on Mobile) */}
-      {(activeView === 'chat' || sidebarOpen) && (
+      {(activeView === 'chat' || sidebarOpen || drawerDragging) && (
         <aside
-          className={`fixed md:static inset-y-0 left-0 z-40 flex flex-col w-72 md:w-[260px] bg-sidebar border-r border-line transition-transform duration-200 safe-top safe-bottom ${
+          style={
+            drawerDragging
+              ? { transform: `translateX(${Math.min(0, -288 + swipeOffset)}px)` }
+              : undefined
+          }
+          className={`fixed md:static inset-y-0 left-0 z-40 flex flex-col w-72 md:w-[260px] bg-sidebar border-r border-line safe-top safe-bottom ${
+            drawerDragging ? '' : 'transition-transform duration-200'
+          } ${
             sidebarOpen
               ? activeView === 'chat'
                 ? 'translate-x-0'
                 : 'translate-x-0 md:hidden'
-              : '-translate-x-full invisible md:visible md:hidden'
+              : drawerDragging
+                ? 'translate-x-0'
+                : '-translate-x-full invisible md:visible md:hidden'
           }`}
         >
           <div className="flex items-center justify-between px-4 pt-4 pb-3">

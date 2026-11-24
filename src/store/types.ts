@@ -72,6 +72,8 @@ export interface UiSlice {
   toasts: ToastItem[];
   /** 当前会话的上下文 token 估算，由 WorldContextPopover 计算后写入，供消息操作行显示 */
   contextTokens: number | null;
+  /** 右滑抽屉时的跟手位移（px），0 表示没在拖 */
+  swipeOffset: number;
 
   setActiveView: (v: ActiveView) => void;
   setWorldStudioMode: (mode: 'world' | 'standalone_characters') => void;
@@ -80,6 +82,7 @@ export interface UiSlice {
   setActiveModal: (m: ModalKind) => void;
   setProvidersModalTab: (tab: ProvidersModalTab) => void;
   setContextTokens: (n: number | null) => void;
+  setSwipeOffset: (n: number) => void;
   setVoiceStudioSubTab: (subTab: VoiceStudioSubTab) => void;
   openProvidersModal: (
     tab: ProvidersModalTab,
