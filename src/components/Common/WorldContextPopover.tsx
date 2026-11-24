@@ -256,8 +256,11 @@ export const WorldContextPopover: React.FC<WorldContextPopoverProps> = ({ draftI
       >
         <BookOpen className="w-3.5 h-3.5 shrink-0" />
         {boundWorld && enableWorldContext ? (
-          <span>
-            《{boundWorld.name}》· {boundWorld.contextMode === 'full' ? '全量' : '渐进披露'}
+          <span className="truncate">
+            《{boundWorld.name}》
+            <span className="hidden sm:inline">
+              · {boundWorld.contextMode === 'full' ? '全量' : '渐进披露'}
+            </span>
           </span>
         ) : boundWorld ? (
           <span>已关联《{boundWorld.name}》（当前已暂停带入）</span>

@@ -2,54 +2,32 @@ import React from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { BookOpen, Menu, PanelLeftOpen, Plus, Upload } from 'lucide-react';
 import { useAppStore } from '../../store/useAppStore';
-import { ModelPicker } from '../Common/ModelPicker';
+import { SessionModeModal } from '../Common/SessionModeModal';
+import { WorldContextPopover } from '../Common/WorldContextPopover';
 
+/**
+ * 顶栏。
+ * 对话页留一句身份（谁在扮演、带的是哪部作品），模型选择挪到输入框旁边 ——
+ * 顶栏腾出来的高度全部还给正文。
+ */
 export const TopBar: React.FC = () => {
-  const {
-    sidebarOpen,
-    setSidebarOpen,
-    activeView,
-    setActiveView,
-    sessions,
-    activeSessionId,
-    draftConfig,
-    updateDraftConfig,
-    updateSession,
-    startNewDraft,
-    setActiveModal,
-  } = useAppStore(
-    useShallow((s) => ({
-      sidebarOpen: s.sidebarOpen,
-      setSidebarOpen: s.setSidebarOpen,
-      activeView: s.activeView,
-      setActiveView: s.setActiveView,
-      sessions: s.sessions,
-      activeSessionId: s.activeSessionId,
-      draftConfig: s.draftConfig,
-      updateDraftConfig: s.updateDraftConfig,
-      updateSession: s.updateSession,
-      startNewDraft: s.startNewDraft,
-      setActiveModal: s.setActiveModal,
-    }))
-  );
-
-  const session = sessions.find((s) => s.id === activeSessionId) ?? null;
-  const currentProviderId = session ? session.providerId : draftConfig.providerId;
-  const currentModel = session ? session.model : draftConfig.model;
-
-  const handleModelSelect = async (pid: string, model: string) => {
-    if (session) {
-      await updateSession(session.id, { providerId: pid, model });
-    } else {
-      updateDraftConfig({ providerId: pid, model });
-    }
-  };
+  const { sidebarOpen, setSidebarOpen, activeView, setActiveView, startNewDraft, setActiveModal } =
+    useAppStore(
+      useShallow((s) => ({
+        sidebarOpen: s.sidebarOpen,
+        setSidebarOpen: s.setSidebarOpen,
+        activeView: s.activeView,
+        setActiveView: s.setActiveView,
+        startNewDraft: s.startNewDraft,
+        setActiveModal: s.setActiveModal,
+      }))
+    );
 
   return (
     <header className="relative z-30 shrink-0 bg-canvas/95 backdrop-blur-md border-b border-line safe-top">
       <div className="h-14 flex items-center justify-between gap-2 px-3 md:px-5">
         {/* Left action */}
-        <div className="flex items-center gap-2 min-w-0">
+        <div className="flex items-center gap-2 min-w-0 shrink-0">
           {activeView === 'chat' ? (
             <>
               {!sidebarOpen && (
@@ -76,19 +54,16 @@ export const TopBar: React.FC = () => {
           ) : (
             <div className="flex items-center gap-2">
               <BookOpen className="w-4 h-4 text-accent shrink-0" />
-              <span className="text-[17px] font-semibold text-ink">作品与世界观</span>
+              <span className="text-title font-semibold text-ink">作品与世界观</span>
             </div>
           )}
         </div>
 
-        {/* Center pill in Chat view */}
+        {/* Center: 会话身份（角色 + 作品上下文），替代原来的模型选择器 */}
         {activeView === 'chat' && (
-          <div className="flex-1 flex justify-center min-w-0">
-            <ModelPicker
-              providerId={currentProviderId}
-              model={currentModel}
-              onSelect={handleModelSelect}
-            />
+          <div className="flex-1 flex items-center gap-2 min-w-0 overflow-hidden pl-1">
+            <SessionModeModal />
+            <WorldContextPopover />
           </div>
         )}
 
@@ -106,7 +81,7 @@ export const TopBar: React.FC = () => {
               </button>
               <button
                 onClick={() => setActiveModal('dataTransfer')}
-                className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-line text-[13px] text-secondary hover:bg-hover hover:text-ink transition cursor-pointer"
+                className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-line text-body text-secondary hover:bg-hover hover:text-ink transition cursor-pointer"
               >
                 <Upload className="w-3.5 h-3.5" />
                 <span>导入 / 备份</span>
@@ -115,7 +90,7 @@ export const TopBar: React.FC = () => {
           ) : (
             <button
               onClick={() => setActiveView('chat')}
-              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl border border-line text-[13px] md:text-[13px] text-secondary hover:bg-hover hover:text-ink transition cursor-pointer"
+              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl border border-line text-body text-secondary hover:bg-hover hover:text-ink transition cursor-pointer"
             >
               返回对话
             </button>

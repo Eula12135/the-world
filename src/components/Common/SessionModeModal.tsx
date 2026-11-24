@@ -154,7 +154,7 @@ export const SessionModeModal: React.FC = () => {
                 {(activeRoleChar?.name || '?').slice(0, 1)}
               </span>
             )}
-            <span className="font-semibold">{activeRoleChar?.name || '选择角色'}</span>
+            <span className="font-semibold truncate max-w-[8.5rem]">{activeRoleChar?.name || '选择角色'}</span>
             <ChevronDown className="w-3 h-3 shrink-0 opacity-70" />
           </>
         ) : isLegacyPersona ? (

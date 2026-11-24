@@ -18,8 +18,7 @@ import { isImeComposing, isProviderReady } from '../../utils/platform';
 import { startVoiceCapture, stopSpeaking, type VoiceCaptureHandle } from '../../services/voiceService';
 import { resolveUserAddress, resolveUserIdentity } from '../../services/userIdentity';
 import { MessageItem } from './MessageItem';
-import { WorldContextPopover } from '../Common/WorldContextPopover';
-import { SessionModeModal } from '../Common/SessionModeModal';
+import { ModelPicker } from '../Common/ModelPicker';
 
 const QUICK_STARTERS = [
   {
@@ -55,6 +54,8 @@ export const ChatView: React.FC = () => {
     streamingError,
     speakingMessageId,
     sendMessage,
+    updateSession,
+    updateDraftConfig,
     stopStreaming,
     setActiveModal,
     updateSettings,
@@ -77,6 +78,8 @@ export const ChatView: React.FC = () => {
       streamingError: s.streamingError,
       speakingMessageId: s.speakingMessageId,
       sendMessage: s.sendMessage,
+      updateSession: s.updateSession,
+      updateDraftConfig: s.updateDraftConfig,
       stopStreaming: s.stopStreaming,
       setActiveModal: s.setActiveModal,
       updateSettings: s.updateSettings,
@@ -96,6 +99,16 @@ export const ChatView: React.FC = () => {
   const keyboardOpen = useMobileKeyboardOpen();
 
   const session = sessions.find((s) => s.id === activeSessionId) ?? null;
+  const currentProviderId = session ? session.providerId : draftConfig.providerId;
+  const currentModel = session ? session.model : draftConfig.model;
+
+  const handleModelSelect = async (pid: string, model: string) => {
+    if (session) {
+      await updateSession(session.id, { providerId: pid, model });
+    } else {
+      updateDraftConfig({ providerId: pid, model });
+    }
+  };
   const activeWorldId = session ? session.worldId : draftConfig.worldId;
   const boundWorld = activeWorldId ? worlds.find((w) => w.id === activeWorldId) : undefined;
   const activeChatMode = (session ? session.chatMode : draftConfig.chatMode) || 'assistant';
@@ -299,6 +312,13 @@ export const ChatView: React.FC = () => {
     <div className="w-full max-w-3xl mx-auto">
 
       <div className="rounded-xl bg-card border border-line shadow-sm p-3 focus-within:border-accent/60 transition">
+        <div className="pb-1">
+          <ModelPicker
+            providerId={currentProviderId}
+            model={currentModel}
+            onSelect={handleModelSelect}
+          />
+        </div>
         <textarea
           value={input}
           onChange={(e) => setInput(e.target.value)}
@@ -491,10 +511,7 @@ export const ChatView: React.FC = () => {
         </div>
       ) : (
         <>
-          <div className="shrink-0 flex flex-wrap items-center gap-2 px-3 md:px-6 py-2 border-b border-line bg-canvas">
-            <SessionModeModal />
-            <WorldContextPopover draftInput={input} />
-          </div>
+
           <div
             ref={scrollContainerRef}
             onScroll={handleMessagesScroll}
