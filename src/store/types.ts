@@ -70,6 +70,8 @@ export interface UiSlice {
   speakingMessageId: string | null;
   confirmRequest: ConfirmRequest | null;
   toasts: ToastItem[];
+  /** 当前会话的上下文 token 估算，由 WorldContextPopover 计算后写入，供消息操作行显示 */
+  contextTokens: number | null;
 
   setActiveView: (v: ActiveView) => void;
   setWorldStudioMode: (mode: 'world' | 'standalone_characters') => void;
@@ -77,6 +79,7 @@ export interface UiSlice {
   clearPendingCreateStandaloneChar: () => void;
   setActiveModal: (m: ModalKind) => void;
   setProvidersModalTab: (tab: ProvidersModalTab) => void;
+  setContextTokens: (n: number | null) => void;
   setVoiceStudioSubTab: (subTab: VoiceStudioSubTab) => void;
   openProvidersModal: (
     tab: ProvidersModalTab,

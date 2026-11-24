@@ -297,10 +297,6 @@ export const ChatView: React.FC = () => {
 
   const inputDock = (
     <div className="w-full max-w-3xl mx-auto">
-      <div className="mb-2 flex flex-wrap items-center gap-2">
-        <SessionModeModal />
-        <WorldContextPopover draftInput={input} />
-      </div>
 
       <div className="rounded-xl bg-card border border-line shadow-sm p-3 focus-within:border-accent/60 transition">
         <textarea
@@ -495,6 +491,10 @@ export const ChatView: React.FC = () => {
         </div>
       ) : (
         <>
+          <div className="shrink-0 flex flex-wrap items-center gap-2 px-3 md:px-6 py-2 border-b border-line bg-canvas">
+            <SessionModeModal />
+            <WorldContextPopover draftInput={input} />
+          </div>
           <div
             ref={scrollContainerRef}
             onScroll={handleMessagesScroll}

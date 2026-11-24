@@ -11,7 +11,6 @@ import {
   X,
 } from 'lucide-react';
 import { useAppStore } from '../../store/useAppStore';
-import { resolveUserAddress, resolveUserIdentity } from '../../services/userIdentity';
 import { UserIdentitySection } from '../Chat/UserIdentitySection';
 import type { ChatMode, SessionUserRelationOverride, UserIdentityRef } from '../../types';
 
@@ -25,7 +24,6 @@ export const SessionModeModal: React.FC = () => {
     worlds,
     characters,
     personaPresets,
-    userPersonas,
     inheritUserRelationOverride,
     selectWorld,
     setActiveView,
@@ -124,31 +122,11 @@ export const SessionModeModal: React.FC = () => {
     }
   };
 
+  const activeUserIdentityRef = session ? session.userIdentity : draftConfig.userIdentity;
+
   const isRoleMode = chatMode === 'character_role';
   const isLegacyPersona = chatMode === 'custom_persona';
 
-  const activeUserIdentityRef = session ? session.userIdentity : draftConfig.userIdentity;
-  const activeUserRelationOverride = session
-    ? session.userRelationOverride
-    : draftConfig.userRelationOverride;
-
-  const resolvedUserIdentity = useMemo(
-    () =>
-      isRoleMode
-        ? resolveUserIdentity(activeUserIdentityRef, userPersonas, characters)
-        : null,
-    [isRoleMode, activeUserIdentityRef, userPersonas, characters]
-  );
-
-  const userDisplayName = useMemo(
-    () =>
-      resolveUserAddress({
-        identity: resolvedUserIdentity,
-        roleCharacter: activeRoleChar,
-        override: activeUserRelationOverride,
-      }),
-    [resolvedUserIdentity, activeRoleChar, activeUserRelationOverride]
-  );
 
   return (
     <>
@@ -156,10 +134,8 @@ export const SessionModeModal: React.FC = () => {
         type="button"
         onClick={() => setOpen(true)}
         data-testid="session-mode-trigger"
-        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[13px] transition cursor-pointer ${
-          chatMode === 'assistant'
-            ? 'bg-muted text-secondary hover:bg-hover'
-            : 'bg-accent-soft text-accent font-medium'
+        className={`inline-flex items-center gap-1.5 px-1 py-0.5 rounded-lg text-[13px] transition cursor-pointer ${
+          chatMode === 'assistant' ? 'text-secondary hover:text-ink' : 'text-ink hover:text-ink/80'
         }`}
       >
         {isRoleMode ? (
@@ -168,19 +144,18 @@ export const SessionModeModal: React.FC = () => {
               <img
                 src={activeRoleChar.avatarImage}
                 alt={activeRoleChar.name}
-                className="w-3.5 h-3.5 rounded-full object-cover shrink-0"
+                className="w-6 h-6 rounded-full object-cover shrink-0"
               />
             ) : (
-              <Users className="w-3.5 h-3.5 shrink-0" />
+              <span
+                className="w-6 h-6 rounded-full shrink-0 flex items-center justify-center text-white text-[11px] font-semibold"
+                style={{ backgroundColor: activeRoleChar?.avatarColor || 'var(--accent)' }}
+              >
+                {(activeRoleChar?.name || '?').slice(0, 1)}
+              </span>
             )}
-            <span>扮演：{activeRoleChar?.name || '选择角色'}</span>
-            {resolvedUserIdentity && (
-              <>
-                <span className="text-dim">↔</span>
-                <UserRound className="w-3.5 h-3.5 shrink-0" />
-                <span>我：{userDisplayName || resolvedUserIdentity.name}</span>
-              </>
-            )}
+            <span className="font-semibold">{activeRoleChar?.name || '选择角色'}</span>
+            <ChevronDown className="w-3 h-3 shrink-0 opacity-70" />
           </>
         ) : isLegacyPersona ? (
           <>

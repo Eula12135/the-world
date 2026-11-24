@@ -41,6 +41,7 @@ export const WorldContextPopover: React.FC<WorldContextPopoverProps> = ({ draftI
     setActiveView,
     compressSessionMemory,
     showToast,
+    setContextTokens,
   } = useAppStore(
     useShallow((s) => ({
       worlds: s.worlds,
@@ -60,6 +61,7 @@ export const WorldContextPopover: React.FC<WorldContextPopoverProps> = ({ draftI
       setActiveView: s.setActiveView,
       compressSessionMemory: s.compressSessionMemory,
       showToast: s.showToast,
+      setContextTokens: s.setContextTokens,
     }))
   );
 
@@ -176,6 +178,11 @@ export const WorldContextPopover: React.FC<WorldContextPopoverProps> = ({ draftI
     ]
   );
 
+  // 会话 token 估算写进 store，供消息操作行显示（不再单独占一行）
+  useEffect(() => {
+    setContextTokens(built ? built.stats.estimatedTokens : null);
+  }, [built, setContextTokens]);
+
   const handleBindWorld = async (nextWorldId?: string) => {
     if (session) {
       await updateSession(session.id, {
@@ -241,17 +248,16 @@ export const WorldContextPopover: React.FC<WorldContextPopoverProps> = ({ draftI
     <div className="relative flex flex-wrap items-center gap-2">
       <button
         onClick={() => setOpen(true)}
-        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[13px] transition cursor-pointer ${
+        className={`inline-flex items-center gap-1.5 px-1 py-0.5 rounded-lg text-[12px] transition cursor-pointer ${
           boundWorld && enableWorldContext
-            ? 'bg-accent-soft text-accent font-medium'
-            : 'bg-muted text-secondary hover:bg-hover'
+            ? 'text-accent hover:text-accent'
+            : 'text-dim hover:text-ink'
         }`}
       >
         <BookOpen className="w-3.5 h-3.5 shrink-0" />
         {boundWorld && enableWorldContext ? (
           <span>
-            《{boundWorld.name}》· {boundWorld.contextMode === 'full' ? '全量' : '渐进披露'} · 约{' '}
-            {built.stats.estimatedTokens} tokens
+            《{boundWorld.name}》· {boundWorld.contextMode === 'full' ? '全量' : '渐进披露'}
           </span>
         ) : boundWorld ? (
           <span>已关联《{boundWorld.name}》（当前已暂停带入）</span>

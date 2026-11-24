@@ -16,6 +16,7 @@ export const createUiSlice: AppSliceCreator<UiSlice> = (set, get) => ({
   speakingMessageId: null,
   confirmRequest: null,
   toasts: [],
+  contextTokens: null,
 
   setActiveView: (v) => {
     stopSpeaking();
@@ -36,6 +37,8 @@ export const createUiSlice: AppSliceCreator<UiSlice> = (set, get) => ({
       pendingVoiceBindTarget: m === 'none' ? null : s.pendingVoiceBindTarget,
     })),
   setProvidersModalTab: (tab) => set({ providersModalTab: tab }),
+
+  setContextTokens: (n) => set({ contextTokens: n }),
   setVoiceStudioSubTab: (subTab) => set({ voiceStudioSubTab: subTab }),
   openProvidersModal: (tab, opts) =>
     set({

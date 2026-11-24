@@ -4,14 +4,12 @@ import remarkGfm from 'remark-gfm';
 import { useShallow } from 'zustand/react/shallow';
 import {
   AlertTriangle,
-  BookmarkPlus,
   Check,
   ChevronDown,
   ChevronRight,
   Copy,
   Edit3,
   Globe,
-  RefreshCw,
   Square,
   Trash2,
   Volume2,
@@ -58,6 +56,7 @@ export const MessageItem: React.FC<MessageItemProps> = React.memo(({
     setSpeakingMessageId,
     showToast,
     requestConfirm,
+    contextTokens,
   } = useAppStore(
     useShallow((s) => ({
       regenerateLastAssistant: s.regenerateLastAssistant,
@@ -72,6 +71,7 @@ export const MessageItem: React.FC<MessageItemProps> = React.memo(({
       setSpeakingMessageId: s.setSpeakingMessageId,
       showToast: s.showToast,
       requestConfirm: s.requestConfirm,
+      contextTokens: s.contextTokens,
     }))
   );
 
@@ -422,7 +422,7 @@ export const MessageItem: React.FC<MessageItemProps> = React.memo(({
                 block.kind === 'action' ? (
                   <div
                     key={idx}
-                    className="my-1.5 px-3 py-1.5 rounded-xl bg-muted/55 border-l-2 border-accent/45 text-[13px] leading-relaxed text-secondary italic"
+                    className="my-1.5 pl-3 border-l-2 border-line text-[13.5px] leading-relaxed text-dim italic"
                   >
                     {block.text}
                   </div>
@@ -488,65 +488,43 @@ export const MessageItem: React.FC<MessageItemProps> = React.memo(({
         )}
 
         {(!isSessionStreaming || !isLastAssistant) && (
-          <div className="flex flex-wrap items-center gap-1 pt-0.5">
-            <button
-              onClick={handleCopy}
-              className="flex items-center gap-1 px-2 py-1 rounded-lg text-[13px] text-dim hover:text-ink hover:bg-hover cursor-pointer"
-            >
-              {copied ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
-              <span>{copied ? '已复制' : '复制'}</span>
+          <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1 pt-0.5 text-[12px] text-dim">
+            <button onClick={handleCopy} className="hover:text-ink cursor-pointer">
+              {copied ? '已复制' : '复制'}
             </button>
 
             {voiceSettings.ttsEnabled && message.content && (
               <button
                 onClick={handleSpeakToggle}
-                className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[13px] cursor-pointer ${
-                  isSpeaking
-                    ? 'text-accent bg-accent-soft font-medium'
-                    : 'text-dim hover:text-ink hover:bg-hover'
-                }`}
+                className={`cursor-pointer ${isSpeaking ? 'text-accent font-medium' : 'hover:text-ink'}`}
               >
-                {isSpeaking ? (
-                  <>
-                    <Square className="w-3 h-3 fill-current" />
-                    <span>停止朗读</span>
-                  </>
-                ) : (
-                  <>
-                    <Volume2 className="w-3.5 h-3.5" />
-                    <span>朗读</span>
-                  </>
-                )}
+                {isSpeaking ? '停止朗读' : '朗读'}
               </button>
             )}
 
             {isLastAssistant && (
-              <button
-                onClick={regenerateLastAssistant}
-                className="flex items-center gap-1 px-2 py-1 rounded-lg text-[13px] text-dim hover:text-ink hover:bg-hover cursor-pointer"
-              >
-                <RefreshCw className="w-3.5 h-3.5" />
-                <span>重新生成</span>
+              <button onClick={regenerateLastAssistant} className="hover:text-ink cursor-pointer">
+                重新生成
               </button>
             )}
 
             {sessionWorldId && message.content && (
-              <button
-                onClick={handleAppendToWorld}
-                className="flex items-center gap-1 px-2 py-1 rounded-lg text-[13px] text-dim hover:text-accent hover:bg-accent-soft cursor-pointer"
-              >
-                <BookmarkPlus className="w-3.5 h-3.5" />
-                <span>追加到设定文档</span>
+              <button onClick={handleAppendToWorld} className="hover:text-accent cursor-pointer">
+                存档
               </button>
             )}
 
             <button
               onClick={handleDelete}
-              className="flex items-center gap-1 px-2 py-1 rounded-lg text-[13px] text-dim hover:text-red-500 hover:bg-red-500/10 cursor-pointer"
+              className="hover:text-danger cursor-pointer"
               aria-label="删除此条回复"
             >
-              <Trash2 className="w-3.5 h-3.5" />
+              删除
             </button>
+
+            {isLastAssistant && contextTokens ? (
+              <span className="ml-auto tabular-nums">{contextTokens} tokens</span>
+            ) : null}
           </div>
         )}
       </div>
