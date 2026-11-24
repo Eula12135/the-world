@@ -63,6 +63,22 @@ html.dark {
   --color-danger: var(--danger);
   --color-warn: var(--warn);
   --color-success: var(--success);
+
+  /* 字号四档（见 DESIGN.md）：说明 / 正文 / 阅读 / 标题，另有 hero 只给空状态 */
+  --text-caption: 11.5px;
+  --text-caption--line-height: 1.45;
+  --text-body: 13px;
+  --text-body--line-height: 1.5;
+  --text-read: 15px;
+  --text-read--line-height: 1.72;
+  --text-title: 17px;
+  --text-title--line-height: 1.35;
+  --text-hero: 20px;
+  --text-hero--line-height: 1.3;
+
+  /* 圆角两档 + 胶囊 */
+  --radius-card: 12px;
+  --radius-control: 8px;
 }
 
 * {

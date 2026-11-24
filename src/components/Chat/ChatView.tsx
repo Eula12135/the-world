@@ -311,7 +311,7 @@ export const ChatView: React.FC = () => {
           }}
           placeholder={inputPlaceholder}
           rows={messages.length === 0 ? 3 : 2}
-          className="w-full max-h-44 bg-transparent text-[15px] text-ink outline-none resize-none placeholder:text-dim leading-relaxed"
+          className="w-full max-h-44 bg-transparent text-read text-ink outline-none resize-none placeholder:text-dim leading-relaxed"
         />
 
         <div className="flex items-center justify-between gap-2 pt-2">
@@ -320,7 +320,7 @@ export const ChatView: React.FC = () => {
               type="button"
               onClick={handleToggleVoiceInput}
               disabled={voiceState === 'transcribing'}
-              className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-xl text-[13px] border transition cursor-pointer ${
+              className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-xl text-body border transition cursor-pointer ${
                 voiceState === 'listening'
                   ? 'border-red-500/60 bg-red-500/12 text-red-500 font-medium animate-pulse'
                   : 'border-line text-secondary hover:bg-hover hover:text-ink'
@@ -347,7 +347,7 @@ export const ChatView: React.FC = () => {
               <button
                 type="button"
                 onClick={handleToggleAutoSpeak}
-                className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-xl text-[13px] border transition cursor-pointer ${
+                className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-xl text-body border transition cursor-pointer ${
                   settings.voice.ttsAutoPlay
                     ? 'border-accent/50 bg-accent-soft text-accent font-medium'
                     : 'border-line text-secondary hover:bg-hover hover:text-ink'
@@ -373,7 +373,7 @@ export const ChatView: React.FC = () => {
                   stopSpeaking();
                   setSpeakingMessageId(null);
                 }}
-                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl text-[13px] border border-red-500/40 bg-red-500/10 text-red-500 font-medium hover:bg-red-500/15 transition cursor-pointer"
+                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl text-body border border-red-500/40 bg-red-500/10 text-red-500 font-medium hover:bg-red-500/15 transition cursor-pointer"
                 title="立即中断当前语音朗读"
               >
                 <Square className="w-3 h-3 fill-current" />
@@ -381,7 +381,7 @@ export const ChatView: React.FC = () => {
               </button>
             )}
 
-            <span className="hidden md:inline text-[11.5px] text-dim ml-1">
+            <span className="hidden md:inline text-caption text-dim ml-1">
               纯本地客户端 · 密钥仅存本机
             </span>
           </div>
@@ -389,7 +389,7 @@ export const ChatView: React.FC = () => {
           {isCurrentSessionStreaming ? (
             <button
               onClick={stopStreaming}
-              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-[13px] font-medium bg-red-500 text-white hover:bg-red-600 cursor-pointer shrink-0"
+              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-body font-medium bg-red-500 text-white hover:bg-red-600 cursor-pointer shrink-0"
             >
               <Square className="w-3.5 h-3.5 fill-current" />
               <span>停止生成</span>
@@ -433,7 +433,7 @@ export const ChatView: React.FC = () => {
                   {roleCharacter?.name.slice(0, 1) || personaPreset?.name.slice(0, 1) || 'W'}
                 </div>
               )}
-              <h1 className="text-[20px] font-semibold text-ink">
+              <h1 className="text-hero font-semibold text-ink">
                 {roleCharacter
                   ? userIdentity
                     ? `你以「${userAddress || userIdentity.name}」的身份，与「${roleCharacter.name}」对话`
@@ -442,7 +442,7 @@ export const ChatView: React.FC = () => {
                     ? `人设模式：${personaPreset.name}`
                     : '今天想聊点什么，或写点什么？'}
               </h1>
-              <p className="text-[13px] text-secondary">
+              <p className="text-body text-secondary">
                 支持切换通用助手 / 自定义人设 / 扮演作品角色卡，亦可为「我」设定身份，让角色知道在跟谁说话
               </p>
             </div>
@@ -450,17 +450,17 @@ export const ChatView: React.FC = () => {
             {!hasReadyProvider && (
               <div className="p-4 rounded-xl bg-accent-soft border border-accent/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div className="space-y-1">
-                  <div className="text-[15px] font-semibold text-ink flex items-center gap-1.5">
+                  <div className="text-read font-semibold text-ink flex items-center gap-1.5">
                     <KeyRound className="w-4 h-4 text-accent" />
                     <span>3 步开始：选厂商拿 Key → 粘贴 → 测试连通</span>
                   </div>
-                  <div className="text-[13px] text-secondary">
+                  <div className="text-body text-secondary">
                     推荐先用 DeepSeek 或硅基流动，支持点击直达官方控制台获取密钥
                   </div>
                 </div>
                 <button
                   onClick={() => setActiveModal('providers')}
-                  className="px-4 py-2 rounded-xl text-[13px] font-medium bg-accent text-white shrink-0 hover:opacity-95 cursor-pointer"
+                  className="px-4 py-2 rounded-xl text-body font-medium bg-accent text-white shrink-0 hover:opacity-95 cursor-pointer"
                 >
                   立即配置 API
                 </button>
@@ -474,14 +474,14 @@ export const ChatView: React.FC = () => {
                 <button
                   key={s.label}
                   onClick={() => setInput(s.prompt)}
-                  className="px-3.5 py-1.5 rounded-full bg-muted hover:bg-hover border border-line text-[13px] text-secondary hover:text-ink transition cursor-pointer"
+                  className="px-3.5 py-1.5 rounded-full bg-muted hover:bg-hover border border-line text-body text-secondary hover:text-ink transition cursor-pointer"
                 >
                   {s.label}
                 </button>
               ))}
               <button
                 onClick={() => setActiveModal('dataTransfer')}
-                className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full border border-line text-[13px] text-secondary hover:bg-hover hover:text-ink transition cursor-pointer"
+                className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full border border-line text-body text-secondary hover:bg-hover hover:text-ink transition cursor-pointer"
               >
                 <Upload className="w-3.5 h-3.5 text-accent" />
                 <span>导入 DeepSeek 记录</span>
@@ -520,7 +520,7 @@ export const ChatView: React.FC = () => {
 
           {streamingError && (
             <div className="max-w-3xl w-full mx-auto px-3 md:px-6 pb-2">
-              <div className="flex items-center justify-between gap-2 px-3.5 py-2 rounded-xl bg-red-500/10 border border-red-500/30 text-red-500 text-[13px]">
+              <div className="flex items-center justify-between gap-2 px-3.5 py-2 rounded-xl bg-red-500/10 border border-red-500/30 text-red-500 text-body">
                 <span className="flex items-center gap-1.5">
                   <AlertCircle className="w-4 h-4 shrink-0" />
                   <span>{streamingError}</span>
