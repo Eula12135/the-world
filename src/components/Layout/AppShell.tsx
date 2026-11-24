@@ -23,6 +23,7 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
   const keyboardOpen = useMobileKeyboardOpen();
   const readyCount = providers.filter((p) => p.enabled && isProviderReady(p)).length;
 
+
   useEffect(() => {
     const mq = window.matchMedia('(min-width: 768px)');
     const onChange = (e: MediaQueryListEvent) => {

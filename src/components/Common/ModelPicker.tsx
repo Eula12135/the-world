@@ -14,6 +14,8 @@ export const ModelPicker: React.FC<ModelPickerProps> = ({ providerId, model, onS
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [dropdownTop, setDropdownTop] = useState<number>(64);
+  /** 触发点在屏幕下半部时向上展开，避免下拉跑到屏幕外 */
+  const [openUp, setOpenUp] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -23,7 +25,14 @@ export const ModelPicker: React.FC<ModelPickerProps> = ({ providerId, model, onS
     const updatePosition = () => {
       const rect = triggerRef.current?.getBoundingClientRect();
       if (rect) {
-        setDropdownTop(Math.round(rect.bottom + 8));
+        const preferUp = rect.bottom > window.innerHeight * 0.55;
+        setOpenUp(preferUp);
+        if (preferUp) {
+          // 以触发点顶部为基准向上展开：记录距底部的距离
+          setDropdownTop(Math.round(window.innerHeight - rect.top + 8));
+        } else {
+          setDropdownTop(Math.round(rect.bottom + 8));
+        }
       }
     };
 
@@ -66,7 +75,14 @@ export const ModelPicker: React.FC<ModelPickerProps> = ({ providerId, model, onS
         onClick={() => {
           setQuery('');
           if (!open && triggerRef.current) {
-            setDropdownTop(Math.round(triggerRef.current.getBoundingClientRect().bottom + 8));
+            const rect = triggerRef.current.getBoundingClientRect();
+            const preferUp = rect.bottom > window.innerHeight * 0.55;
+            setOpenUp(preferUp);
+            setDropdownTop(
+              preferUp
+                ? Math.round(window.innerHeight - rect.top + 8)
+                : Math.round(rect.bottom + 8)
+            );
           }
           setOpen((v) => !v);
         }}
@@ -90,8 +106,8 @@ export const ModelPicker: React.FC<ModelPickerProps> = ({ providerId, model, onS
             />
             <div
               ref={dropdownRef}
-              style={{ top: dropdownTop }}
-              className="fixed left-1/2 z-[70] w-[min(92vw,22rem)] -translate-x-1/2 rounded-xl bg-card border border-line shadow-2xl overflow-hidden flex flex-col max-h-[60vh]"
+              style={openUp ? { bottom: dropdownTop } : { top: dropdownTop }}
+              className="fixed left-1/2 z-[70] w-[min(92vw,22rem)] -translate-x-1/2 rounded-card bg-card border border-line shadow-2xl overflow-hidden flex flex-col max-h-[60vh]"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="flex items-center justify-between px-4 py-2.5 border-b border-line">
@@ -149,7 +165,9 @@ export const ModelPicker: React.FC<ModelPickerProps> = ({ providerId, model, onS
                                 : 'text-ink hover:bg-hover'
                             }`}
                           >
-                            <span className="truncate font-mono text-[13px]">{m}</span>
+                            <span className="truncate font-mono text-body" title={m}>
+                              {m.replace(/^models\//i, '')}
+                            </span>
                             {active && <Check className="w-4 h-4 shrink-0" />}
                           </button>
                         );

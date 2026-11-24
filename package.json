@@ -23,6 +23,7 @@
     "typecheck": "tsc --noEmit && tsc -p tsconfig.electron.json --noEmit"
   },
   "dependencies": {
+    "@capacitor/app": "^7.1.2",
     "@capacitor/core": "^7.4.4",
     "dexie": "^4.2.1",
     "fflate": "^0.8.2",

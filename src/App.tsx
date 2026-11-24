@@ -27,8 +27,34 @@ import {
   startInAppAndroidUpdate,
 } from './services/updateChecker';
 import { openExternalUrl } from './utils/platform';
+import { App as CapacitorApp } from '@capacitor/app';
 
 export const App: React.FC = () => {
+  // 安卓返回键：先关浮层，再回对话页，最后才退出 —— Capacitor 默认会直接退出
+  useEffect(() => {
+    if (typeof window === 'undefined' || !('Capacitor' in window)) return;
+    let remove: (() => void) | undefined;
+    let cancelled = false;
+    CapacitorApp.addListener('backButton', () => {
+      const s = useAppStore.getState();
+      if (s.activeModal !== 'none') {
+        s.setActiveModal('none');
+        return;
+      }
+      if (s.activeView !== 'chat') {
+        s.setActiveView('chat');
+        return;
+      }
+      void CapacitorApp.exitApp();
+    }).then((handle) => {
+      if (cancelled) void handle.remove();
+      else remove = () => void handle.remove();
+    });
+    return () => {
+      cancelled = true;
+      remove?.();
+    };
+  }, []);
   const {
     initialized,
     initError,
