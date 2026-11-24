@@ -44,9 +44,6 @@ export const ModelPicker: React.FC<ModelPickerProps> = ({ providerId, model, onS
   }, [open]);
 
   const currentProvider = providers.find((p) => p.id === providerId);
-  const isReady = currentProvider
-    ? !currentProvider.requiresKey || currentProvider.apiKey.trim().length > 0
-    : false;
 
   const grouped = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -73,15 +70,12 @@ export const ModelPicker: React.FC<ModelPickerProps> = ({ providerId, model, onS
           }
           setOpen((v) => !v);
         }}
-        className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-muted/90 hover:bg-hover border border-line text-[13px] font-medium text-ink transition cursor-pointer max-w-[200px] sm:max-w-[280px]"
+        className="flex items-center gap-1 px-2 py-1 rounded-control border border-line text-caption text-ink hover:bg-hover transition cursor-pointer max-w-[220px] sm:max-w-[320px]"
         title={currentProvider ? `${currentProvider.name} · ${model}` : model}
       >
-        <span
-          className={`w-2 h-2 rounded-full shrink-0 ${
-            isReady ? 'bg-emerald-500' : 'bg-amber-400'
-          }`}
-        />
-        <span className="truncate font-mono text-[13px]">{model || '选择模型'}</span>
+        <span className="truncate font-mono text-caption">
+          {(model || '选择模型').replace(/^models\//i, '')}
+        </span>
         <ChevronDown className="w-3.5 h-3.5 text-dim shrink-0" />
       </button>
 

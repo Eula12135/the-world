@@ -79,6 +79,7 @@ export const MessageItem: React.FC<MessageItemProps> = React.memo(({
   const [thinkOpen, setThinkOpen] = useState(false);
   const [userActionsOpen, setUserActionsOpen] = useState(false);
   const [editing, setEditing] = useState(false);
+  const [moreActionsOpen, setMoreActionsOpen] = useState(false);
   const [draftEdit, setDraftEdit] = useState(message.content);
 
   const isUser = message.role === 'user';
@@ -488,43 +489,59 @@ export const MessageItem: React.FC<MessageItemProps> = React.memo(({
         )}
 
         {(!isSessionStreaming || !isLastAssistant) && (
-          <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1 pt-0.5 text-caption text-dim">
-            <button onClick={handleCopy} className="hover:text-ink cursor-pointer">
-              {copied ? '已复制' : '复制'}
-            </button>
+          <div className="pt-0.5 text-caption text-secondary">
+            <div className="flex items-baseline gap-4">
+              <button onClick={handleCopy} className="hover:text-ink cursor-pointer">
+                {copied ? '已复制' : '复制'}
+              </button>
 
-            {voiceSettings.ttsEnabled && message.content && (
+              {isLastAssistant && (
+                <button onClick={regenerateLastAssistant} className="hover:text-ink cursor-pointer">
+                  重新生成
+                </button>
+              )}
+
               <button
-                onClick={handleSpeakToggle}
-                className={`cursor-pointer ${isSpeaking ? 'text-accent font-medium' : 'hover:text-ink'}`}
+                onClick={() => setMoreActionsOpen((v) => !v)}
+                className="hover:text-ink cursor-pointer"
+                aria-expanded={moreActionsOpen}
               >
-                {isSpeaking ? '停止朗读' : '朗读'}
+                {moreActionsOpen ? '收起' : '更多'}
               </button>
+
+              {isLastAssistant && contextTokens ? (
+                <span className="ml-auto tabular-nums text-dim">{contextTokens} tokens</span>
+              ) : null}
+            </div>
+
+            {moreActionsOpen && (
+              <div className="mt-1 flex items-baseline gap-4">
+                {voiceSettings.ttsEnabled && message.content && (
+                  <button
+                    onClick={handleSpeakToggle}
+                    className={`cursor-pointer ${
+                      isSpeaking ? 'text-accent-strong font-medium' : 'hover:text-ink'
+                    }`}
+                  >
+                    {isSpeaking ? '停止朗读' : '朗读'}
+                  </button>
+                )}
+
+                {sessionWorldId && message.content && (
+                  <button onClick={handleAppendToWorld} className="hover:text-ink cursor-pointer">
+                    存档
+                  </button>
+                )}
+
+                <button
+                  onClick={handleDelete}
+                  className="text-danger hover:underline cursor-pointer"
+                  aria-label="删除此条回复"
+                >
+                  删除
+                </button>
+              </div>
             )}
-
-            {isLastAssistant && (
-              <button onClick={regenerateLastAssistant} className="hover:text-ink cursor-pointer">
-                重新生成
-              </button>
-            )}
-
-            {sessionWorldId && message.content && (
-              <button onClick={handleAppendToWorld} className="hover:text-accent cursor-pointer">
-                存档
-              </button>
-            )}
-
-            <button
-              onClick={handleDelete}
-              className="hover:text-danger cursor-pointer"
-              aria-label="删除此条回复"
-            >
-              删除
-            </button>
-
-            {isLastAssistant && contextTokens ? (
-              <span className="ml-auto tabular-nums">{contextTokens} tokens</span>
-            ) : null}
           </div>
         )}
       </div>

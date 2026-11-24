@@ -462,29 +462,17 @@ export const ChatView: React.FC = () => {
                     ? `人设模式：${personaPreset.name}`
                     : '今天想聊点什么，或写点什么？'}
               </h1>
-              <p className="text-body text-secondary">
-                支持切换通用助手 / 自定义人设 / 扮演作品角色卡，亦可为「我」设定身份，让角色知道在跟谁说话
-              </p>
+
             </div>
 
             {!hasReadyProvider && (
-              <div className="p-4 rounded-xl bg-accent-soft border border-accent/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div className="space-y-1">
-                  <div className="text-read font-semibold text-ink flex items-center gap-1.5">
-                    <KeyRound className="w-4 h-4 text-accent" />
-                    <span>3 步开始：选厂商拿 Key → 粘贴 → 测试连通</span>
-                  </div>
-                  <div className="text-body text-secondary">
-                    推荐先用 DeepSeek 或硅基流动，支持点击直达官方控制台获取密钥
-                  </div>
-                </div>
-                <button
-                  onClick={() => setActiveModal('providers')}
-                  className="px-4 py-2 rounded-xl text-body font-medium bg-accent text-white shrink-0 hover:opacity-95 cursor-pointer"
-                >
-                  立即配置 API
-                </button>
-              </div>
+              <button
+                onClick={() => setActiveModal('providers')}
+                className="flex items-center justify-center gap-1.5 text-body font-medium text-accent-strong hover:underline cursor-pointer"
+              >
+                <KeyRound className="w-3.5 h-3.5" />
+                <span>还没有 API Key？去配置 →</span>
+              </button>
             )}
 
             {inputDock}
@@ -494,14 +482,14 @@ export const ChatView: React.FC = () => {
                 <button
                   key={s.label}
                   onClick={() => setInput(s.prompt)}
-                  className="px-3.5 py-1.5 rounded-full bg-muted hover:bg-hover border border-line text-body text-secondary hover:text-ink transition cursor-pointer"
+                  className="px-3 py-1 rounded-full border border-line text-caption text-secondary hover:bg-hover hover:text-ink transition cursor-pointer"
                 >
                   {s.label}
                 </button>
               ))}
               <button
                 onClick={() => setActiveModal('dataTransfer')}
-                className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full border border-line text-body text-secondary hover:bg-hover hover:text-ink transition cursor-pointer"
+                className="flex items-center gap-1.5 px-3 py-1 rounded-full border border-line text-caption text-secondary hover:bg-hover hover:text-ink transition cursor-pointer"
               >
                 <Upload className="w-3.5 h-3.5 text-accent" />
                 <span>导入 DeepSeek 记录</span>

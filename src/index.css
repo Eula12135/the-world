@@ -16,7 +16,7 @@
   /* 小字号强调文字用（#4d6bfe 只有 4.33:1，擦着 AA 线） */
   --accent-strong: #3b57e8;
   --accent-soft: rgba(77, 107, 254, 0.1);
-  --user-bubble: #eef2ff;
+  --user-bubble: #edf0ff;
   --code-bg: #f3f5f9;
   --code-text: #1f2937;
   --danger: #dc2626;

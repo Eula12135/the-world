@@ -456,14 +456,14 @@ export const ProvidersModal: React.FC = () => {
             </button>
           </div>
           <div className="flex items-center gap-2">
-            <div className="flex-1 md:flex-initial grid grid-cols-3 md:flex items-center gap-1 p-1 rounded-xl bg-muted border border-line">
+            <div className="flex-1 md:flex-initial grid grid-cols-3 md:flex items-center gap-4 border-b border-line">
               <button
                 type="button"
                 onClick={() => setProvidersModalTab('llm')}
                 className={`flex items-center justify-center gap-1 px-2.5 py-1.5 md:py-1 rounded-lg text-[13px] font-medium whitespace-nowrap cursor-pointer ${
                   providersModalTab === 'llm'
-                    ? 'bg-card text-accent shadow-xs'
-                    : 'text-secondary hover:text-ink'
+                    ? 'border-accent text-ink'
+                    : 'border-transparent text-secondary hover:text-ink'
                 }`}
               >
                 <KeyRound className="w-3.5 h-3.5" />
@@ -474,8 +474,8 @@ export const ProvidersModal: React.FC = () => {
                 onClick={() => setProvidersModalTab('image')}
                 className={`flex items-center justify-center gap-1 px-2.5 py-1.5 md:py-1 rounded-lg text-[13px] font-medium whitespace-nowrap cursor-pointer ${
                   providersModalTab === 'image'
-                    ? 'bg-card text-accent shadow-xs'
-                    : 'text-secondary hover:text-ink'
+                    ? 'border-accent text-ink'
+                    : 'border-transparent text-secondary hover:text-ink'
                 }`}
               >
                 <ImageIcon className="w-3.5 h-3.5" />
@@ -486,8 +486,8 @@ export const ProvidersModal: React.FC = () => {
                 onClick={() => setProvidersModalTab('voice')}
                 className={`flex items-center justify-center gap-1 px-2.5 py-1.5 md:py-1 rounded-lg text-[13px] font-medium whitespace-nowrap cursor-pointer ${
                   providersModalTab === 'voice'
-                    ? 'bg-card text-accent shadow-xs'
-                    : 'text-secondary hover:text-ink'
+                    ? 'border-accent text-ink'
+                    : 'border-transparent text-secondary hover:text-ink'
                 }`}
               >
                 <Volume2 className="w-3.5 h-3.5" />
@@ -552,7 +552,7 @@ export const ProvidersModal: React.FC = () => {
                 </div>
                 <button
                   onClick={handleAddCustomProvider}
-                  className="shrink-0 flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-dashed border-line text-[11.5px] text-secondary hover:border-accent hover:text-accent cursor-pointer"
+                  className="shrink-0 flex items-center gap-1 px-2.5 py-1.5 rounded-control border border-line text-caption text-secondary hover:border-accent hover:text-accent cursor-pointer"
                 >
                   <Plus className="w-3.5 h-3.5" />
                   <span>自定义</span>
@@ -604,7 +604,7 @@ export const ProvidersModal: React.FC = () => {
                   {draft.consoleUrl && (
                     <button
                       onClick={() => openExternalUrl(draft.consoleUrl)}
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[13px] font-medium bg-accent text-white hover:opacity-95 cursor-pointer shrink-0"
+                      className="flex items-center gap-1.5 text-body font-medium text-accent-strong hover:underline cursor-pointer shrink-0"
                     >
                       <span>去官网获取 API Key</span>
                       <ExternalLink className="w-3.5 h-3.5" />
@@ -613,7 +613,7 @@ export const ProvidersModal: React.FC = () => {
                 </div>
 
                 {/* Card 1: Basic Connection */}
-                <div className="p-3.5 md:p-4 rounded-xl bg-sidebar border border-line space-y-3">
+                <div className="p-3.5 md:p-4 rounded-card border border-line space-y-3">
                   <div>
                     <label className="block mb-1.5 font-medium text-ink">
                       API Key {!draft.requiresKey && '（本地 Ollama 通常无需填写）'}
@@ -638,11 +638,11 @@ export const ProvidersModal: React.FC = () => {
                 </div>
 
                 {/* Card 2: Model Configuration */}
-                <div className="p-3.5 md:p-4 rounded-xl bg-sidebar border border-line space-y-3">
+                <div className="p-3.5 md:p-4 rounded-card border border-line space-y-3">
                   <div className="flex flex-wrap items-start justify-between gap-2">
                     <div>
                       <label className="font-medium text-ink">
-                        已配置模型（默认：<span className="font-mono text-accent">{draft.selectedModel}</span>）
+                        已配置模型（默认：<span className="font-mono text-ink">{draft.selectedModel}</span>）
                       </label>
                       <p className="mt-0.5 text-[11.5px] text-dim">
                         主界面下拉框仅显示此处已配置的模型
@@ -806,7 +806,7 @@ export const ProvidersModal: React.FC = () => {
                 </div>
 
                 {/* Card 3: Collapsible Advanced Endpoint Options */}
-                <div className="rounded-xl bg-sidebar border border-line overflow-hidden">
+                <div className="rounded-card border border-line overflow-hidden">
                   {!draft.isCustom && (
                     <button
                       type="button"
@@ -932,14 +932,14 @@ export const ProvidersModal: React.FC = () => {
                     <button
                       onClick={handleTest}
                       disabled={testing}
-                      className="flex items-center gap-1.5 px-4 py-2 rounded-xl border border-line text-ink hover:bg-hover cursor-pointer disabled:opacity-50"
+                      className="flex items-center gap-1.5 px-4 py-2 rounded-control border border-line text-ink hover:bg-hover cursor-pointer disabled:opacity-50"
                     >
                       {testing && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
                       <span>测试连通性</span>
                     </button>
                     <button
                       onClick={handleSave}
-                      className="px-4 py-2 rounded-xl font-medium bg-accent text-white hover:opacity-95 cursor-pointer"
+                      className="flex items-center gap-1.5 px-4 py-2.5 rounded-control text-body font-medium bg-accent text-white hover:opacity-95 cursor-pointer"
                     >
                       保存配置
                     </button>
@@ -1141,7 +1141,7 @@ export const ProvidersModal: React.FC = () => {
               <button
                 type="button"
                 onClick={handleSaveImageGen}
-                className="px-4 py-2 rounded-xl font-medium bg-accent text-white hover:opacity-95 cursor-pointer"
+                className="flex items-center gap-1.5 px-4 py-2.5 rounded-control text-body font-medium bg-accent text-white hover:opacity-95 cursor-pointer"
               >
                 保存生图配置
               </button>

@@ -29,19 +29,12 @@ import {
 import { openExternalUrl, isProviderReady } from '../../utils/platform';
 
 const WORLD_CHAR_PRESETS = [
-  { label: '3万字', value: 30000 },
-  { label: '10万字(推荐)', value: 100000 },
-  { label: '30万字', value: 300000 },
+  { label: '3 万字', value: 30000 },
+  { label: '10 万字（推荐）', value: 100000 },
+  { label: '30 万字', value: 300000 },
   { label: '不限制', value: 0 },
 ];
 
-function formatCharLimitBadge(chars: number): string {
-  if (chars === 0) return '不限制';
-  if (chars >= 10000) {
-    return `${Number((chars / 10000).toFixed(1))} 万字`;
-  }
-  return `${chars} 字`;
-}
 
 export const SettingsModal: React.FC = () => {
   const {
@@ -205,7 +198,7 @@ export const SettingsModal: React.FC = () => {
           </section>
 
           {/* Card 1: Appearance & Model Parameters */}
-          <section className="border-t border-line pt-4 space-y-4">
+          <section className="pt-2 space-y-4">
             <div className="px-1 text-caption text-dim">外观与对话参数</div>
 
             <div>
@@ -236,7 +229,7 @@ export const SettingsModal: React.FC = () => {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
               <div>
                 <label className="block mb-1.5 font-medium text-ink">
-                  Temperature ({settings.temperature})
+                  采样温度（{settings.temperature}）
                 </label>
                 <input
                   type="range"
@@ -250,7 +243,7 @@ export const SettingsModal: React.FC = () => {
               </div>
 
               <div>
-                <label className="block mb-1.5 font-medium text-ink">Max Tokens</label>
+                <label className="block mb-1.5 font-medium text-ink">最大输出长度</label>
                 <input
                   type="number"
                   min={256}
@@ -291,12 +284,7 @@ export const SettingsModal: React.FC = () => {
                 />
               </div>
               <div>
-                <div className="flex items-center justify-between mb-1.5 gap-2">
-                  <label className="font-medium text-ink">作品设定字数上限</label>
-                  <span className="text-caption px-1.5 py-0.5 rounded bg-accent-soft text-accent font-medium">
-                    {formatCharLimitBadge(settings.maxWorldContextChars)}
-                  </span>
-                </div>
+                <label className="block mb-1.5 font-medium text-ink">作品设定字数上限</label>
                 <input
                   type="number"
                   min={0}
@@ -346,7 +334,7 @@ export const SettingsModal: React.FC = () => {
           </section>
 
           {/* Card 2: Global System Prompt */}
-          <section className="border-t border-line pt-4 space-y-2">
+          <section className="pt-2 space-y-2">
             <label className="block px-1 text-caption text-dim">
               全局系统提示词 (System Prompt)
             </label>
@@ -359,7 +347,7 @@ export const SettingsModal: React.FC = () => {
           </section>
 
           {/* Card 3: Version & Updates */}
-          <section className="border-t border-line pt-4 space-y-3">
+          <section className="pt-2 space-y-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-2">
                 <span className="px-1 text-caption text-dim">版本与更新</span>
