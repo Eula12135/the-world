@@ -1,9 +1,9 @@
 {
-  "version": "0.6.0",
-  "name": "The World v0.6.0",
-  "pageUrl": "https://gitee.com/qiutonger/the-world/releases/tag/v0.6.0",
-  "releaseUrl": "https://gitee.com/qiutonger/the-world/releases/tag/v0.6.0",
-  "windowsUrl": "https://gitee.com/qiutonger/the-world/releases/download/v0.6.0/The-World-Setup-0.6.0.exe",
-  "androidUrl": "https://github.com/Eula12135/the-world/releases/download/v0.6.0/The-World-0.6.0-android.apk",
-  "notes": "## v0.6.0\n\n- 新增「我」的身份：可自建，也可直接引用一张角色卡（双卡对戏），角色终于知道在跟谁说话\n- 身份可设称呼、头像与朗读音色；关系可按会话微调，双卡同作品时自动取关系图（带时间点、不剧透）\n- 自动朗读可选范围：只读角色 / 只读我 / 两边都读；两侧串行排队，不会互相打断\n- 新增本地语音缓存：同一句第二次朗读直接秒播，支持按对话清理、换音色后沿用旧语音\n- 旁白不再被念出来，但笑声等拟声词保留（「噗的一下笑出来」→ 只念「噗」）\n- 角色卡新增「与我」关系钩子：默认称呼、默认关系与可选身份提示\n- 全站下拉改为自绘选择器：身份按作品分组，角色多时可直接搜索\n- 全局默认声音改为可选，不再随保存自动设置；未配置声音时会明确提示"
+  "version": "0.6.1",
+  "name": "The World v0.6.1",
+  "pageUrl": "https://gitee.com/qiutonger/the-world/releases/tag/v0.6.1",
+  "releaseUrl": "https://gitee.com/qiutonger/the-world/releases/tag/v0.6.1",
+  "windowsUrl": "https://gitee.com/qiutonger/the-world/releases/download/v0.6.1/The-World-Setup-0.6.1.exe",
+  "androidUrl": "https://github.com/Eula12135/the-world/releases/download/v0.6.1/The-World-0.6.1-android.apk",
+  "notes": "## v0.6.1\n\n- 修复：**没开自动朗读也会朗读** —— 语音开着就自动念的老毛病，现在只看「自动朗读」这个开关\n- 界面重做一轮：顶栏只留「在跟谁对话 + 关联哪部作品」，模型选择器移到输入框里，腾出的高度全给正文\n- 手机底部导航取消，作品与设置移入侧边抽屉；**在正文上向右滑即可展开**\n- 安卓返回键改为逐级返回：先关下拉/浮层/大图，再回对话页，最后才退出\n- 消息操作改成一行图标（复制、重新生成、朗读、存为设定、删除），右侧显示当前上下文用量\n- 输入框随内容自动长高，最高约十行，不再是固定的两行高\n- 角色卡可分别选**取景**（头像 / 半身 / 场景）和**画风**（厚涂、国风工笔、日系赛璐璐等，也可不指定）\n- 生图取景跟随尺寸：选头像就只画头肩，不会再画成全身\n- 生图提示词只取可画的信息，台词、口头禅和剧情不再混进画面描述；也可让文本模型提炼\n- 「拉取模型」改为弹窗勾选：只把你选的模型加入列表，主界面下拉不再堆几十个\n- 设置与模型配置在手机上改为整页，转场更顺，保存按钮不再被手势条挡住\n- 全站字号、圆角、颜色收敛成一套，小字对比度达标，深色浅色都更清楚"
 }
