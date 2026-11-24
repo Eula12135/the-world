@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import { BUILTIN_PROVIDERS } from '../../data/providers';
 import { IMAGE_FRAMINGS } from '../../utils/imageFraming';
+import { OptionPicker } from '../Common/OptionPicker';
 import { useAppStore } from '../../store/useAppStore';
 import type {
   ImageGenConfig,
@@ -533,8 +534,33 @@ export const ProvidersModal: React.FC = () => {
             )}
 
             <div className="flex-1 flex flex-col md:flex-row min-h-0">
-              {/* Provider List */}
-              <div className="w-full md:w-60 shrink-0 border-b md:border-b-0 md:border-r border-line bg-sidebar overflow-x-auto md:overflow-y-auto p-2 flex md:flex-col gap-1">
+              {/* 手机端：厂商一多横排就滚动、最后一项被裁，改用下拉选择 */}
+              <div className="md:hidden flex items-center gap-2 px-3 py-2 border-b border-line bg-sidebar">
+                <div className="min-w-0 flex-1">
+                  <OptionPicker
+                    value={draft.id}
+                    onChange={setSelectedId}
+                    items={providers.map((p) => {
+                      const ready = !p.requiresKey || p.apiKey.trim().length > 0;
+                      return {
+                        value: p.id,
+                        label: p.name,
+                        hint: ready ? '已配置' : '未填 Key',
+                      };
+                    })}
+                  />
+                </div>
+                <button
+                  onClick={handleAddCustomProvider}
+                  className="shrink-0 flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-dashed border-line text-[11.5px] text-secondary hover:border-accent hover:text-accent cursor-pointer"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>自定义</span>
+                </button>
+              </div>
+
+              {/* Provider List（桌面侧栏） */}
+              <div className="hidden md:flex md:flex-col md:w-60 shrink-0 md:border-r border-line bg-sidebar md:overflow-y-auto p-2 gap-1">
                 {providers.map((p) => {
                   const ready = !p.requiresKey || p.apiKey.trim().length > 0;
                   const active = p.id === draft.id;
