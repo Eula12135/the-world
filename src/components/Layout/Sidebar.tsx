@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import {
   BookOpen,
@@ -17,6 +17,7 @@ import {
   X,
 } from 'lucide-react';
 import { useAppStore } from '../../store/useAppStore';
+import { pushBackLayer } from '../../utils/backStack';
 import type { ChatSession } from '../../types';
 import { db } from '../../db/database';
 import { sessionToMarkdown } from '../../services/exportService';
@@ -107,6 +108,14 @@ export const Sidebar: React.FC = () => {
   }, [sessions, query]);
 
   const groups = useMemo(() => groupSessions(filtered), [filtered]);
+
+  // 手机端抽屉也算一层浮层：返回键先收抽屉，而不是直接退出 App
+  const drawerOpen = sidebarOpen;
+  useEffect(() => {
+    if (!drawerOpen) return;
+    if (typeof window === 'undefined' || window.innerWidth >= 768) return;
+    return pushBackLayer(() => setSidebarOpen(false));
+  }, [drawerOpen, setSidebarOpen]);
 
   const handleSelectSession = async (id: string) => {
     setMenuSessionId(null);

@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Check, ChevronDown, KeyRound, Search, X } from 'lucide-react';
 import { useAppStore } from '../../store/useAppStore';
+import { pushBackLayer } from '../../utils/backStack';
 
 interface ModelPickerProps {
   providerId: string;
@@ -13,11 +14,17 @@ export const ModelPicker: React.FC<ModelPickerProps> = ({ providerId, model, onS
   const { providers, setActiveModal } = useAppStore();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
-  const [dropdownTop, setDropdownTop] = useState<number>(64);
+  const [dropdownOffset, setDropdownOffset] = useState<number>(64);
   /** 触发点在屏幕下半部时向上展开，避免下拉跑到屏幕外 */
   const [openUp, setOpenUp] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // 返回键先关下拉，而不是关掉整个页面或退出 App
+  useEffect(() => {
+    if (!open) return;
+    return pushBackLayer(() => setOpen(false));
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -29,9 +36,9 @@ export const ModelPicker: React.FC<ModelPickerProps> = ({ providerId, model, onS
         setOpenUp(preferUp);
         if (preferUp) {
           // 以触发点顶部为基准向上展开：记录距底部的距离
-          setDropdownTop(Math.round(window.innerHeight - rect.top + 8));
+          setDropdownOffset(Math.round(window.innerHeight - rect.top + 8));
         } else {
-          setDropdownTop(Math.round(rect.bottom + 8));
+          setDropdownOffset(Math.round(rect.bottom + 8));
         }
       }
     };
@@ -78,7 +85,7 @@ export const ModelPicker: React.FC<ModelPickerProps> = ({ providerId, model, onS
             const rect = triggerRef.current.getBoundingClientRect();
             const preferUp = rect.bottom > window.innerHeight * 0.55;
             setOpenUp(preferUp);
-            setDropdownTop(
+            setDropdownOffset(
               preferUp
                 ? Math.round(window.innerHeight - rect.top + 8)
                 : Math.round(rect.bottom + 8)
@@ -106,7 +113,7 @@ export const ModelPicker: React.FC<ModelPickerProps> = ({ providerId, model, onS
             />
             <div
               ref={dropdownRef}
-              style={openUp ? { bottom: dropdownTop } : { top: dropdownTop }}
+              style={openUp ? { bottom: dropdownOffset } : { top: dropdownOffset }}
               className="fixed left-1/2 z-[70] w-[min(92vw,22rem)] -translate-x-1/2 rounded-card bg-card border border-line shadow-2xl overflow-hidden flex flex-col max-h-[60vh]"
               onClick={(e) => e.stopPropagation()}
             >

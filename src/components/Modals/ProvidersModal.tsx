@@ -23,6 +23,7 @@ import {
 import { BUILTIN_PROVIDERS } from '../../data/providers';
 import { IMAGE_FRAMINGS } from '../../utils/imageFraming';
 import { OptionPicker } from '../Common/OptionPicker';
+import { pushBackLayer } from '../../utils/backStack';
 import { useAppStore } from '../../store/useAppStore';
 import type {
   ImageGenConfig,
@@ -68,6 +69,16 @@ export const ProvidersModal: React.FC = () => {
   const [fetchedModelQuery, setFetchedModelQuery] = useState('');
   /** 勾选框里的临时选择；点「加入列表」才写回已配置模型 */
   const [pickerSelection, setPickerSelection] = useState<string[]>([]);
+
+  // 选择框本身也是一层：返回键先关它，别把整个配置页关掉
+  useEffect(() => {
+    if (fetchedModels.length === 0) return;
+    return pushBackLayer(() => {
+      setFetchedModels([]);
+      setPickerSelection([]);
+      setStatusMsg(null);
+    });
+  }, [fetchedModels.length]);
 
   const [draftImg, setDraftImg] = useState<ImageGenConfig>(settings.imageGen);
   const [showImgKey, setShowImgKey] = useState(false);
@@ -186,8 +197,7 @@ export const ProvidersModal: React.FC = () => {
     setFetchedModels([]);
     setFetchedModelQuery('');
     setPickerSelection([]);
-    // 选择框关掉后「去勾选」的提示就过期了
-    setStatusMsg(null);
+    setStatusMsg({ ok: true, text: '已更新模型列表，记得点「保存配置」生效' });
   };
 
   const handleKeepOnlySelected = () => {
@@ -1104,6 +1114,8 @@ export const ProvidersModal: React.FC = () => {
               : fetchedModels;
             const allSelected =
               filtered.length > 0 && filtered.every((m) => pickerSelection.includes(m));
+            const keptCount = draft.models.filter((m) => !fetchedModels.includes(m)).length;
+            const willRemain = keptCount + pickerSelection.length;
 
             return (
               <div
@@ -1125,6 +1137,7 @@ export const ProvidersModal: React.FC = () => {
                         onClick={() => {
                           setFetchedModels([]);
                           setPickerSelection([]);
+                          setStatusMsg(null);
                         }}
                         className="p-1.5 rounded-control text-dim hover:text-ink hover:bg-hover cursor-pointer"
                         aria-label="关闭"
@@ -1194,13 +1207,18 @@ export const ProvidersModal: React.FC = () => {
                   </div>
 
                   <div className="flex items-center justify-between gap-2 px-4 py-3 border-t border-line">
-                    <span className="text-caption text-dim">已选 {pickerSelection.length} 个</span>
+                    <span className="text-caption text-dim">
+                      {willRemain === 0
+                        ? '至少要保留一个模型'
+                        : `已选 ${pickerSelection.length} 个`}
+                    </span>
                     <div className="flex items-center gap-2">
                       <button
                         type="button"
                         onClick={() => {
                           setFetchedModels([]);
                           setPickerSelection([]);
+                          setStatusMsg(null);
                         }}
                         className="px-3.5 py-2 rounded-control border border-line text-body text-ink hover:bg-hover cursor-pointer"
                       >
@@ -1220,6 +1238,7 @@ export const ProvidersModal: React.FC = () => {
             );
           })()}
 
-      </div>    </div>
+      </div>
+    </div>
   );
 };

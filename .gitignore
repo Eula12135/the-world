@@ -22,3 +22,8 @@ npm-debug.log*
 imports/
 
 .superpowers/
+
+shots/
+release-local/
+release-local2/
+release-local3/

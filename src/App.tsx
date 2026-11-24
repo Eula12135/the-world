@@ -28,6 +28,7 @@ import {
 } from './services/updateChecker';
 import { openExternalUrl } from './utils/platform';
 import { App as CapacitorApp } from '@capacitor/app';
+import { closeTopBackLayer } from './utils/backStack';
 
 export const App: React.FC = () => {
   // 安卓返回键：先关浮层，再回对话页，最后才退出 —— Capacitor 默认会直接退出
@@ -36,6 +37,8 @@ export const App: React.FC = () => {
     let remove: (() => void) | undefined;
     let cancelled = false;
     CapacitorApp.addListener('backButton', () => {
+      // 先关最上层的局部浮层（下拉、浮层、大图、抽屉、选择框）
+      if (closeTopBackLayer()) return;
       const s = useAppStore.getState();
       if (s.activeModal !== 'none') {
         s.setActiveModal('none');

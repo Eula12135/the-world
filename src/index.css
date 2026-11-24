@@ -171,7 +171,8 @@ body,
   }
 }
 
-/* Markdown Typography */.markdown-body {
+/* Markdown Typography */
+.markdown-body {
   font-size: 15px;
   line-height: 1.72;
   word-break: break-word;

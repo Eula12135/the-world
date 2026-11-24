@@ -14,6 +14,7 @@ import {
   X,
 } from 'lucide-react';
 import { useAppStore } from '../../store/useAppStore';
+import { pushBackLayer } from '../../utils/backStack';
 import { parseDocumentSections } from '../../data/worldTemplates';
 import { buildSessionSystemPrompt } from '../../services/contextBuilder';
 import { INITIAL_STORY_POINT, sortEventsChronologically } from '../../services/temporalGraph';
@@ -66,6 +67,11 @@ export const WorldContextPopover: React.FC<WorldContextPopoverProps> = ({ draftI
   );
 
   const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    return pushBackLayer(() => setOpen(false));
+  }, [open]);
   const [tab, setTab] = useState<'world' | 'memory' | 'preview'>('world');
   const [compressing, setCompressing] = useState(false);
 

@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Download, X } from 'lucide-react';
+import { pushBackLayer } from '../../utils/backStack';
 
 interface ImageLightboxProps {
   src: string;
@@ -22,6 +23,8 @@ const MAX_SCALE = 5;
  * - 底部有下载/保存按钮
  */
 export const ImageLightbox: React.FC<ImageLightboxProps> = ({ src, alt = '图片预览', onClose }) => {
+  // 大图也是浮层，返回键先关它
+  useEffect(() => pushBackLayer(onClose), [onClose]);
   const [scale, setScale] = useState(1);
   const [offset, setOffset] = useState({ x: 0, y: 0 });
   const [saveState, setSaveState] = useState<'idle' | 'done' | 'error'>('idle');
