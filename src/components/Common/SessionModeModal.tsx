@@ -156,7 +156,7 @@ export const SessionModeModal: React.FC = () => {
         type="button"
         onClick={() => setOpen(true)}
         data-testid="session-mode-trigger"
-        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[12px] transition cursor-pointer ${
+        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[13px] transition cursor-pointer ${
           chatMode === 'assistant'
             ? 'bg-muted text-secondary hover:bg-hover'
             : 'bg-accent-soft text-accent font-medium'
@@ -206,7 +206,7 @@ export const SessionModeModal: React.FC = () => {
             onClick={() => setOpen(false)}
           >
             <div
-              className="w-full md:max-w-xl rounded-t-2xl md:rounded-2xl bg-card border border-line shadow-2xl overflow-hidden flex flex-col max-h-[88vh]"
+              className="w-full md:max-w-xl rounded-t-2xl md:rounded-xl bg-card border border-line shadow-2xl overflow-hidden flex flex-col max-h-[88vh]"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="flex items-center justify-between px-4 py-3 border-b border-line shrink-0">
@@ -245,7 +245,7 @@ export const SessionModeModal: React.FC = () => {
                       <Bot className="w-4 h-4 text-accent shrink-0" />
                       <span>通用助手</span>
                     </div>
-                    <div className="text-[11px] text-dim mt-1">
+                    <div className="text-[11.5px] text-dim mt-1">
                       日常问答、写作顾问，支持随时附加临时指令
                     </div>
                   </button>
@@ -269,7 +269,7 @@ export const SessionModeModal: React.FC = () => {
                       <Users className="w-4 h-4 text-accent shrink-0" />
                       <span>角色对话</span>
                     </div>
-                    <div className="text-[11px] text-dim mt-1">
+                    <div className="text-[11.5px] text-dim mt-1">
                       独立角色或作品角色，支持立绘、语音与专属人设
                     </div>
                   </button>
@@ -281,7 +281,7 @@ export const SessionModeModal: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => setAssistantPromptOpen((v) => !v)}
-                      className="w-full flex items-center justify-between px-3.5 py-2.5 text-[12.5px] font-medium text-secondary hover:text-ink hover:bg-hover cursor-pointer"
+                      className="w-full flex items-center justify-between px-3.5 py-2.5 text-[13px] font-medium text-secondary hover:text-ink hover:bg-hover cursor-pointer"
                     >
                       <span className="flex items-center gap-1.5">
                         {assistantPromptOpen ? (
@@ -292,7 +292,7 @@ export const SessionModeModal: React.FC = () => {
                         <span>本次对话临时指令（可选）</span>
                       </span>
                       {promptOverride.trim() && (
-                        <span className="text-[11px] px-1.5 py-0.5 rounded bg-accent-soft text-accent">
+                        <span className="text-[11.5px] px-1.5 py-0.5 rounded bg-accent-soft text-accent">
                           已设置
                         </span>
                       )}
@@ -320,14 +320,14 @@ export const SessionModeModal: React.FC = () => {
                 {(isRoleMode || isLegacyPersona) && (
                   <div className="space-y-3">
                     <div className="flex flex-wrap items-center justify-between gap-2">
-                      <span className="font-medium text-secondary text-[12px]">
+                      <span className="font-medium text-secondary text-[13px]">
                         选择角色卡（点击立即切换）
                       </span>
                       <div className="flex items-center gap-2.5">
                         <button
                           type="button"
                           onClick={handleManageChars}
-                          className="text-[12px] text-secondary hover:text-ink hover:underline cursor-pointer"
+                          className="text-[13px] text-secondary hover:text-ink hover:underline cursor-pointer"
                         >
                           管理角色卡
                         </button>
@@ -337,7 +337,7 @@ export const SessionModeModal: React.FC = () => {
                             setOpen(false);
                             openStandaloneCharacters(true);
                           }}
-                          className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-accent-soft text-accent text-[12px] font-medium hover:opacity-90 cursor-pointer"
+                          className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-accent-soft text-accent text-[13px] font-medium hover:opacity-90 cursor-pointer"
                         >
                           <Plus className="w-3.5 h-3.5" />
                           <span>新建独立角色</span>
@@ -358,7 +358,7 @@ export const SessionModeModal: React.FC = () => {
                               setOpen(false);
                               openStandaloneCharacters(true);
                             }}
-                            className="inline-flex items-center gap-1 px-3.5 py-1.5 rounded-xl bg-accent text-white text-[12px] font-medium cursor-pointer"
+                            className="inline-flex items-center gap-1 px-3.5 py-1.5 rounded-xl bg-accent text-white text-[13px] font-medium cursor-pointer"
                           >
                             <Plus className="w-3.5 h-3.5" />
                             <span>新建独立角色</span>
@@ -369,7 +369,7 @@ export const SessionModeModal: React.FC = () => {
                               setOpen(false);
                               setActiveView('worlds');
                             }}
-                            className="px-3.5 py-1.5 rounded-xl border border-line text-secondary text-[12px] hover:bg-hover cursor-pointer"
+                            className="px-3.5 py-1.5 rounded-xl border border-line text-secondary text-[13px] hover:bg-hover cursor-pointer"
                           >
                             去作品工坊
                           </button>
@@ -418,7 +418,7 @@ export const SessionModeModal: React.FC = () => {
                         </div>
 
                         {filteredChars.length === 0 ? (
-                          <div className="p-4 rounded-xl border border-dashed border-line text-center text-[12px] text-dim">
+                          <div className="p-4 rounded-xl border border-dashed border-line text-center text-[13px] text-dim">
                             该分类下暂无角色卡
                           </div>
                         ) : (
@@ -473,11 +473,11 @@ export const SessionModeModal: React.FC = () => {
                                       <span className="text-[13px] font-medium text-ink truncate">
                                         {c.name}
                                       </span>
-                                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-dim shrink-0">
+                                      <span className="text-[11.5px] px-1.5 py-0.5 rounded bg-muted text-dim shrink-0">
                                         {boundWorldName ? `《${boundWorldName}》` : '独立'}
                                       </span>
                                     </div>
-                                    <div className="text-[11px] text-dim truncate mt-0.5">
+                                    <div className="text-[11.5px] text-dim truncate mt-0.5">
                                       {c.identity || c.personality || c.systemPrompt || '角色卡'}
                                     </div>
                                   </div>
@@ -504,7 +504,7 @@ export const SessionModeModal: React.FC = () => {
                       <button
                         type="button"
                         onClick={() => setRoleExtraOpen((v) => !v)}
-                        className="w-full flex items-center justify-between px-3.5 py-2 text-[12px] font-medium text-secondary hover:text-ink hover:bg-hover cursor-pointer"
+                        className="w-full flex items-center justify-between px-3.5 py-2 text-[13px] font-medium text-secondary hover:text-ink hover:bg-hover cursor-pointer"
                       >
                         <span className="flex items-center gap-1.5">
                           {roleExtraOpen ? (
@@ -515,7 +515,7 @@ export const SessionModeModal: React.FC = () => {
                           <span>补充情境与要求（仅本次对话生效）</span>
                         </span>
                         {promptOverride.trim() && (
-                          <span className="text-[10.5px] px-1.5 py-0.5 rounded bg-accent-soft text-accent">
+                          <span className="text-[11.5px] px-1.5 py-0.5 rounded bg-accent-soft text-accent">
                             已设置
                           </span>
                         )}

@@ -118,11 +118,11 @@ export const SettingsModal: React.FC = () => {
       onClick={() => setActiveModal('none')}
     >
       <div
-        className="w-full max-w-lg max-h-[88vh] rounded-2xl bg-card border border-line shadow-2xl flex flex-col overflow-hidden"
+        className="w-full max-w-lg max-h-[88vh] rounded-xl bg-card border border-line shadow-2xl flex flex-col overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between px-5 py-3.5 border-b border-line shrink-0">
-          <h2 className="text-[16px] font-semibold text-ink">应用设置</h2>
+          <h2 className="text-[17px] font-semibold text-ink">应用设置</h2>
           <button
             onClick={() => setActiveModal('none')}
             className="p-1.5 rounded-lg text-dim hover:text-ink hover:bg-hover cursor-pointer"
@@ -133,8 +133,8 @@ export const SettingsModal: React.FC = () => {
 
         <div className="p-4 md:p-5 overflow-y-auto space-y-4 text-[13px]">
           {/* Card 1: Appearance & Model Parameters */}
-          <section className="p-4 rounded-2xl bg-sidebar border border-line space-y-4">
-            <div className="text-[12px] font-semibold text-secondary">外观与对话参数</div>
+          <section className="p-4 rounded-xl bg-sidebar border border-line space-y-4">
+            <div className="text-[13px] font-semibold text-secondary">外观与对话参数</div>
 
             <div>
               <label className="block mb-2 font-medium text-ink">界面主题</label>
@@ -221,7 +221,7 @@ export const SettingsModal: React.FC = () => {
               <div>
                 <div className="flex items-center justify-between mb-1.5 gap-2">
                   <label className="font-medium text-ink">作品设定字数上限</label>
-                  <span className="text-[11px] px-1.5 py-0.5 rounded bg-accent-soft text-accent font-medium">
+                  <span className="text-[11.5px] px-1.5 py-0.5 rounded bg-accent-soft text-accent font-medium">
                     {formatCharLimitBadge(settings.maxWorldContextChars)}
                   </span>
                 </div>
@@ -258,7 +258,7 @@ export const SettingsModal: React.FC = () => {
                         key={preset.label}
                         type="button"
                         onClick={() => updateSettings({ maxWorldContextChars: preset.value })}
-                        className={`px-2 py-0.5 rounded-lg border text-[11px] cursor-pointer transition ${
+                        className={`px-2 py-0.5 rounded-lg border text-[11.5px] cursor-pointer transition ${
                           active
                             ? 'border-accent bg-accent-soft text-accent font-medium'
                             : 'border-line bg-canvas text-secondary hover:bg-hover'
@@ -274,8 +274,8 @@ export const SettingsModal: React.FC = () => {
           </section>
 
           {/* Card 2: Global System Prompt */}
-          <section className="p-4 rounded-2xl bg-sidebar border border-line space-y-2">
-            <label className="block text-[12px] font-semibold text-secondary">
+          <section className="p-4 rounded-xl bg-sidebar border border-line space-y-2">
+            <label className="block text-[13px] font-semibold text-secondary">
               全局系统提示词 (System Prompt)
             </label>
             <textarea
@@ -287,18 +287,18 @@ export const SettingsModal: React.FC = () => {
           </section>
 
           {/* Card 3: Version & Updates */}
-          <section className="p-4 rounded-2xl bg-sidebar border border-line space-y-3">
+          <section className="p-4 rounded-xl bg-sidebar border border-line space-y-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-2">
                 <span className="font-semibold text-ink">版本与更新</span>
-                <span className="text-[12px] font-mono px-2 py-0.5 rounded-lg bg-canvas border border-line text-secondary">
+                <span className="text-[13px] font-mono px-2 py-0.5 rounded-lg bg-canvas border border-line text-secondary">
                   v{APP_VERSION}
                 </span>
               </div>
               <button
                 onClick={handleCheckUpdate}
                 disabled={checkingUpdate || !effectiveUpdateSource}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-accent text-white text-[12px] font-medium disabled:opacity-40 cursor-pointer shrink-0"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-accent text-white text-[13px] font-medium disabled:opacity-40 cursor-pointer shrink-0"
               >
                 {checkingUpdate ? (
                   <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -309,7 +309,7 @@ export const SettingsModal: React.FC = () => {
               </button>
             </div>
 
-            <label className="flex items-center gap-2 text-[12px] text-secondary cursor-pointer">
+            <label className="flex items-center gap-2 text-[13px] text-secondary cursor-pointer">
               <input
                 type="checkbox"
                 checked={settings.autoCheckUpdates}
@@ -319,10 +319,10 @@ export const SettingsModal: React.FC = () => {
               <span>启动时自动检测更新源新版本</span>
             </label>
 
-            {checkErr && <div className="text-[12px] text-red-500">{checkErr}</div>}
+            {checkErr && <div className="text-[13px] text-red-500">{checkErr}</div>}
 
             {checkResult && (
-              <div className="p-3 rounded-xl bg-canvas border border-line space-y-1.5 text-[12px]">
+              <div className="p-3 rounded-xl bg-canvas border border-line space-y-1.5 text-[13px]">
                 {checkResult.hasUpdate ? (
                   <>
                     <div className="font-semibold text-emerald-500">
@@ -429,7 +429,7 @@ export const SettingsModal: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setShowUpdateSourceAdv((v) => !v)}
-                className="flex items-center gap-1.5 text-[12px] text-dim hover:text-ink cursor-pointer"
+                className="flex items-center gap-1.5 text-[13px] text-dim hover:text-ink cursor-pointer"
               >
                 {showUpdateSourceAdv ? (
                   <ChevronDown className="w-3.5 h-3.5 text-accent" />
@@ -438,7 +438,7 @@ export const SettingsModal: React.FC = () => {
                 )}
                 <span>自定义更新源（高级）</span>
                 {DEFAULT_UPDATE_SOURCE && (
-                  <span className="text-[11px] px-1.5 py-0.5 rounded bg-emerald-500/12 text-emerald-500 font-medium">
+                  <span className="text-[11.5px] px-1.5 py-0.5 rounded bg-emerald-500/12 text-emerald-500 font-medium">
                     已内置默认源
                   </span>
                 )}
@@ -454,9 +454,9 @@ export const SettingsModal: React.FC = () => {
                         ? `默认：${DEFAULT_UPDATE_SOURCE}（可留空或自定义）`
                         : 'owner/the-world 或 gitee:owner/repo 或 latest.json 链接'
                     }
-                    className="w-full px-3 py-1.5 rounded-xl bg-canvas border border-line text-ink text-[12px] font-mono outline-none focus:border-accent"
+                    className="w-full px-3 py-1.5 rounded-xl bg-canvas border border-line text-ink text-[13px] font-mono outline-none focus:border-accent"
                   />
-                  <div className="text-[11px] text-dim leading-relaxed space-y-0.5">
+                  <div className="text-[11.5px] text-dim leading-relaxed space-y-0.5">
                     <div>支持多种更新源（空格或逗号分隔，按顺序优先尝试）：</div>
                     <div>
                       • GitHub：<code className="text-secondary">owner/the-world</code>
@@ -472,11 +472,11 @@ export const SettingsModal: React.FC = () => {
           </section>
 
           {/* Compact Accordion: Storage Security & MIT License */}
-          <section className="rounded-2xl bg-sidebar border border-line overflow-hidden">
+          <section className="rounded-xl bg-sidebar border border-line overflow-hidden">
             <button
               type="button"
               onClick={() => setShowAbout((v) => !v)}
-              className="w-full flex items-center justify-between px-4 py-3 text-[12.5px] font-medium text-secondary hover:text-ink hover:bg-hover cursor-pointer"
+              className="w-full flex items-center justify-between px-4 py-3 text-[13px] font-medium text-secondary hover:text-ink hover:bg-hover cursor-pointer"
             >
               <span className="flex items-center gap-2">
                 <ShieldCheck className="w-4 h-4 text-emerald-500 shrink-0" />
@@ -490,7 +490,7 @@ export const SettingsModal: React.FC = () => {
             </button>
 
             {showAbout && (
-              <div className="px-4 pb-3.5 pt-2 border-t border-line space-y-2.5 text-[12px] text-secondary leading-relaxed">
+              <div className="px-4 pb-3.5 pt-2 border-t border-line space-y-2.5 text-[13px] text-secondary leading-relaxed">
                 {desktopEncrypted !== null && (
                   <div className="p-2.5 rounded-xl bg-canvas border border-line flex items-center gap-2">
                     <Lock className="w-4 h-4 text-accent shrink-0" />

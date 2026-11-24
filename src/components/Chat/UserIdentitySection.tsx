@@ -306,11 +306,11 @@ export const UserIdentitySection: React.FC<UserIdentitySectionProps> = ({
   return (
     <div className="rounded-xl border border-line bg-sidebar overflow-hidden">
       <div className="flex items-center justify-between gap-2 px-3.5 py-2.5 border-b border-line">
-        <span className="flex items-center gap-1.5 text-[12.5px] font-medium text-secondary">
+        <span className="flex items-center gap-1.5 text-[13px] font-medium text-secondary">
           <UserRound className="w-3.5 h-3.5 text-accent" />
           <span>我以谁的身份对话</span>
         </span>
-        <span className="text-[11px] text-dim shrink-0">{relationHint}</span>
+        <span className="text-[11.5px] text-dim shrink-0">{relationHint}</span>
       </div>
 
       <div className="p-3.5 space-y-2.5">
@@ -373,7 +373,7 @@ export const UserIdentitySection: React.FC<UserIdentitySectionProps> = ({
           )}
 
           {identityIsCharacter && resolved?.voiceProfileId && (
-            <span className="text-[11px] text-dim">朗读音色跟随该角色卡</span>
+            <span className="text-[11.5px] text-dim">朗读音色跟随该角色卡</span>
           )}
         </div>
 
@@ -384,20 +384,20 @@ export const UserIdentitySection: React.FC<UserIdentitySectionProps> = ({
               value={draftName}
               onChange={(e) => setDraftName(e.target.value)}
               placeholder="名字（必填），例如：小澈"
-              className="w-full px-2.5 py-1.5 rounded-lg bg-sidebar border border-line text-[12.5px] text-ink outline-none focus:border-accent"
+              className="w-full px-2.5 py-1.5 rounded-lg bg-sidebar border border-line text-[13px] text-ink outline-none focus:border-accent"
             />
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               <input
                 value={draftAddress}
                 onChange={(e) => setDraftAddress(e.target.value)}
                 placeholder="角色怎么称呼我（可留空）"
-                className="w-full px-2.5 py-1.5 rounded-lg bg-sidebar border border-line text-[12.5px] text-ink outline-none focus:border-accent"
+                className="w-full px-2.5 py-1.5 rounded-lg bg-sidebar border border-line text-[13px] text-ink outline-none focus:border-accent"
               />
               <input
                 value={draftIdentity}
                 onChange={(e) => setDraftIdentity(e.target.value)}
                 placeholder="一句话身份，例如：大学同学"
-                className="w-full px-2.5 py-1.5 rounded-lg bg-sidebar border border-line text-[12.5px] text-ink outline-none focus:border-accent"
+                className="w-full px-2.5 py-1.5 rounded-lg bg-sidebar border border-line text-[13px] text-ink outline-none focus:border-accent"
               />
             </div>
             <textarea
@@ -405,7 +405,7 @@ export const UserIdentitySection: React.FC<UserIdentitySectionProps> = ({
               value={draftDesc}
               onChange={(e) => setDraftDesc(e.target.value)}
               placeholder="更细的人设（可选）：外貌、性格、与角色的过往……"
-              className="w-full px-2.5 py-1.5 rounded-lg bg-sidebar border border-line text-[12.5px] text-ink outline-none focus:border-accent"
+              className="w-full px-2.5 py-1.5 rounded-lg bg-sidebar border border-line text-[13px] text-ink outline-none focus:border-accent"
             />
             <div>
               <OptionPicker
@@ -421,7 +421,7 @@ export const UserIdentitySection: React.FC<UserIdentitySectionProps> = ({
                 searchable={voiceProfiles.length > 8}
                 searchPlaceholder="搜索声音档案…"
               />
-              <p className="mt-1 text-[11px] text-dim">
+              <p className="mt-1 text-[11.5px] text-dim">
                 「我」的台词可以用这张身份的音色朗读。选项来自声音库，去「设置 → 声音」可以新建音色。
               </p>
             </div>
@@ -429,7 +429,7 @@ export const UserIdentitySection: React.FC<UserIdentitySectionProps> = ({
               <button
                 type="button"
                 onClick={() => setFormOpen(false)}
-                className="px-2.5 py-1 rounded-lg text-[12px] border border-line text-secondary cursor-pointer"
+                className="px-2.5 py-1 rounded-lg text-[13px] border border-line text-secondary cursor-pointer"
               >
                 取消
               </button>
@@ -437,7 +437,7 @@ export const UserIdentitySection: React.FC<UserIdentitySectionProps> = ({
                 type="button"
                 onClick={() => void handleSubmitPersona()}
                 disabled={!draftName.trim()}
-                className="px-3 py-1 rounded-lg text-[12px] bg-accent text-white disabled:opacity-40 cursor-pointer"
+                className="px-3 py-1 rounded-lg text-[13px] bg-accent text-white disabled:opacity-40 cursor-pointer"
               >
                 {formId ? '保存修改' : '创建并选用'}
               </button>
@@ -447,7 +447,7 @@ export const UserIdentitySection: React.FC<UserIdentitySectionProps> = ({
           <button
             type="button"
             onClick={openCreateForm}
-            className="inline-flex items-center gap-1 text-[12px] text-accent font-medium hover:underline cursor-pointer"
+            className="inline-flex items-center gap-1 text-[13px] text-accent font-medium hover:underline cursor-pointer"
           >
             <Plus className="w-3.5 h-3.5" />
             <span>新建一个「我」</span>
@@ -459,7 +459,7 @@ export const UserIdentitySection: React.FC<UserIdentitySectionProps> = ({
             <button
               type="button"
               onClick={() => setRelationOpen((v) => !v)}
-              className="w-full flex items-center justify-between px-3 py-2 text-[12px] font-medium text-secondary hover:text-ink hover:bg-hover cursor-pointer"
+              className="w-full flex items-center justify-between px-3 py-2 text-[13px] font-medium text-secondary hover:text-ink hover:bg-hover cursor-pointer"
             >
               <span className="flex items-center gap-1.5">
                 {relationOpen ? (
@@ -470,7 +470,7 @@ export const UserIdentitySection: React.FC<UserIdentitySectionProps> = ({
                 <span>你我关系（仅本次对话）</span>
               </span>
               {(relation?.label || relation?.description) && (
-                <span className="text-[11px] text-dim truncate max-w-[45%]">
+                <span className="text-[11.5px] text-dim truncate max-w-[45%]">
                   {relation?.label || relation?.description}
                 </span>
               )}
@@ -487,13 +487,13 @@ export const UserIdentitySection: React.FC<UserIdentitySectionProps> = ({
                         ? `关系标签，默认：${relation?.label || '未设定'}`
                         : '关系标签，例如：同门师兄妹'
                     }
-                    className="w-full px-2.5 py-1.5 rounded-lg bg-canvas border border-line text-[12.5px] text-ink outline-none focus:border-accent"
+                    className="w-full px-2.5 py-1.5 rounded-lg bg-canvas border border-line text-[13px] text-ink outline-none focus:border-accent"
                   />
                   <input
                     value={override?.address || ''}
                     onChange={(e) => void setOverrideField('address', e.target.value)}
                     placeholder={`角色怎么叫你，默认：${resolvedAddress}`}
-                    className="w-full px-2.5 py-1.5 rounded-lg bg-canvas border border-line text-[12.5px] text-ink outline-none focus:border-accent"
+                    className="w-full px-2.5 py-1.5 rounded-lg bg-canvas border border-line text-[13px] text-ink outline-none focus:border-accent"
                   />
                 </div>
                 <textarea
@@ -505,7 +505,7 @@ export const UserIdentitySection: React.FC<UserIdentitySectionProps> = ({
                       ? `关系细节，默认：${relation.description}`
                       : '关系细节：怎么认识的、有什么过往……'
                   }
-                  className="w-full px-2.5 py-1.5 rounded-lg bg-canvas border border-line text-[12.5px] text-ink outline-none focus:border-accent"
+                  className="w-full px-2.5 py-1.5 rounded-lg bg-canvas border border-line text-[13px] text-ink outline-none focus:border-accent"
                 />
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div className="w-full sm:w-52">

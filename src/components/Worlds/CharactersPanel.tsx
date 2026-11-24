@@ -19,7 +19,7 @@ import {
 import { useAppStore } from '../../store/useAppStore';
 import { ImageLightbox } from '../Common/ImageLightbox';
 import { OptionPicker } from '../Common/OptionPicker';
-import type { Character, RelationType, VoiceProfile } from '../../types';
+import type { Character, ImageFramingId, RelationType, VoiceProfile } from '../../types';
 import {
   buildCharacterImagePrompt,
   compressImageDataToDataUrl,
@@ -34,7 +34,13 @@ import {
 import { RELATION_TYPE_META } from '../../services/temporalGraph';
 import { generateImagePrompt } from '../../services/imagePromptService';
 import { createId, isProviderReady } from '../../utils/platform';
-import { resolveImageFraming } from '../../utils/imageFraming';
+import { IMAGE_FRAMINGS, getFramingById, resolveImageFraming } from '../../utils/imageFraming';
+import {
+  IMAGE_STYLE_NONE_ID,
+  IMAGE_STYLE_PRESETS,
+  IMAGE_STYLE_QUICK_COUNT,
+  resolveCharacterStylePrompt,
+} from '../../data/imageStyles';
 
 /** 清掉空白字段；全空则整个钩子不落库，避免老卡被写入一堆空串 */
 function normalizeUserHook(hook?: Character['userRelation']): Character['userRelation'] {
@@ -47,6 +53,15 @@ function normalizeUserHook(hook?: Character['userRelation']): Character['userRel
     slotHint: hook.slotHint?.trim() || undefined,
   };
   return Object.values(next).some((v) => v !== undefined) ? next : undefined;
+}
+
+/** 胶囊按钮：选中 = 强调色描边 + 淡底，未选中 = 中性描边 */
+function chipClass(active: boolean): string {
+  return `rounded-full border px-1.5 py-0.5 text-[11.5px] cursor-pointer transition ${
+    active
+      ? 'border-accent bg-accent-soft text-accent font-medium'
+      : 'border-line bg-canvas text-secondary hover:bg-hover'
+  }`;
 }
 
 function formatVoiceProfileOption(vp: VoiceProfile): string {
@@ -87,6 +102,9 @@ export const CharactersPanel: React.FC<{ worldId: string }> = ({ worldId }) => {
   const [showSystemPromptBox, setShowSystemPromptBox] = useState(false);
   const [showUserHookBox, setShowUserHookBox] = useState(false);
   const [imgPromptOpen, setImgPromptOpen] = useState(false);
+  const [showAllStyles, setShowAllStyles] = useState(false);
+  /** 用户是否手动改过提示词；改过就不再随胶囊自动重拼 */
+  const [imgPromptDirty, setImgPromptDirty] = useState(false);
   const [imgPrompt, setImgPrompt] = useState('');
   const [generatingImg, setGeneratingImg] = useState(false);
   const [refiningPrompt, setRefiningPrompt] = useState(false);
@@ -96,11 +114,26 @@ export const CharactersPanel: React.FC<{ worldId: string }> = ({ worldId }) => {
   const [previewingVoice, setPreviewingVoice] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // 当前生图尺寸对应的取景，提示词与界面提示共用这一份定义
-  const imgFraming = useMemo(
-    () => resolveImageFraming(settings.imageGen.size),
-    [settings.imageGen.size]
+  // 风格胶囊默认只露前几个，其余收进「更多」
+  const visibleStyles = showAllStyles
+    ? IMAGE_STYLE_PRESETS
+    : IMAGE_STYLE_PRESETS.slice(0, IMAGE_STYLE_QUICK_COUNT);
+
+  // 角色卡自己的取景 / 画风优先；没设置就跟随全局生图设置，老卡行为不变
+  const activeFraming = useMemo(
+    () =>
+      editing?.imageFramingId
+        ? getFramingById(editing.imageFramingId)
+        : resolveImageFraming(settings.imageGen.size),
+    [editing?.imageFramingId, settings.imageGen.size]
   );
+
+  const stylePrompt = useMemo(
+    () => resolveCharacterStylePrompt(editing?.imageStyleId, settings.imageGen.styleHint),
+    [editing?.imageStyleId, settings.imageGen.styleHint]
+  );
+
+
 
   useEffect(() => {
     if (!editing || !lastCreatedVoiceForTarget) return;
@@ -151,9 +184,19 @@ export const CharactersPanel: React.FC<{ worldId: string }> = ({ worldId }) => {
     setShowSystemPromptBox(Boolean(char.systemPrompt?.trim()));
     setShowUserHookBox(Boolean(normalizeUserHook(char.userRelation)));
     setImgPromptOpen(false);
+    setImgPromptDirty(false);
     setImgError(null);
+    // 按「这张卡」自己的取景/画风拼，不能用上一个角色的派生值
+    const framing = char.imageFramingId
+      ? getFramingById(char.imageFramingId)
+      : resolveImageFraming(settings.imageGen.size);
     setImgPrompt(
-      buildCharacterImagePrompt(char, targetWorld, settings.imageGen.styleHint, settings.imageGen.size)
+      buildCharacterImagePrompt(
+        char,
+        targetWorld,
+        resolveCharacterStylePrompt(char.imageStyleId, settings.imageGen.styleHint),
+        framing.size
+      )
     );
   };
 
@@ -298,14 +341,15 @@ export const CharactersPanel: React.FC<{ worldId: string }> = ({ worldId }) => {
         model,
         character: editing,
         world: editingWorld,
-        size: settings.imageGen.size,
+        size: activeFraming.size,
       });
       if (!text) {
         showToast('模型没有返回有效的画面描述，请重试', 'error');
         return;
       }
-      const prefix = settings.imageGen.styleHint?.trim();
+      const prefix = stylePrompt.trim();
       setImgPrompt(prefix ? `${prefix}，${text}` : text);
+      setImgPromptDirty(false);
       showToast('已用 AI 提炼画面描述，可再手动微调', 'success');
     } catch (err) {
       showToast(err instanceof Error ? err.message : 'AI 提炼画面描述失败', 'error');
@@ -321,8 +365,8 @@ export const CharactersPanel: React.FC<{ worldId: string }> = ({ worldId }) => {
       buildCharacterImagePrompt(
         editing,
         editingWorld,
-        settings.imageGen.styleHint,
-        settings.imageGen.size
+        stylePrompt,
+        activeFraming.size
       );
     if (!imgPrompt.trim()) setImgPrompt(promptToUse);
 
@@ -330,7 +374,8 @@ export const CharactersPanel: React.FC<{ worldId: string }> = ({ worldId }) => {
     setImgError(null);
     try {
       const dataUrl = await generateImage({
-        config: settings.imageGen,
+        // 取景跟随角色卡上的选择，只覆盖尺寸，其余生图配置仍用全局设置
+        config: { ...settings.imageGen, size: activeFraming.size },
         providers,
         prompt: promptToUse,
       });
@@ -343,10 +388,39 @@ export const CharactersPanel: React.FC<{ worldId: string }> = ({ worldId }) => {
     }
   };
 
+
+  /** 切换取景：同步改尺寸，旧提示词若还是自动生成的，就按新取景重拼 */
+  const applyFramingChoice = (framingId: ImageFramingId) => {
+    if (!editing) return;
+    const next: Character = { ...editing, imageFramingId: framingId };
+    setEditing(next);
+    if (!imgPromptDirty) {
+      setImgPrompt(
+        buildCharacterImagePrompt(next, editingWorld, stylePrompt, getFramingById(framingId).size)
+      );
+    }
+  };
+
+  /** 切换画风：选了「不指定」就是真不加风格词 */
+  const applyStyleChoice = (styleId: string | undefined) => {
+    if (!editing) return;
+    const next: Character = { ...editing, imageStyleId: styleId };
+    setEditing(next);
+    if (!imgPromptDirty) {
+      setImgPrompt(
+        buildCharacterImagePrompt(
+          next,
+          editingWorld,
+          resolveCharacterStylePrompt(styleId, settings.imageGen.styleHint),
+          activeFraming.size
+        )
+      );
+    }
+  };
   if (editing) {
     return (
       <>
-      <div className="flex-1 flex flex-col min-h-0 rounded-2xl bg-card border border-line overflow-hidden">
+      <div className="flex-1 flex flex-col min-h-0 rounded-xl bg-card border border-line overflow-hidden">
         <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 border-b border-line bg-sidebar">
           <button
             onClick={() => {
@@ -364,7 +438,7 @@ export const CharactersPanel: React.FC<{ worldId: string }> = ({ worldId }) => {
               <button
                 type="button"
                 onClick={() => handleStartRoleChat(editing)}
-                className="flex items-center gap-1 px-3 py-1.5 rounded-xl text-[12px] border border-accent/40 bg-accent-soft text-accent font-medium hover:opacity-90 cursor-pointer whitespace-nowrap"
+                className="flex items-center gap-1 px-3 py-1.5 rounded-xl text-[13px] border border-accent/40 bg-accent-soft text-accent font-medium hover:opacity-90 cursor-pointer whitespace-nowrap"
               >
                 <MessageSquare className="w-3.5 h-3.5" />
                 <span>以该角色对话</span>
@@ -373,7 +447,7 @@ export const CharactersPanel: React.FC<{ worldId: string }> = ({ worldId }) => {
             {characters.some((c) => c.id === editing.id) && (
               <button
                 onClick={() => handleDelete(editing)}
-                className="flex items-center gap-1 px-3 py-1.5 rounded-xl text-[12px] text-red-500 border border-red-500/30 hover:bg-red-500/10 cursor-pointer whitespace-nowrap"
+                className="flex items-center gap-1 px-3 py-1.5 rounded-xl text-[13px] text-red-500 border border-red-500/30 hover:bg-red-500/10 cursor-pointer whitespace-nowrap"
               >
                 <Trash2 className="w-3.5 h-3.5" />
                 <span>删除</span>
@@ -392,107 +466,181 @@ export const CharactersPanel: React.FC<{ worldId: string }> = ({ worldId }) => {
         <div className="flex-1 overflow-y-auto p-4 md:p-6">
           <div className="max-w-2xl mx-auto space-y-4 text-[13px]">
             {/* Portrait & AI Image Generation */}
-            <div className="p-3.5 rounded-2xl bg-sidebar border border-line space-y-3">
-              <div className="flex flex-wrap items-center gap-4">
-                {editing.avatarImage ? (
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setPreviewImage({
-                        src: editing.avatarImage!,
-                        alt: `${editing.name || '角色'} 立绘`,
-                      })
-                    }
-                    className="relative group shrink-0 cursor-zoom-in rounded-2xl"
-                    title="点击查看大图"
-                  >
-                    <img
-                      src={editing.avatarImage}
-                      alt={editing.name || '角色立绘'}
-                      className="w-20 h-20 rounded-2xl object-cover border border-line"
-                    />
-                    <span className="absolute bottom-1 right-1 p-1 rounded-lg bg-black/60 text-white/90 backdrop-blur-xs group-hover:bg-accent transition">
-                      <ZoomIn className="w-3 h-3" />
-                    </span>
-                  </button>
-                ) : (
-                  <div
-                    className="w-20 h-20 rounded-2xl flex items-center justify-center text-white text-2xl font-bold shrink-0"
-                    style={{ backgroundColor: editing.avatarColor || '#4d6bfe' }}
-                  >
-                    {(editing.name || '?').slice(0, 1)}
-                  </div>
-                )}
+            <div className="p-3.5 rounded-xl bg-sidebar border border-line space-y-2.5">
+              {/* 头部：缩略图 + 当前组合 + 上传 / 生成 */}
+              <div className="flex items-center gap-3">
+                <div className="relative shrink-0">
+                  {editing.avatarImage ? (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setPreviewImage({
+                          src: editing.avatarImage!,
+                          alt: `${editing.name || '角色'} 立绘`,
+                        })
+                      }
+                      className="relative group block cursor-zoom-in rounded-xl"
+                      title="点击查看大图"
+                    >
+                      <img
+                        src={editing.avatarImage}
+                        alt={editing.name || '角色立绘'}
+                        className="w-14 h-14 rounded-xl object-cover border border-line"
+                      />
+                      <span className="absolute bottom-0.5 right-0.5 p-0.5 rounded-md bg-black/60 text-white/90 backdrop-blur-xs group-hover:bg-accent transition">
+                        <ZoomIn className="w-2.5 h-2.5" />
+                      </span>
+                    </button>
+                  ) : (
+                    <div
+                      className="w-14 h-14 rounded-xl flex items-center justify-center text-white text-xl font-bold"
+                      style={{ backgroundColor: editing.avatarColor || '#4d6bfe' }}
+                    >
+                      {(editing.name || '?').slice(0, 1)}
+                    </div>
+                  )}
+                  {editing.avatarImage && (
+                    <button
+                      type="button"
+                      onClick={() => setEditing({ ...editing, avatarImage: undefined })}
+                      className="absolute -right-1.5 -top-1.5 p-0.5 rounded-full bg-canvas border border-line text-dim hover:text-danger cursor-pointer"
+                      title="清除角色图"
+                      aria-label="清除角色图"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  )}
+                </div>
 
-                <div className="flex-1 min-w-[200px] space-y-2">
-                  <div className="font-medium text-ink">角色形象（头像 / 立绘）</div>
-                  <div className="flex flex-wrap gap-2">
-                    <input
-                      ref={fileInputRef}
-                      type="file"
-                      accept="image/*"
-                      className="hidden"
-                      onChange={(e) => {
-                        const f = e.target.files?.[0];
-                        if (f) handleUploadAvatar(f);
-                        e.target.value = '';
-                      }}
-                    />
+                <div className="min-w-0 flex-1">
+                  <div className="font-medium text-ink">角色形象</div>
+                </div>
+
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (f) handleUploadAvatar(f);
+                    e.target.value = '';
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="flex shrink-0 items-center gap-1 rounded-lg border border-line bg-canvas px-2 py-1 text-[11.5px] text-secondary hover:bg-hover cursor-pointer"
+                >
+                  <ImagePlus className="w-3.5 h-3.5" />
+                  <span>上传</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const nextOpen = !imgPromptOpen;
+                    setImgPromptOpen(nextOpen);
+                    if (nextOpen && !imgPrompt.trim()) {
+                      setImgPrompt(
+                        buildCharacterImagePrompt(editing, editingWorld, stylePrompt, activeFraming.size)
+                      );
+                    }
+                  }}
+                  className="flex shrink-0 items-center gap-1 rounded-lg bg-accent px-2.5 py-1 text-[11.5px] font-medium text-white hover:opacity-95 cursor-pointer"
+                >
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>生成</span>
+                </button>
+              </div>
+
+              {/* 取景：直接决定实际请求尺寸 */}
+              <div className="flex items-center gap-1.5">
+                <span className="w-6 shrink-0 text-[11.5px] text-dim">取景</span>
+                <div className="flex flex-wrap gap-1">
+                  {IMAGE_FRAMINGS.map((framing) => (
                     <button
+                      key={framing.id}
                       type="button"
-                      onClick={() => fileInputRef.current?.click()}
-                      className="flex items-center gap-1 px-3 py-1.5 rounded-xl border border-line bg-canvas text-[12px] text-ink hover:bg-hover cursor-pointer"
+                      onClick={() => applyFramingChoice(framing.id)}
+                      className={chipClass(activeFraming.id === framing.id)}
                     >
-                      <ImagePlus className="w-3.5 h-3.5 text-accent" />
-                      <span>上传本地图片</span>
+                      {framing.short}
                     </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const nextOpen = !imgPromptOpen;
-                        setImgPromptOpen(nextOpen);
-                        if (nextOpen && !imgPrompt.trim()) {
-                          setImgPrompt(
-                            buildCharacterImagePrompt(
-                              editing,
-                              editingWorld,
-                              settings.imageGen.styleHint,
-                              settings.imageGen.size
-                            )
-                          );
-                        }
-                      }}
-                      className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-accent-soft text-accent text-[12px] font-medium hover:opacity-90 cursor-pointer"
-                    >
-                      <Sparkles className="w-3.5 h-3.5" />
-                      <span>AI 生成角色图</span>
-                    </button>
-                    {editing.avatarImage && (
-                      <button
-                        type="button"
-                        onClick={() => setEditing({ ...editing, avatarImage: undefined })}
-                        className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-line text-[12px] text-dim hover:text-red-500 cursor-pointer"
-                      >
-                        <X className="w-3.5 h-3.5" />
-                        <span>清除</span>
-                      </button>
-                    )}
-                  </div>
+                  ))}
                 </div>
               </div>
 
-              {imgPromptOpen && (
-                <div className="pt-2 border-t border-line space-y-2">
-                  <div className="flex flex-wrap items-center justify-between gap-2 text-[12px]">
-                    <span className="text-secondary">
-                      画面描述词（当前生图模型：<code className="text-accent">{settings.imageGen.model}</code>）
+              {/* 画风：默认 / 不指定 / 预设 / 更多 */}
+              <div className="flex items-center gap-1.5">
+                <span className="w-6 shrink-0 text-[11.5px] text-dim">风格</span>
+                <div className="flex flex-wrap gap-1">
+                  <button
+                    type="button"
+                    onClick={() => applyStyleChoice(undefined)}
+                    className={chipClass(!editing.imageStyleId)}
+                  >
+                    默认
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => applyStyleChoice(IMAGE_STYLE_NONE_ID)}
+                    className={chipClass(editing.imageStyleId === IMAGE_STYLE_NONE_ID)}
+                  >
+                    不指定
+                  </button>
+                  {visibleStyles.map((preset) => (
+                    <button
+                      key={preset.id}
+                      type="button"
+                      onClick={() => applyStyleChoice(preset.id)}
+                      className={chipClass(editing.imageStyleId === preset.id)}
+                    >
+                      {preset.label}
+                    </button>
+                  ))}
+                  {IMAGE_STYLE_PRESETS.length > IMAGE_STYLE_QUICK_COUNT && (
+                    <button
+                      type="button"
+                      onClick={() => setShowAllStyles((prev) => !prev)}
+                      className="rounded-full px-1.5 py-0.5 text-[11.5px] text-dim hover:text-accent cursor-pointer"
+                    >
+                      {showAllStyles ? '收起' : '更多'}
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* 提示词：默认折叠成一行，点开才编辑 */}
+              {!imgPromptOpen ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setImgPromptOpen(true);
+                    if (!imgPrompt.trim()) {
+                      setImgPrompt(
+                        buildCharacterImagePrompt(editing, editingWorld, stylePrompt, activeFraming.size)
+                      );
+                    }
+                  }}
+                  className="flex w-full items-center justify-between gap-2 border-t border-line pt-2 text-left cursor-pointer"
+                >
+                  <span className="min-w-0 truncate text-[11.5px] text-dim">
+                    提示词 · {imgPrompt || '按设定自动拼装'}
+                  </span>
+                  <span className="shrink-0 text-[11.5px] font-medium text-accent">编辑</span>
+                </button>
+              ) : (
+                <div className="space-y-2 border-t border-line pt-2">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="text-[11.5px] text-dim">
+                      {settings.imageGen.model} · {activeFraming.label}
                     </span>
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2.5">
                       <button
                         type="button"
                         onClick={() => void handleAiRefinePrompt()}
                         disabled={refiningPrompt}
-                        className="flex items-center gap-1 text-accent font-medium hover:underline disabled:opacity-50 cursor-pointer"
+                        className="flex items-center gap-1 text-[11.5px] font-medium text-accent hover:underline disabled:opacity-50 cursor-pointer"
                         title="用文本模型从角色卡里提炼，会剔除台词与剧情"
                       >
                         {refiningPrompt ? (
@@ -500,48 +648,45 @@ export const CharactersPanel: React.FC<{ worldId: string }> = ({ worldId }) => {
                         ) : (
                           <Sparkles className="w-3 h-3" />
                         )}
-                        <span>{refiningPrompt ? '提炼中…' : 'AI 提炼画面'}</span>
+                        <span>{refiningPrompt ? '提炼中…' : 'AI 提炼'}</span>
                       </button>
                       <button
                         type="button"
-                        onClick={() =>
+                        onClick={() => {
                           setImgPrompt(
-                            buildCharacterImagePrompt(
-                              editing,
-                              editingWorld,
-                              settings.imageGen.styleHint,
-                              settings.imageGen.size
-                            )
-                          )
-                        }
-                        className="text-dim hover:text-accent hover:underline cursor-pointer"
+                            buildCharacterImagePrompt(editing, editingWorld, stylePrompt, activeFraming.size)
+                          );
+                          setImgPromptDirty(false);
+                        }}
+                        className="text-[11.5px] text-dim hover:text-accent hover:underline cursor-pointer"
                         title="本地按关键词拼装，不调用模型"
                       >
-                        按设定快速拼装
+                        快速拼装
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setImgPromptOpen(false)}
+                        className="text-[11.5px] text-dim hover:text-ink cursor-pointer"
+                      >
+                        收起
                       </button>
                     </div>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-1.5 text-[11.5px] text-dim">
-                    <span>当前取景</span>
-                    <span className="px-1.5 py-0.5 rounded bg-accent-soft text-accent font-medium">
-                      {imgFraming.label}
-                    </span>
-                    <span>
-                      （{settings.imageGen.size}，跟随「模型 → 生图模型 → 分辨率尺寸」，已写进提示词）
-                    </span>
                   </div>
                   <textarea
                     rows={3}
                     value={imgPrompt}
-                    onChange={(e) => setImgPrompt(e.target.value)}
+                    onChange={(e) => {
+                      setImgPrompt(e.target.value);
+                      setImgPromptDirty(true);
+                    }}
                     placeholder="描述角色外貌、服装、神态与背景光影..."
-                    className="w-full p-2.5 rounded-xl bg-canvas border border-line text-[12.5px] text-ink outline-none focus:border-accent"
+                    className="w-full p-2.5 rounded-lg bg-canvas border border-line text-[13px] text-ink outline-none focus:border-accent"
                   />
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <button
                       type="button"
                       onClick={() => openProvidersModal('image')}
-                      className="text-[12px] text-dim hover:text-accent underline cursor-pointer"
+                      className="text-[11.5px] text-dim hover:text-accent underline cursor-pointer"
                     >
                       配置生图模型 / API Key
                     </button>
@@ -549,21 +694,21 @@ export const CharactersPanel: React.FC<{ worldId: string }> = ({ worldId }) => {
                       type="button"
                       onClick={handleGenerateAvatar}
                       disabled={generatingImg}
-                      className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-accent text-white text-[12px] font-medium disabled:opacity-50 cursor-pointer"
+                      className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-accent text-white text-[11.5px] font-medium disabled:opacity-50 cursor-pointer"
                     >
                       {generatingImg ? (
                         <Loader2 className="w-3.5 h-3.5 animate-spin" />
                       ) : (
                         <Sparkles className="w-3.5 h-3.5" />
                       )}
-                      <span>{generatingImg ? '生成中...' : '立即生成角色图'}</span>
+                      <span>{generatingImg ? '生成中...' : '立即生成'}</span>
                     </button>
                   </div>
                 </div>
               )}
 
               {imgError && (
-                <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 rounded-xl bg-red-500/10 border border-red-500/30 text-red-500 text-[12px]">
+                <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 rounded-lg bg-danger/10 border border-danger/30 text-danger text-[11.5px]">
                   <span>{imgError}</span>
                   <button
                     type="button"
@@ -575,7 +720,6 @@ export const CharactersPanel: React.FC<{ worldId: string }> = ({ worldId }) => {
                 </div>
               )}
             </div>
-
             <div>
               <label className="block mb-1.5 font-medium text-secondary">所属作品</label>
               <OptionPicker
@@ -699,7 +843,7 @@ export const CharactersPanel: React.FC<{ worldId: string }> = ({ worldId }) => {
                         },
                       });
                     }}
-                    className="flex items-center gap-1 px-2.5 py-2 rounded-xl border border-line bg-canvas text-[12px] text-ink hover:border-accent cursor-pointer shrink-0"
+                    className="flex items-center gap-1 px-2.5 py-2 rounded-xl border border-line bg-canvas text-[13px] text-ink hover:border-accent cursor-pointer shrink-0"
                     title="试听当前选中的角色声音"
                   >
                     {previewingVoice ? (
@@ -715,7 +859,7 @@ export const CharactersPanel: React.FC<{ worldId: string }> = ({ worldId }) => {
                   <button
                     type="button"
                     onClick={() => setShowCustomVoiceInput((v) => !v)}
-                    className="inline-flex items-center gap-1 text-[11px] text-dim hover:text-secondary cursor-pointer"
+                    className="inline-flex items-center gap-1 text-[11.5px] text-dim hover:text-secondary cursor-pointer"
                   >
                     {showCustomVoiceInput || editing.voiceName ? (
                       <ChevronDown className="w-3 h-3" />
@@ -729,7 +873,7 @@ export const CharactersPanel: React.FC<{ worldId: string }> = ({ worldId }) => {
                       value={editing.voiceName || ''}
                       onChange={(e) => setEditing({ ...editing, voiceName: e.target.value })}
                       placeholder="例如 FunAudioLLM/CosyVoice2-0.5B:anna"
-                      className="w-full mt-1.5 px-3 py-1.5 rounded-xl bg-canvas border border-line text-[12px] font-mono text-ink outline-none focus:border-accent"
+                      className="w-full mt-1.5 px-3 py-1.5 rounded-xl bg-canvas border border-line text-[13px] font-mono text-ink outline-none focus:border-accent"
                     />
                   )}
                 </div>
@@ -743,7 +887,7 @@ export const CharactersPanel: React.FC<{ worldId: string }> = ({ worldId }) => {
                 value={editing.personality}
                 onChange={(e) => setEditing({ ...editing, personality: e.target.value })}
                 placeholder="例如：表面冷静克制，实则对旧日誓言极为执着，说话简洁少废话。"
-                className="w-full px-3.5 py-2.5 rounded-xl bg-canvas border border-line text-[14px] text-ink outline-none focus:border-accent"
+                className="w-full px-3.5 py-2.5 rounded-xl bg-canvas border border-line text-[15px] text-ink outline-none focus:border-accent"
               />
             </div>
 
@@ -753,7 +897,7 @@ export const CharactersPanel: React.FC<{ worldId: string }> = ({ worldId }) => {
                 value={editing.status}
                 onChange={(e) => setEditing({ ...editing, status: e.target.value })}
                 placeholder="例如：正在前往北境调查失踪案，负轻伤"
-                className="w-full px-3.5 py-2.5 rounded-xl bg-canvas border border-line text-[14px] text-ink outline-none focus:border-accent"
+                className="w-full px-3.5 py-2.5 rounded-xl bg-canvas border border-line text-[15px] text-ink outline-none focus:border-accent"
               />
             </div>
 
@@ -764,15 +908,15 @@ export const CharactersPanel: React.FC<{ worldId: string }> = ({ worldId }) => {
                 value={editing.relationsNote}
                 onChange={(e) => setEditing({ ...editing, relationsNote: e.target.value })}
                 placeholder="例如：与苏岚：旧日搭档，因三年前事故产生隔阂；与沈老：师徒，受其暗中庇护。"
-                className="w-full px-3.5 py-2.5 rounded-xl bg-canvas border border-line text-[14px] text-ink outline-none focus:border-accent"
+                className="w-full px-3.5 py-2.5 rounded-xl bg-canvas border border-line text-[15px] text-ink outline-none focus:border-accent"
               />
             </div>
 
-            <div className="rounded-2xl bg-sidebar border border-line overflow-hidden">
+            <div className="rounded-xl bg-sidebar border border-line overflow-hidden">
               <button
                 type="button"
                 onClick={() => setShowUserHookBox((v) => !v)}
-                className="w-full flex items-center justify-between px-3.5 py-2.5 text-[12.5px] font-medium text-secondary hover:text-ink hover:bg-hover cursor-pointer"
+                className="w-full flex items-center justify-between px-3.5 py-2.5 text-[13px] font-medium text-secondary hover:text-ink hover:bg-hover cursor-pointer"
               >
                 <span className="flex items-center gap-1.5">
                   {showUserHookBox || Boolean(normalizeUserHook(editing.userRelation)) ? (
@@ -783,7 +927,7 @@ export const CharactersPanel: React.FC<{ worldId: string }> = ({ worldId }) => {
                   <span>与「我」的关系钩子（可选 · 独立角色尤其有用）</span>
                 </span>
                 {Boolean(normalizeUserHook(editing.userRelation)) && (
-                  <span className="text-[11px] px-1.5 py-0.5 rounded bg-accent-soft text-accent">
+                  <span className="text-[11.5px] px-1.5 py-0.5 rounded bg-accent-soft text-accent">
                     已启用
                   </span>
                 )}
@@ -799,7 +943,7 @@ export const CharactersPanel: React.FC<{ worldId: string }> = ({ worldId }) => {
                       value={editing.userRelation?.defaultAddress || ''}
                       onChange={(e) => updateUserHook({ defaultAddress: e.target.value })}
                       placeholder="默认称呼，例如：旅人"
-                      className="w-full px-2.5 py-1.5 rounded-lg bg-canvas border border-line text-[12.5px] text-ink outline-none focus:border-accent"
+                      className="w-full px-2.5 py-1.5 rounded-lg bg-canvas border border-line text-[13px] text-ink outline-none focus:border-accent"
                     />
                     <select
                       value={editing.userRelation?.defaultRelationType || ''}
@@ -810,7 +954,7 @@ export const CharactersPanel: React.FC<{ worldId: string }> = ({ worldId }) => {
                             | undefined,
                         })
                       }
-                      className="w-full px-2.5 py-1.5 rounded-lg bg-canvas border border-line text-[12.5px] text-ink outline-none focus:border-accent"
+                      className="w-full px-2.5 py-1.5 rounded-lg bg-canvas border border-line text-[13px] text-ink outline-none focus:border-accent"
                     >
                       <option value="">默认关系类型：不指定</option>
                       {(Object.keys(RELATION_TYPE_META) as RelationType[]).map((t) => (
@@ -824,19 +968,19 @@ export const CharactersPanel: React.FC<{ worldId: string }> = ({ worldId }) => {
                     value={editing.userRelation?.defaultRelationLabel || ''}
                     onChange={(e) => updateUserHook({ defaultRelationLabel: e.target.value })}
                     placeholder="默认关系标签，例如：点头之交"
-                    className="w-full px-2.5 py-1.5 rounded-lg bg-canvas border border-line text-[12.5px] text-ink outline-none focus:border-accent"
+                    className="w-full px-2.5 py-1.5 rounded-lg bg-canvas border border-line text-[13px] text-ink outline-none focus:border-accent"
                   />
                   <input
                     value={editing.userRelation?.defaultRelationDesc || ''}
                     onChange={(e) => updateUserHook({ defaultRelationDesc: e.target.value })}
                     placeholder="默认关系描述，例如：在渡口见过几面"
-                    className="w-full px-2.5 py-1.5 rounded-lg bg-canvas border border-line text-[12.5px] text-ink outline-none focus:border-accent"
+                    className="w-full px-2.5 py-1.5 rounded-lg bg-canvas border border-line text-[13px] text-ink outline-none focus:border-accent"
                   />
                   <input
                     value={editing.userRelation?.slotHint || ''}
                     onChange={(e) => updateUserHook({ slotHint: e.target.value })}
                     placeholder="可选项提示，例如：用户可以是他的同门 / 他早年失散的宿敌"
-                    className="w-full px-2.5 py-1.5 rounded-lg bg-canvas border border-line text-[12.5px] text-ink outline-none focus:border-accent"
+                    className="w-full px-2.5 py-1.5 rounded-lg bg-canvas border border-line text-[13px] text-ink outline-none focus:border-accent"
                   />
                 </div>
               )}
@@ -849,15 +993,15 @@ export const CharactersPanel: React.FC<{ worldId: string }> = ({ worldId }) => {
                 value={editing.notes}
                 onChange={(e) => setEditing({ ...editing, notes: e.target.value })}
                 placeholder="任何想让 AI 注意的角色细节..."
-                className="w-full px-3.5 py-2.5 rounded-xl bg-canvas border border-line text-[14px] text-ink outline-none focus:border-accent"
+                className="w-full px-3.5 py-2.5 rounded-xl bg-canvas border border-line text-[15px] text-ink outline-none focus:border-accent"
               />
             </div>
 
-            <div className="rounded-2xl bg-sidebar border border-line overflow-hidden">
+            <div className="rounded-xl bg-sidebar border border-line overflow-hidden">
               <button
                 type="button"
                 onClick={() => setShowSystemPromptBox((v) => !v)}
-                className="w-full flex items-center justify-between px-3.5 py-2.5 text-[12.5px] font-medium text-secondary hover:text-ink hover:bg-hover cursor-pointer"
+                className="w-full flex items-center justify-between px-3.5 py-2.5 text-[13px] font-medium text-secondary hover:text-ink hover:bg-hover cursor-pointer"
               >
                 <span className="flex items-center gap-1.5">
                   {showSystemPromptBox || Boolean(editing.systemPrompt?.trim()) ? (
@@ -868,7 +1012,7 @@ export const CharactersPanel: React.FC<{ worldId: string }> = ({ worldId }) => {
                   <span>自定义系统提示词（可选 · 适合工具型/自由人设）</span>
                 </span>
                 {Boolean(editing.systemPrompt?.trim()) && (
-                  <span className="text-[11px] px-1.5 py-0.5 rounded bg-accent-soft text-accent">
+                  <span className="text-[11.5px] px-1.5 py-0.5 rounded bg-accent-soft text-accent">
                     已启用
                   </span>
                 )}
@@ -883,7 +1027,7 @@ export const CharactersPanel: React.FC<{ worldId: string }> = ({ worldId }) => {
                     value={editing.systemPrompt || ''}
                     onChange={(e) => setEditing({ ...editing, systemPrompt: e.target.value })}
                     placeholder="例如：你是一位冷静毒舌的剑修师兄…… 或 你是我的中英小说润色编辑……"
-                    className="w-full px-3 py-2 rounded-xl bg-canvas border border-line text-[13.5px] text-ink outline-none focus:border-accent"
+                    className="w-full px-3 py-2 rounded-xl bg-canvas border border-line text-[13px] text-ink outline-none focus:border-accent"
                   />
                 </div>
               )}
@@ -906,7 +1050,7 @@ export const CharactersPanel: React.FC<{ worldId: string }> = ({ worldId }) => {
   return (
     <div className="flex-1 overflow-y-auto space-y-4">
       {worldId === '' && (
-        <div className="px-3.5 py-2 rounded-xl bg-accent-soft/70 border border-accent/25 text-[12px] text-secondary">
+        <div className="px-3.5 py-2 rounded-xl bg-accent-soft/70 border border-accent/25 text-[13px] text-secondary">
           <span className="font-medium text-accent">独立角色库</span> · 不绑定任何作品，支持 AI 生图、音色绑定与自由提示词，随时可在对话中选用
         </div>
       )}
@@ -932,10 +1076,10 @@ export const CharactersPanel: React.FC<{ worldId: string }> = ({ worldId }) => {
       </div>
 
       {worldChars.length === 0 ? (
-        <div className="py-16 text-center rounded-2xl border border-dashed border-line space-y-2">
+        <div className="py-16 text-center rounded-xl border border-dashed border-line space-y-2">
           <Users className="w-8 h-8 mx-auto text-dim" />
-          <div className="text-[14px] text-secondary">还没有角色卡</div>
-          <p className="text-[12px] text-dim">
+          <div className="text-[15px] text-secondary">还没有角色卡</div>
+          <p className="text-[13px] text-dim">
             角色卡支持上传或 AI 生成立绘，并可直接让 AI 以该角色第一人称对话。
           </p>
         </div>
@@ -945,7 +1089,7 @@ export const CharactersPanel: React.FC<{ worldId: string }> = ({ worldId }) => {
             <div
               key={c.id}
               onClick={() => openEditor(c)}
-              className="p-4 rounded-2xl bg-card border border-line hover:border-accent/50 transition cursor-pointer flex flex-col justify-between gap-3"
+              className="p-4 rounded-xl bg-card border border-line hover:border-accent/50 transition cursor-pointer flex flex-col justify-between gap-3"
             >
               <div className="space-y-2">
                 <div className="flex items-start justify-between gap-2">
@@ -968,13 +1112,13 @@ export const CharactersPanel: React.FC<{ worldId: string }> = ({ worldId }) => {
                       <div className="flex items-center gap-1.5">
                         <span className="text-[15px] font-semibold text-ink truncate">{c.name}</span>
                         {c.systemPrompt?.trim() && (
-                          <span className="px-1.5 py-0.5 rounded text-[10px] bg-accent-soft text-accent shrink-0">
+                          <span className="px-1.5 py-0.5 rounded text-[11.5px] bg-accent-soft text-accent shrink-0">
                             自由提示词
                           </span>
                         )}
                       </div>
                       {c.identity && (
-                        <div className="text-[12px] text-dim truncate">{c.identity}</div>
+                        <div className="text-[13px] text-dim truncate">{c.identity}</div>
                       )}
                     </div>
                   </div>
@@ -995,7 +1139,7 @@ export const CharactersPanel: React.FC<{ worldId: string }> = ({ worldId }) => {
                 </p>
               </div>
 
-              <div className="pt-2 border-t border-line flex items-center justify-between gap-2 text-[12px]">
+              <div className="pt-2 border-t border-line flex items-center justify-between gap-2 text-[13px]">
                 <span className="text-dim truncate">
                   {c.status ? `状态：${c.status}` : '点击卡片编辑资料'}
                 </span>

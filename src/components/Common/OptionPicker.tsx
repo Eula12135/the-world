@@ -111,19 +111,19 @@ export const OptionPicker: React.FC<OptionPickerProps> = ({
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder={searchPlaceholder}
-                className="w-full bg-transparent text-[12.5px] text-ink outline-none placeholder:text-dim"
+                className="w-full bg-transparent text-[13px] text-ink outline-none placeholder:text-dim"
               />
             </div>
           )}
 
           <div className="max-h-64 overflow-y-auto py-1">
             {filtered.length === 0 && (
-              <div className="px-2.5 py-3 text-[12px] text-dim text-center">{emptyText}</div>
+              <div className="px-2.5 py-3 text-[13px] text-dim text-center">{emptyText}</div>
             )}
             {groups.map(({ group, items: groupItems }) => (
               <div key={group || '__default'}>
                 {group && (
-                  <div className="px-2.5 pt-1.5 pb-1 text-[11px] font-medium text-dim">{group}</div>
+                  <div className="px-2.5 pt-1.5 pb-1 text-[11.5px] font-medium text-dim">{group}</div>
                 )}
                 {groupItems.map((item) => {
                   const active = item.value === value;
@@ -153,14 +153,14 @@ export const OptionPicker: React.FC<OptionPickerProps> = ({
                       ) : null}
                       <span className="min-w-0 flex-1">
                         <span
-                          className={`block text-[12.5px] truncate ${
+                          className={`block text-[13px] truncate ${
                             active ? 'text-accent font-medium' : 'text-ink'
                           }`}
                         >
                           {item.label}
                         </span>
                         {item.hint && (
-                          <span className="block text-[11px] text-dim truncate">{item.hint}</span>
+                          <span className="block text-[11.5px] text-dim truncate">{item.hint}</span>
                         )}
                       </span>
                       {active && <Check className="w-3.5 h-3.5 text-accent shrink-0" />}

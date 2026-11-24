@@ -24,7 +24,7 @@ export const ConfirmDialog: React.FC = () => {
       onClick={() => requestConfirm(null)}
     >
       <div
-        className="w-full max-w-md rounded-2xl bg-card border border-line shadow-2xl p-5 space-y-4"
+        className="w-full max-w-md rounded-xl bg-card border border-line shadow-2xl p-5 space-y-4"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-start justify-between gap-3">
@@ -34,7 +34,7 @@ export const ConfirmDialog: React.FC = () => {
                 <AlertTriangle className="w-4.5 h-4.5" />
               </div>
             )}
-            <h3 className="text-[16px] font-semibold text-ink">{confirmRequest.title}</h3>
+            <h3 className="text-[17px] font-semibold text-ink">{confirmRequest.title}</h3>
           </div>
           <button
             onClick={() => requestConfirm(null)}

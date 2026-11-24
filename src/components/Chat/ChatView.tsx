@@ -302,7 +302,7 @@ export const ChatView: React.FC = () => {
         <WorldContextPopover draftInput={input} />
       </div>
 
-      <div className="rounded-2xl bg-card border border-line shadow-sm p-3 focus-within:border-accent/60 transition">
+      <div className="rounded-xl bg-card border border-line shadow-sm p-3 focus-within:border-accent/60 transition">
         <textarea
           value={input}
           onChange={(e) => setInput(e.target.value)}
@@ -324,7 +324,7 @@ export const ChatView: React.FC = () => {
               type="button"
               onClick={handleToggleVoiceInput}
               disabled={voiceState === 'transcribing'}
-              className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-xl text-[12px] border transition cursor-pointer ${
+              className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-xl text-[13px] border transition cursor-pointer ${
                 voiceState === 'listening'
                   ? 'border-red-500/60 bg-red-500/12 text-red-500 font-medium animate-pulse'
                   : 'border-line text-secondary hover:bg-hover hover:text-ink'
@@ -351,7 +351,7 @@ export const ChatView: React.FC = () => {
               <button
                 type="button"
                 onClick={handleToggleAutoSpeak}
-                className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-xl text-[12px] border transition cursor-pointer ${
+                className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-xl text-[13px] border transition cursor-pointer ${
                   settings.voice.ttsAutoPlay
                     ? 'border-accent/50 bg-accent-soft text-accent font-medium'
                     : 'border-line text-secondary hover:bg-hover hover:text-ink'
@@ -377,7 +377,7 @@ export const ChatView: React.FC = () => {
                   stopSpeaking();
                   setSpeakingMessageId(null);
                 }}
-                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl text-[12px] border border-red-500/40 bg-red-500/10 text-red-500 font-medium hover:bg-red-500/15 transition cursor-pointer"
+                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl text-[13px] border border-red-500/40 bg-red-500/10 text-red-500 font-medium hover:bg-red-500/15 transition cursor-pointer"
                 title="立即中断当前语音朗读"
               >
                 <Square className="w-3 h-3 fill-current" />
@@ -424,11 +424,11 @@ export const ChatView: React.FC = () => {
                 <img
                   src={roleCharacter.avatarImage}
                   alt={roleCharacter.name}
-                  className="w-14 h-14 mx-auto rounded-2xl object-cover shadow-sm border border-line"
+                  className="w-14 h-14 mx-auto rounded-xl object-cover shadow-sm border border-line"
                 />
               ) : (
                 <div
-                  className="w-12 h-12 mx-auto rounded-2xl text-white text-xl font-bold flex items-center justify-center shadow-sm"
+                  className="w-12 h-12 mx-auto rounded-xl text-white text-xl font-bold flex items-center justify-center shadow-sm"
                   style={{
                     backgroundColor:
                       roleCharacter?.avatarColor || personaPreset?.avatarColor || 'var(--accent)',
@@ -452,13 +452,13 @@ export const ChatView: React.FC = () => {
             </div>
 
             {!hasReadyProvider && (
-              <div className="p-4 rounded-2xl bg-accent-soft border border-accent/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="p-4 rounded-xl bg-accent-soft border border-accent/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div className="space-y-1">
-                  <div className="text-[14px] font-semibold text-ink flex items-center gap-1.5">
+                  <div className="text-[15px] font-semibold text-ink flex items-center gap-1.5">
                     <KeyRound className="w-4 h-4 text-accent" />
                     <span>3 步开始：选厂商拿 Key → 粘贴 → 测试连通</span>
                   </div>
-                  <div className="text-[12px] text-secondary">
+                  <div className="text-[13px] text-secondary">
                     推荐先用 DeepSeek 或硅基流动，支持点击直达官方控制台获取密钥
                   </div>
                 </div>

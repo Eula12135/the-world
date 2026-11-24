@@ -184,7 +184,7 @@ export const VoiceSttSubTab: React.FC<VoiceSttSubTabProps> = ({
   };
 
   return (
-    <div className="p-4 rounded-2xl bg-sidebar border border-line space-y-4">
+    <div className="p-4 rounded-xl bg-sidebar border border-line space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <div className="font-semibold text-ink">语音输入 (Speech-to-Text / 语音转文字)</div>
@@ -208,7 +208,7 @@ export const VoiceSttSubTab: React.FC<VoiceSttSubTabProps> = ({
         <button
           type="button"
           onClick={() => switchSttProvider('native')}
-          className={`px-3 py-1.5 rounded-xl border text-[12px] cursor-pointer ${
+          className={`px-3 py-1.5 rounded-xl border text-[13px] cursor-pointer ${
             activeSttProviderId === 'native'
               ? 'border-accent bg-accent-soft text-accent font-medium'
               : 'border-line bg-canvas text-secondary hover:bg-hover'
@@ -221,7 +221,7 @@ export const VoiceSttSubTab: React.FC<VoiceSttSubTabProps> = ({
             key={preset.id}
             type="button"
             onClick={() => switchSttProvider(preset.id)}
-            className={`px-3 py-1.5 rounded-xl border text-[12px] cursor-pointer ${
+            className={`px-3 py-1.5 rounded-xl border text-[13px] cursor-pointer ${
               activeSttProviderId === preset.id
                 ? 'border-accent bg-accent-soft text-accent font-medium'
                 : 'border-line bg-canvas text-secondary hover:bg-hover'
@@ -238,17 +238,17 @@ export const VoiceSttSubTab: React.FC<VoiceSttSubTabProps> = ({
         <div className="space-y-3">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="block mb-1 text-[12px] font-medium text-secondary">
+              <label className="block mb-1 text-[13px] font-medium text-secondary">
                 STT Base URL
               </label>
               <input
                 value={draftVoice.sttBaseUrl}
                 onChange={(e) => updateSttField({ sttBaseUrl: e.target.value })}
-                className="w-full px-3 py-2 rounded-xl bg-canvas border border-line text-ink font-mono text-[12px] outline-none focus:border-accent"
+                className="w-full px-3 py-2 rounded-xl bg-canvas border border-line text-ink font-mono text-[13px] outline-none focus:border-accent"
               />
             </div>
             <div>
-              <label className="block mb-1 text-[12px] font-medium text-secondary">
+              <label className="block mb-1 text-[13px] font-medium text-secondary">
                 API Key（{resolvedSttReusableKey ? '留空自动复用同域名 Key' : '当前厂商独立保存'}）
               </label>
               <div className="flex items-center rounded-xl bg-canvas border border-line px-3 focus-within:border-accent">
@@ -257,7 +257,7 @@ export const VoiceSttSubTab: React.FC<VoiceSttSubTabProps> = ({
                   value={draftVoice.sttApiKey}
                   onChange={(e) => updateSttField({ sttApiKey: e.target.value })}
                   placeholder={resolvedSttReusableKey ? '已检测到同域名 Key' : 'sk-...'}
-                  className="flex-1 py-2 bg-transparent text-ink font-mono text-[12px] outline-none"
+                  className="flex-1 py-2 bg-transparent text-ink font-mono text-[13px] outline-none"
                 />
                 <button
                   type="button"
@@ -272,12 +272,12 @@ export const VoiceSttSubTab: React.FC<VoiceSttSubTabProps> = ({
 
           <div className="space-y-1.5">
             <div className="flex items-center justify-between gap-2">
-              <label className="text-[12px] font-medium text-secondary">识别模型 ID</label>
+              <label className="text-[13px] font-medium text-secondary">识别模型 ID</label>
               <button
                 type="button"
                 onClick={handleRefreshSttModels}
                 disabled={fetchingSttModels}
-                className="flex items-center gap-1 text-[12px] text-accent hover:underline cursor-pointer disabled:opacity-50"
+                className="flex items-center gap-1 text-[13px] text-accent hover:underline cursor-pointer disabled:opacity-50"
               >
                 {fetchingSttModels ? (
                   <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -290,7 +290,7 @@ export const VoiceSttSubTab: React.FC<VoiceSttSubTabProps> = ({
             <input
               value={draftVoice.sttModel}
               onChange={(e) => updateSttField({ sttModel: e.target.value })}
-              className="w-full px-3 py-2 rounded-xl bg-canvas border border-line text-ink font-mono text-[12px] outline-none focus:border-accent"
+              className="w-full px-3 py-2 rounded-xl bg-canvas border border-line text-ink font-mono text-[13px] outline-none focus:border-accent"
             />
             {availableSttModels.length > 0 && (
               <div className="flex flex-wrap gap-1.5 pt-1">
@@ -299,7 +299,7 @@ export const VoiceSttSubTab: React.FC<VoiceSttSubTabProps> = ({
                     key={m}
                     type="button"
                     onClick={() => updateSttField({ sttModel: m })}
-                    className={`px-2 py-0.5 rounded-lg border text-[11px] font-mono cursor-pointer ${
+                    className={`px-2 py-0.5 rounded-lg border text-[11.5px] font-mono cursor-pointer ${
                       draftVoice.sttModel === m
                         ? 'border-accent bg-accent-soft text-accent font-medium'
                         : 'border-line bg-canvas text-secondary hover:bg-hover'
@@ -316,11 +316,11 @@ export const VoiceSttSubTab: React.FC<VoiceSttSubTabProps> = ({
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-end">
         <div>
-          <label className="block mb-1 text-[12px] font-medium text-secondary">识别语言</label>
+          <label className="block mb-1 text-[13px] font-medium text-secondary">识别语言</label>
           <select
             value={draftVoice.sttLanguage}
             onChange={(e) => setDraftVoice((prev) => ({ ...prev, sttLanguage: e.target.value }))}
-            className="w-full px-3 py-2 rounded-xl bg-canvas border border-line text-ink text-[12.5px] outline-none focus:border-accent"
+            className="w-full px-3 py-2 rounded-xl bg-canvas border border-line text-ink text-[13px] outline-none focus:border-accent"
           >
             <option value="zh">中文 (zh)</option>
             <option value="en">英文 (en)</option>

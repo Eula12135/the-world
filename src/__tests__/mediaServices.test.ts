@@ -757,6 +757,17 @@ describe('image framing (尺寸决定取景)', () => {
     }
   });
 
+  it('drops the bracket left behind when a quoted nickname is stripped', () => {
+    const prompt = buildCharacterImagePrompt(
+      { ...framingChar, identity: '神秘三人组行动派（外号「长腿妞」）' },
+      null,
+      '',
+      '1024x1024'
+    );
+    expect(prompt).toContain('神秘三人组行动派');
+    expect(prompt).not.toContain('外号');
+  });
+
   it('builds a reusable clause that names the composition', () => {
     expect(buildFramingClause('1024x768')).toContain('横版场景构图');
     expect(buildFramingClause('768x1024')).toContain('膝盖以上');

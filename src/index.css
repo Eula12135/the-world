@@ -8,14 +8,20 @@
   --bg-hover: #eaeef5;
   --text-ink: #111827;
   --text-secondary: #4b5563;
-  --text-muted: #9ca3af;
+  /* 原 #9ca3af 在白底只有 2.54:1，11–12px 下读不清；提到 4.83:1 */
+  --text-muted: #6b7280;
   --border-line: #e5e7eb;
   --accent: #4d6bfe;
   --accent-hover: #3b57e8;
+  /* 小字号强调文字用（#4d6bfe 只有 4.33:1，擦着 AA 线） */
+  --accent-strong: #3b57e8;
   --accent-soft: rgba(77, 107, 254, 0.1);
   --user-bubble: #eef2ff;
   --code-bg: #f3f5f9;
   --code-text: #1f2937;
+  --danger: #dc2626;
+  --warn: #b45309;
+  --success: #047857;
 }
 
 html.dark {
@@ -26,14 +32,18 @@ html.dark {
   --bg-hover: #242938;
   --text-ink: #f3f4f6;
   --text-secondary: #a1a8b8;
-  --text-muted: #6b7280;
+  --text-muted: #8b93a5;
   --border-line: #272c3a;
   --accent: #4d6bfe;
   --accent-hover: #647eff;
+  --accent-strong: #93a5ff;
   --accent-soft: rgba(77, 107, 254, 0.16);
   --user-bubble: #22293b;
   --code-bg: #0b0d13;
   --code-text: #e5e7eb;
+  --danger: #f87171;
+  --warn: #fbbf24;
+  --success: #34d399;
 }
 
 @theme inline {
@@ -47,8 +57,12 @@ html.dark {
   --color-dim: var(--text-muted);
   --color-line: var(--border-line);
   --color-accent: var(--accent);
+  --color-accent-strong: var(--accent-strong);
   --color-accent-soft: var(--accent-soft);
   --color-user-bubble: var(--user-bubble);
+  --color-danger: var(--danger);
+  --color-warn: var(--warn);
+  --color-success: var(--success);
 }
 
 * {

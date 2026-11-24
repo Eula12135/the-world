@@ -101,7 +101,7 @@ export const TimelinePanel: React.FC<{ worldId: string }> = ({ worldId }) => {
 
   if (editing) {
     return (
-      <div className="flex-1 flex flex-col min-h-0 rounded-2xl bg-card border border-line overflow-hidden">
+      <div className="flex-1 flex flex-col min-h-0 rounded-xl bg-card border border-line overflow-hidden">
         <div className="flex items-center justify-between px-4 py-3 border-b border-line bg-sidebar">
           <button
             onClick={() => setEditing(null)}
@@ -115,7 +115,7 @@ export const TimelinePanel: React.FC<{ worldId: string }> = ({ worldId }) => {
             {sorted.some((e) => e.id === editing.id) && (
               <button
                 onClick={() => handleDelete(editing)}
-                className="flex items-center gap-1 px-3 py-1.5 rounded-xl text-[12px] text-red-500 border border-red-500/30 hover:bg-red-500/10 cursor-pointer"
+                className="flex items-center gap-1 px-3 py-1.5 rounded-xl text-[13px] text-red-500 border border-red-500/30 hover:bg-red-500/10 cursor-pointer"
               >
                 <Trash2 className="w-3.5 h-3.5" />
                 <span>删除</span>
@@ -140,7 +140,7 @@ export const TimelinePanel: React.FC<{ worldId: string }> = ({ worldId }) => {
                   value={editing.timeLabel}
                   onChange={(e) => setEditing({ ...editing, timeLabel: e.target.value })}
                   placeholder="例如：星海历 302 年秋 / 第一卷第三章"
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-canvas border border-line text-[14px] text-ink outline-none focus:border-accent"
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-canvas border border-line text-[15px] text-ink outline-none focus:border-accent"
                 />
               </div>
               <div>
@@ -149,7 +149,7 @@ export const TimelinePanel: React.FC<{ worldId: string }> = ({ worldId }) => {
                   value={editing.title}
                   onChange={(e) => setEditing({ ...editing, title: e.target.value })}
                   placeholder="例如：星落城密谈"
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-canvas border border-line text-[14px] text-ink outline-none focus:border-accent"
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-canvas border border-line text-[15px] text-ink outline-none focus:border-accent"
                 />
               </div>
             </div>
@@ -172,7 +172,7 @@ export const TimelinePanel: React.FC<{ worldId: string }> = ({ worldId }) => {
                               : [...editing.characterIds, c.id],
                           })
                         }
-                        className={`px-3 py-1.5 rounded-full border text-[12px] cursor-pointer transition ${
+                        className={`px-3 py-1.5 rounded-full border text-[13px] cursor-pointer transition ${
                           active
                             ? 'text-white border-transparent'
                             : 'border-line text-secondary hover:bg-hover'
@@ -194,7 +194,7 @@ export const TimelinePanel: React.FC<{ worldId: string }> = ({ worldId }) => {
                 value={editing.details}
                 onChange={(e) => setEditing({ ...editing, details: e.target.value })}
                 placeholder="简述发生了什么、核心转折以及对后续剧情造成了什么影响..."
-                className="w-full px-3.5 py-2.5 rounded-xl bg-canvas border border-line text-[14px] text-ink outline-none focus:border-accent"
+                className="w-full px-3.5 py-2.5 rounded-xl bg-canvas border border-line text-[15px] text-ink outline-none focus:border-accent"
               />
             </div>
           </div>
@@ -217,10 +217,10 @@ export const TimelinePanel: React.FC<{ worldId: string }> = ({ worldId }) => {
       </div>
 
       {sorted.length === 0 ? (
-        <div className="py-16 text-center rounded-2xl border border-dashed border-line space-y-2">
+        <div className="py-16 text-center rounded-xl border border-dashed border-line space-y-2">
           <Clock className="w-8 h-8 mx-auto text-dim" />
-          <div className="text-[14px] text-secondary">时间线还是空的</div>
-          <p className="text-[12px] text-dim">
+          <div className="text-[15px] text-secondary">时间线还是空的</div>
+          <p className="text-[13px] text-dim">
             记录关键故事节点的时间顺序与参与人物，创作对话时会自动带给 AI 作为先后参考。
           </p>
         </div>
@@ -232,12 +232,12 @@ export const TimelinePanel: React.FC<{ worldId: string }> = ({ worldId }) => {
               <span className="absolute -left-[19px] top-4 w-3 h-3 rounded-full bg-accent ring-4 ring-canvas" />
               <div
                 onClick={() => setEditing({ ...ev })}
-                className="p-4 rounded-2xl bg-card border border-line hover:border-accent/50 transition cursor-pointer space-y-2"
+                className="p-4 rounded-xl bg-card border border-line hover:border-accent/50 transition cursor-pointer space-y-2"
               >
                 <div className="flex flex-wrap items-start justify-between gap-2">
                   <div className="space-y-1">
                     {ev.timeLabel && (
-                      <span className="inline-block text-[12px] font-mono px-2 py-0.5 rounded-md bg-accent-soft text-accent">
+                      <span className="inline-block text-[13px] font-mono px-2 py-0.5 rounded-md bg-accent-soft text-accent">
                         {ev.timeLabel}
                       </span>
                     )}
@@ -250,7 +250,7 @@ export const TimelinePanel: React.FC<{ worldId: string }> = ({ worldId }) => {
                   >
                     <button
                       onClick={() => handleChatFromEvent(ev)}
-                      className="flex items-center gap-1 px-2.5 py-1 rounded-lg border border-line text-[12px] text-accent hover:bg-accent-soft cursor-pointer"
+                      className="flex items-center gap-1 px-2.5 py-1 rounded-lg border border-line text-[13px] text-accent hover:bg-accent-soft cursor-pointer"
                       title="以此事件开启 AI 对话"
                     >
                       <MessageSquarePlus className="w-3.5 h-3.5" />
@@ -296,7 +296,7 @@ export const TimelinePanel: React.FC<{ worldId: string }> = ({ worldId }) => {
                       return (
                         <span
                           key={cid}
-                          className="text-[11px] px-2 py-0.5 rounded-full text-white"
+                          className="text-[11.5px] px-2 py-0.5 rounded-full text-white"
                           style={{ backgroundColor: c.avatarColor || '#4d6bfe' }}
                         >
                           {c.name}

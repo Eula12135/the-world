@@ -241,7 +241,7 @@ export const VoiceBreezeDesignSection: React.FC<VoiceBreezeDesignSectionProps> =
   };
 
   return (
-    <div className="p-4 rounded-2xl bg-sidebar border border-line space-y-4">
+    <div className="p-4 rounded-xl bg-sidebar border border-line space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <div className="font-semibold text-ink">2. Breeze 一句话 AI 捏音色</div>
@@ -253,7 +253,7 @@ export const VoiceBreezeDesignSection: React.FC<VoiceBreezeDesignSectionProps> =
           type="button"
           onClick={handleFetchBreezeVoices}
           disabled={fetchingBreezeVoices}
-          className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-line bg-canvas text-[12px] text-secondary hover:text-ink cursor-pointer disabled:opacity-50"
+          className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-line bg-canvas text-[13px] text-secondary hover:text-ink cursor-pointer disabled:opacity-50"
         >
           {fetchingBreezeVoices ? (
             <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -282,7 +282,7 @@ export const VoiceBreezeDesignSection: React.FC<VoiceBreezeDesignSectionProps> =
           <select
             value={voiceBriefCharacterId}
             onChange={(e) => setVoiceBriefCharacterId(e.target.value)}
-            className="flex-1 min-w-[160px] px-3 py-1.5 rounded-xl bg-canvas border border-line text-[12.5px] text-ink outline-none focus:border-accent"
+            className="flex-1 min-w-[160px] px-3 py-1.5 rounded-xl bg-canvas border border-line text-[13px] text-ink outline-none focus:border-accent"
           >
             <option value="">从角色卡生成：选择角色…</option>
             {characters.map((c) => {
@@ -299,7 +299,7 @@ export const VoiceBreezeDesignSection: React.FC<VoiceBreezeDesignSectionProps> =
             type="button"
             onClick={handleGenerateVoiceDescription}
             disabled={generatingVoiceDesc || !voiceBriefCharacterId}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-accent/40 bg-accent-soft text-accent text-[12px] font-medium hover:opacity-90 cursor-pointer disabled:opacity-40"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-accent/40 bg-accent-soft text-accent text-[13px] font-medium hover:opacity-90 cursor-pointer disabled:opacity-40"
           >
             {generatingVoiceDesc ? (
               <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -321,13 +321,13 @@ export const VoiceBreezeDesignSection: React.FC<VoiceBreezeDesignSectionProps> =
             value={designVoiceName}
             onChange={(e) => setDesignVoiceName(e.target.value)}
             placeholder="保存后的声音名称（如：慵懒御姐）"
-            className="flex-1 min-w-[180px] px-3 py-1.5 rounded-xl bg-canvas border border-line text-[12.5px] text-ink outline-none focus:border-accent"
+            className="flex-1 min-w-[180px] px-3 py-1.5 rounded-xl bg-canvas border border-line text-[13px] text-ink outline-none focus:border-accent"
           />
           <button
             type="button"
             onClick={handleDesignBreezeVoice}
             disabled={designing}
-            className="flex items-center gap-1.5 px-4 py-1.5 rounded-xl bg-accent text-white text-[12.5px] font-medium hover:opacity-95 cursor-pointer disabled:opacity-50"
+            className="flex items-center gap-1.5 px-4 py-1.5 rounded-xl bg-accent text-white text-[13px] font-medium hover:opacity-95 cursor-pointer disabled:opacity-50"
           >
             {designing ? (
               <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -341,13 +341,13 @@ export const VoiceBreezeDesignSection: React.FC<VoiceBreezeDesignSectionProps> =
 
       {designPreviews.length > 0 && (
         <div className="space-y-2 pt-2 border-t border-line">
-          <div className="text-[12px] font-medium text-secondary">候选预览（听感满意后点击保存）：</div>
+          <div className="text-[13px] font-medium text-secondary">候选预览（听感满意后点击保存）：</div>
           {designPreviews.map((pv, i) => (
             <div
               key={pv.generatedVoiceId}
               className="flex flex-wrap items-center gap-3 p-2.5 rounded-xl bg-canvas border border-line"
             >
-              <span className="text-[12px] font-medium text-ink">方案 {i + 1}</span>
+              <span className="text-[13px] font-medium text-ink">方案 {i + 1}</span>
               <audio
                 controls
                 src={`data:${pv.mediaType};base64,${pv.audioBase64}`}
@@ -357,7 +357,7 @@ export const VoiceBreezeDesignSection: React.FC<VoiceBreezeDesignSectionProps> =
                 type="button"
                 onClick={() => handleSaveBreezeDesignPreview(pv)}
                 disabled={savingDesignId === pv.generatedVoiceId}
-                className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-accent text-white text-[12px] font-medium cursor-pointer disabled:opacity-50"
+                className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-accent text-white text-[13px] font-medium cursor-pointer disabled:opacity-50"
               >
                 {savingDesignId === pv.generatedVoiceId ? (
                   <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -373,7 +373,7 @@ export const VoiceBreezeDesignSection: React.FC<VoiceBreezeDesignSectionProps> =
 
       {breezeVoices.length > 0 && (
         <div className="space-y-1.5 pt-2 border-t border-line">
-          <div className="text-[12px] font-medium text-secondary">账号内已有的 Breeze 音色：</div>
+          <div className="text-[13px] font-medium text-secondary">账号内已有的 Breeze 音色：</div>
           <div className="flex flex-wrap gap-1.5">
             {breezeVoices.map((bv) => (
               <button
@@ -383,7 +383,7 @@ export const VoiceBreezeDesignSection: React.FC<VoiceBreezeDesignSectionProps> =
                   updateTtsField({ ttsVoice: bv.voiceId });
                   setNewProfileName(bv.name);
                 }}
-                className={`px-2.5 py-1 rounded-lg border text-[12px] cursor-pointer ${
+                className={`px-2.5 py-1 rounded-lg border text-[13px] cursor-pointer ${
                   draftVoice.ttsVoice === bv.voiceId
                     ? 'border-accent bg-accent-soft text-accent font-medium'
                     : 'border-line bg-canvas text-ink hover:bg-hover'
@@ -397,14 +397,14 @@ export const VoiceBreezeDesignSection: React.FC<VoiceBreezeDesignSectionProps> =
       )}
 
       <div>
-        <label className="block mb-1 text-[12px] font-medium text-secondary">
+        <label className="block mb-1 text-[13px] font-medium text-secondary">
           Breeze Voice ID（直接填入已有音色 ID，或由上方生成后自动填入）
         </label>
         <input
           value={draftVoice.ttsVoice}
           onChange={(e) => updateTtsField({ ttsVoice: e.target.value })}
           placeholder="voice_id..."
-          className="w-full px-3 py-2 rounded-xl bg-canvas border border-line text-ink font-mono text-[12px] outline-none focus:border-accent"
+          className="w-full px-3 py-2 rounded-xl bg-canvas border border-line text-ink font-mono text-[13px] outline-none focus:border-accent"
         />
       </div>
     </div>

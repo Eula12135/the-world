@@ -728,7 +728,7 @@ export const VoiceStudioTab: React.FC<VoiceStudioTabProps> = ({
           <button
             type="button"
             onClick={clearPendingVoiceBind}
-            className="px-2.5 py-1 rounded-lg border border-line bg-card text-[12px] text-secondary hover:text-ink cursor-pointer"
+            className="px-2.5 py-1 rounded-lg border border-line bg-card text-[13px] text-secondary hover:text-ink cursor-pointer"
           >
             取消绑定模式
           </button>
@@ -736,7 +736,7 @@ export const VoiceStudioTab: React.FC<VoiceStudioTabProps> = ({
       )}
 
       {/* Global Quick Voice Switches + Subtab Bar */}
-      <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-2xl bg-sidebar border border-line">
+      <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-xl bg-sidebar border border-line">
         <div className="flex flex-wrap items-center gap-4">
           <label className="flex items-center gap-2 cursor-pointer text-ink font-medium">
             <input
@@ -762,7 +762,7 @@ export const VoiceStudioTab: React.FC<VoiceStudioTabProps> = ({
             }`}
             title="选择自动朗读时读到哪些台词"
           >
-            <span className="text-[12px] whitespace-nowrap">朗读范围</span>
+            <span className="text-[13px] whitespace-nowrap">朗读范围</span>
             <select
               value={draftVoice.ttsAutoPlayTarget || 'assistant'}
               disabled={!draftVoice.ttsAutoPlay}
@@ -771,7 +771,7 @@ export const VoiceStudioTab: React.FC<VoiceStudioTabProps> = ({
                   ttsAutoPlayTarget: e.target.value as TtsAutoPlayTarget,
                 })
               }
-              className="px-2 py-1 rounded-lg bg-canvas border border-line text-[12px] text-ink outline-none focus:border-accent disabled:cursor-not-allowed"
+              className="px-2 py-1 rounded-lg bg-canvas border border-line text-[13px] text-ink outline-none focus:border-accent disabled:cursor-not-allowed"
             >
               <option value="assistant">只读角色台词</option>
               <option value="user">只读我的台词</option>
@@ -792,7 +792,7 @@ export const VoiceStudioTab: React.FC<VoiceStudioTabProps> = ({
               }
               className="accent-[var(--accent)]"
             />
-            <span className="text-[12px] whitespace-nowrap">换音色后沿用旧语音</span>
+            <span className="text-[13px] whitespace-nowrap">换音色后沿用旧语音</span>
           </label>
           {activeDefaultProfile ? (
             <span className="text-[11.5px] px-2.5 py-0.5 rounded-full bg-accent-soft text-accent border border-accent/25">
@@ -833,7 +833,7 @@ export const VoiceStudioTab: React.FC<VoiceStudioTabProps> = ({
           <button
             type="button"
             onClick={() => setVoiceStudioSubTab('library')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-medium cursor-pointer transition ${
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[13px] font-medium cursor-pointer transition ${
               voiceStudioSubTab === 'library'
                 ? 'bg-card text-accent shadow-xs'
                 : 'text-secondary hover:text-ink'
@@ -845,7 +845,7 @@ export const VoiceStudioTab: React.FC<VoiceStudioTabProps> = ({
           <button
             type="button"
             onClick={() => setVoiceStudioSubTab('create')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-medium cursor-pointer transition ${
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[13px] font-medium cursor-pointer transition ${
               voiceStudioSubTab === 'create'
                 ? 'bg-card text-accent shadow-xs'
                 : 'text-secondary hover:text-ink'
@@ -857,7 +857,7 @@ export const VoiceStudioTab: React.FC<VoiceStudioTabProps> = ({
           <button
             type="button"
             onClick={() => setVoiceStudioSubTab('stt')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-medium cursor-pointer transition ${
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[13px] font-medium cursor-pointer transition ${
               voiceStudioSubTab === 'stt'
                 ? 'bg-card text-accent shadow-xs'
                 : 'text-secondary hover:text-ink'
@@ -870,12 +870,12 @@ export const VoiceStudioTab: React.FC<VoiceStudioTabProps> = ({
       </div>
 
       {cacheManagerOpen && (
-        <div className="p-3 rounded-2xl bg-sidebar border border-line space-y-2">
+        <div className="p-3 rounded-xl bg-sidebar border border-line space-y-2">
           <div className="flex items-center justify-between gap-2">
-            <span className="text-[12px] font-medium text-secondary">
+            <span className="text-[13px] font-medium text-secondary">
               按对话清理语音缓存
             </span>
-            <span className="text-[11px] text-dim">
+            <span className="text-[11.5px] text-dim">
               共 {cacheStats?.count ?? 0} 条 · {formatCacheBytes(cacheStats?.bytes ?? 0)}
             </span>
           </div>
@@ -893,8 +893,8 @@ export const VoiceStudioTab: React.FC<VoiceStudioTabProps> = ({
                     className="flex items-center justify-between gap-3 px-2.5 py-2"
                   >
                     <div className="min-w-0">
-                      <div className="text-[12px] text-ink truncate">{sessionTitle}</div>
-                      <div className="text-[11px] text-dim truncate">
+                      <div className="text-[13px] text-ink truncate">{sessionTitle}</div>
+                      <div className="text-[11.5px] text-dim truncate">
                         {group.count} 条 · {formatCacheBytes(group.bytes)}
                         {group.sample ? ` · ${group.sample.slice(0, 16)}…` : ''}
                       </div>
@@ -911,7 +911,7 @@ export const VoiceStudioTab: React.FC<VoiceStudioTabProps> = ({
               })}
             </div>
           )}
-          <p className="text-[11px] text-dim">
+          <p className="text-[11.5px] text-dim">
             删除后，对应消息再点「朗读」会重新请求合成（会消耗额度）。
           </p>
         </div>
@@ -945,7 +945,7 @@ export const VoiceStudioTab: React.FC<VoiceStudioTabProps> = ({
       {voiceStudioSubTab === 'create' && (
         <div className="space-y-4">
           {editingProfileId && (
-            <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-amber-500/10 border border-amber-500/30 text-[12px] text-ink">
+            <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-amber-500/10 border border-amber-500/30 text-[13px] text-ink">
               <span>
                 正在编辑声音档案：<strong>{newProfileName || editingProfileId}</strong>
               </span>
@@ -963,7 +963,7 @@ export const VoiceStudioTab: React.FC<VoiceStudioTabProps> = ({
           )}
 
           {/* Step A: Platform Selection (per-provider isolated credentials) */}
-          <div className="p-4 rounded-2xl bg-sidebar border border-line space-y-3">
+          <div className="p-4 rounded-xl bg-sidebar border border-line space-y-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div>
                 <div className="font-semibold text-ink">1. 选择语音服务厂商（各家 Key 独立保存，切换互不覆盖）</div>
@@ -987,7 +987,7 @@ export const VoiceStudioTab: React.FC<VoiceStudioTabProps> = ({
               <button
                 type="button"
                 onClick={() => switchTtsProvider('native')}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-[12px] cursor-pointer transition ${
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-[13px] cursor-pointer transition ${
                   activeTtsProviderId === 'native'
                     ? 'border-accent bg-accent-soft text-accent font-medium'
                     : 'border-line bg-canvas text-secondary hover:text-ink hover:bg-hover'
@@ -1014,7 +1014,7 @@ export const VoiceStudioTab: React.FC<VoiceStudioTabProps> = ({
                     key={preset.id}
                     type="button"
                     onClick={() => switchTtsProvider(preset.id)}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-[12px] cursor-pointer transition ${
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-[13px] cursor-pointer transition ${
                       selected
                         ? 'border-accent bg-accent-soft text-accent font-medium'
                         : 'border-line bg-canvas text-secondary hover:text-ink hover:bg-hover'
@@ -1039,17 +1039,17 @@ export const VoiceStudioTab: React.FC<VoiceStudioTabProps> = ({
               <div className="space-y-3 pt-1">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <label className="block mb-1 text-[12px] font-medium text-secondary">
+                    <label className="block mb-1 text-[13px] font-medium text-secondary">
                       TTS Base URL
                     </label>
                     <input
                       value={draftVoice.ttsBaseUrl}
                       onChange={(e) => updateTtsField({ ttsBaseUrl: e.target.value })}
-                      className="w-full px-3 py-2 rounded-xl bg-canvas border border-line text-ink font-mono text-[12px] outline-none focus:border-accent"
+                      className="w-full px-3 py-2 rounded-xl bg-canvas border border-line text-ink font-mono text-[13px] outline-none focus:border-accent"
                     />
                   </div>
                   <div>
-                    <label className="block mb-1 text-[12px] font-medium text-secondary">
+                    <label className="block mb-1 text-[13px] font-medium text-secondary">
                       API Key（{resolvedTtsReusableKey ? '留空将自动复用同域名 Key' : '仅保存在当前厂商下'}）
                     </label>
                     <div className="flex items-center rounded-xl bg-canvas border border-line px-3 focus-within:border-accent">
@@ -1062,7 +1062,7 @@ export const VoiceStudioTab: React.FC<VoiceStudioTabProps> = ({
                             ? '已自动检测到同域名文本 Key（也可在此覆盖）'
                             : '填写该厂商专用 API Key...'
                         }
-                        className="flex-1 py-2 bg-transparent text-ink font-mono text-[12px] outline-none"
+                        className="flex-1 py-2 bg-transparent text-ink font-mono text-[13px] outline-none"
                       />
                       <button
                         type="button"
@@ -1078,14 +1078,14 @@ export const VoiceStudioTab: React.FC<VoiceStudioTabProps> = ({
                 {/* Model ID + Refresh Available Models */}
                 <div className="space-y-1.5">
                   <div className="flex items-center justify-between gap-2">
-                    <label className="text-[12px] font-medium text-secondary">
+                    <label className="text-[13px] font-medium text-secondary">
                       语音模型 (Model)
                     </label>
                     <button
                       type="button"
                       onClick={handleRefreshTtsModels}
                       disabled={fetchingTtsModels}
-                      className="flex items-center gap-1 text-[12px] text-accent hover:underline cursor-pointer disabled:opacity-50"
+                      className="flex items-center gap-1 text-[13px] text-accent hover:underline cursor-pointer disabled:opacity-50"
                     >
                       {fetchingTtsModels ? (
                         <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -1105,7 +1105,7 @@ export const VoiceStudioTab: React.FC<VoiceStudioTabProps> = ({
                       updateTtsField({ ttsModel: nextModel, ttsVoice: rewrittenVoice });
                     }}
                     placeholder="输入或点击下方可选模型..."
-                    className="w-full px-3 py-2 rounded-xl bg-canvas border border-line text-ink font-mono text-[12px] outline-none focus:border-accent"
+                    className="w-full px-3 py-2 rounded-xl bg-canvas border border-line text-ink font-mono text-[13px] outline-none focus:border-accent"
                   />
                   {availableTtsModels.length > 0 && (
                     <div className="flex flex-wrap gap-1.5 pt-1">
@@ -1121,7 +1121,7 @@ export const VoiceStudioTab: React.FC<VoiceStudioTabProps> = ({
                                 : draftVoice.ttsVoice;
                               updateTtsField({ ttsModel: m, ttsVoice: rewrittenVoice });
                             }}
-                            className={`px-2 py-0.5 rounded-lg border text-[11px] font-mono cursor-pointer ${
+                            className={`px-2 py-0.5 rounded-lg border text-[11.5px] font-mono cursor-pointer ${
                               selected
                                 ? 'border-accent bg-accent-soft text-accent font-medium'
                                 : 'border-line bg-canvas text-secondary hover:bg-hover'
@@ -1140,16 +1140,16 @@ export const VoiceStudioTab: React.FC<VoiceStudioTabProps> = ({
 
           {/* Step B: Native vs Breeze vs SiliconFlow vs Standard OpenAI Voice Config */}
           {draftVoice.ttsEngine === 'native' ? (
-            <div className="p-4 rounded-2xl bg-sidebar border border-line space-y-3">
+            <div className="p-4 rounded-xl bg-sidebar border border-line space-y-3">
               <div className="font-semibold text-ink">2. 系统原生音色与语速音调</div>
               <div>
-                <label className="block mb-1 text-[12px] font-medium text-secondary">
+                <label className="block mb-1 text-[13px] font-medium text-secondary">
                   本机可用声音 ({nativeVoices.length})
                 </label>
                 <select
                   value={draftVoice.ttsNativeVoice}
                   onChange={(e) => setDraftVoice((prev) => ({ ...prev, ttsNativeVoice: e.target.value }))}
-                  className="w-full px-3 py-2 rounded-xl bg-canvas border border-line text-ink text-[12.5px] outline-none focus:border-accent"
+                  className="w-full px-3 py-2 rounded-xl bg-canvas border border-line text-ink text-[13px] outline-none focus:border-accent"
                 >
                   <option value="">跟随系统默认语音</option>
                   {nativeVoices.map((v) => (
@@ -1161,7 +1161,7 @@ export const VoiceStudioTab: React.FC<VoiceStudioTabProps> = ({
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
-                  <div className="flex justify-between text-[12px] text-secondary mb-1">
+                  <div className="flex justify-between text-[13px] text-secondary mb-1">
                     <span>语速</span>
                     <span className="font-mono">{draftVoice.ttsRate.toFixed(2)}x</span>
                   </div>
@@ -1178,7 +1178,7 @@ export const VoiceStudioTab: React.FC<VoiceStudioTabProps> = ({
                   />
                 </div>
                 <div>
-                  <div className="flex justify-between text-[12px] text-secondary mb-1">
+                  <div className="flex justify-between text-[13px] text-secondary mb-1">
                     <span>音高</span>
                     <span className="font-mono">{draftVoice.ttsPitch.toFixed(2)}</span>
                   </div>
@@ -1195,7 +1195,7 @@ export const VoiceStudioTab: React.FC<VoiceStudioTabProps> = ({
                   />
                 </div>
                 <div>
-                  <div className="flex justify-between text-[12px] text-secondary mb-1">
+                  <div className="flex justify-between text-[13px] text-secondary mb-1">
                     <span>音量</span>
                     <span className="font-mono">{Math.round((draftVoice.ttsVolume ?? 1) * 100)}%</span>
                   </div>
@@ -1233,7 +1233,7 @@ export const VoiceStudioTab: React.FC<VoiceStudioTabProps> = ({
               buildVoiceProfileFromDraft={buildVoiceProfileFromDraft}
             />
           ) : (
-            <div className="p-4 rounded-2xl bg-sidebar border border-line space-y-4">
+            <div className="p-4 rounded-xl bg-sidebar border border-line space-y-4">
               <div>
                 <div className="font-semibold text-ink">
                   2. 选择底色音色与语气表达
@@ -1271,7 +1271,7 @@ export const VoiceStudioTab: React.FC<VoiceStudioTabProps> = ({
                                 key={opt.id}
                                 type="button"
                                 onClick={() => updateTtsField({ ttsVoice: fullValue })}
-                                className={`px-2.5 py-1.5 rounded-xl border text-[12px] cursor-pointer transition ${
+                                className={`px-2.5 py-1.5 rounded-xl border text-[13px] cursor-pointer transition ${
                                   isSelected
                                     ? 'border-accent bg-accent-soft text-accent font-medium'
                                     : 'border-line bg-canvas text-ink hover:bg-hover'
@@ -1291,7 +1291,7 @@ export const VoiceStudioTab: React.FC<VoiceStudioTabProps> = ({
 
               {/* Inspiration Chips */}
               <div className="space-y-1.5">
-                <div className="text-[12px] font-medium text-secondary">快捷人设声线灵感（一键同步底色与语气）</div>
+                <div className="text-[13px] font-medium text-secondary">快捷人设声线灵感（一键同步底色与语气）</div>
                 <div className="flex flex-wrap gap-1.5">
                   {VOICE_INSPIRATION_CHIPS.map((chip) => (
                     <button
@@ -1309,18 +1309,18 @@ export const VoiceStudioTab: React.FC<VoiceStudioTabProps> = ({
               {/* Voice ID & Style Instruction */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block mb-1 text-[12px] font-medium text-secondary">
+                  <label className="block mb-1 text-[13px] font-medium text-secondary">
                     实际发送的 Voice ID / 克隆 URI
                   </label>
                   <input
                     value={draftVoice.ttsVoice}
                     onChange={(e) => updateTtsField({ ttsVoice: e.target.value })}
                     placeholder="如 FunAudioLLM/CosyVoice2-0.5B:anna 或 speech:..."
-                    className="w-full px-3 py-2 rounded-xl bg-canvas border border-line text-ink font-mono text-[12px] outline-none focus:border-accent"
+                    className="w-full px-3 py-2 rounded-xl bg-canvas border border-line text-ink font-mono text-[13px] outline-none focus:border-accent"
                   />
                 </div>
                 <div>
-                  <label className="block mb-1 text-[12px] font-medium text-secondary">
+                  <label className="block mb-1 text-[13px] font-medium text-secondary">
                     语气 / 情感指令（可选，CosyVoice2 与 gpt-4o-mini-tts 支持）
                   </label>
                   <div className="flex items-center gap-1.5 mb-1.5">
@@ -1360,7 +1360,7 @@ export const VoiceStudioTab: React.FC<VoiceStudioTabProps> = ({
                       setDraftVoice((prev) => ({ ...prev, ttsStyleInstruction: e.target.value }))
                     }
                     placeholder="例如：用慵懒轻柔、略带沙哑气声的语调说"
-                    className="w-full px-3 py-2 rounded-xl bg-canvas border border-line text-ink text-[12.5px] outline-none focus:border-accent"
+                    className="w-full px-3 py-2 rounded-xl bg-canvas border border-line text-ink text-[13px] outline-none focus:border-accent"
                   />
                 </div>
               </div>
@@ -1368,7 +1368,7 @@ export const VoiceStudioTab: React.FC<VoiceStudioTabProps> = ({
               {/* Rate / Volume / Gain */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
-                  <div className="flex justify-between text-[12px] text-secondary mb-1">
+                  <div className="flex justify-between text-[13px] text-secondary mb-1">
                     <span>播放语速</span>
                     <span className="font-mono">{draftVoice.ttsRate.toFixed(2)}x</span>
                   </div>
@@ -1385,7 +1385,7 @@ export const VoiceStudioTab: React.FC<VoiceStudioTabProps> = ({
                   />
                 </div>
                 <div>
-                  <div className="flex justify-between text-[12px] text-secondary mb-1">
+                  <div className="flex justify-between text-[13px] text-secondary mb-1">
                     <span>播放音量</span>
                     <span className="font-mono">{Math.round((draftVoice.ttsVolume ?? 1) * 100)}%</span>
                   </div>
@@ -1402,7 +1402,7 @@ export const VoiceStudioTab: React.FC<VoiceStudioTabProps> = ({
                   />
                 </div>
                 <div>
-                  <div className="flex justify-between text-[12px] text-secondary mb-1">
+                  <div className="flex justify-between text-[13px] text-secondary mb-1">
                     <span>增益 (dB)</span>
                     <span className="font-mono">{draftVoice.ttsGain}</span>
                   </div>
@@ -1437,19 +1437,19 @@ export const VoiceStudioTab: React.FC<VoiceStudioTabProps> = ({
           )}
 
           {/* Step C: Audition & Save to Voice Library */}
-          <div className="p-4 rounded-2xl bg-sidebar border border-line space-y-3">
+          <div className="p-4 rounded-xl bg-sidebar border border-line space-y-3">
             <div className="font-semibold text-ink">3. 试听与保存</div>
             <div className="flex flex-wrap items-center gap-2">
               <input
                 value={previewText}
                 onChange={(e) => setPreviewText(e.target.value)}
                 placeholder="输入一段台词用于试听当前音色..."
-                className="flex-1 min-w-[200px] px-3 py-2 rounded-xl bg-canvas border border-line text-[12.5px] text-ink outline-none focus:border-accent"
+                className="flex-1 min-w-[200px] px-3 py-2 rounded-xl bg-canvas border border-line text-[13px] text-ink outline-none focus:border-accent"
               />
               <button
                 type="button"
                 onClick={handlePreviewDraft}
-                className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-line bg-canvas text-[12.5px] text-ink hover:border-accent cursor-pointer"
+                className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-line bg-canvas text-[13px] text-ink hover:border-accent cursor-pointer"
               >
                 {previewingDraft ? (
                   <Square className="w-3.5 h-3.5 text-accent" />
@@ -1465,7 +1465,7 @@ export const VoiceStudioTab: React.FC<VoiceStudioTabProps> = ({
                 value={newProfileName}
                 onChange={(e) => setNewProfileName(e.target.value)}
                 placeholder="给这个声音起个名字（如：慵懒御姐、沉稳旁白...）"
-                className="flex-1 min-w-[200px] px-3 py-2 rounded-xl bg-canvas border border-line text-[12.5px] text-ink outline-none focus:border-accent"
+                className="flex-1 min-w-[200px] px-3 py-2 rounded-xl bg-canvas border border-line text-[13px] text-ink outline-none focus:border-accent"
               />
               {pendingVoiceBindTarget ? (
                 <button
@@ -1486,7 +1486,7 @@ export const VoiceStudioTab: React.FC<VoiceStudioTabProps> = ({
                     <Plus className="w-4 h-4" />
                     <span>{editingProfileId ? '更新声音库档案' : '保存到我的声音库'}</span>
                   </button>
-                  <label className="flex items-center gap-1.5 text-[12px] text-secondary cursor-pointer select-none">
+                  <label className="flex items-center gap-1.5 text-[13px] text-secondary cursor-pointer select-none">
                     <input
                       type="checkbox"
                       checked={saveAsDefault}

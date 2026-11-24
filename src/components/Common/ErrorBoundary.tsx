@@ -50,14 +50,14 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
 
     return (
       <div className="h-full w-full flex items-center justify-center bg-canvas text-ink p-4">
-        <div className="max-w-md w-full rounded-2xl border border-line bg-card p-6 space-y-4 shadow-lg">
+        <div className="max-w-md w-full rounded-xl border border-line bg-card p-6 space-y-4 shadow-lg">
           <div className="flex items-start gap-3">
             <div className="w-10 h-10 rounded-xl bg-red-500/10 text-red-500 flex items-center justify-center shrink-0">
               <AlertTriangle className="w-5 h-5" />
             </div>
             <div className="space-y-1 min-w-0">
               <h2 className="text-[15px] font-semibold text-ink">页面渲染出现异常</h2>
-              <p className="text-[12.5px] text-secondary leading-relaxed">
+              <p className="text-[13px] text-secondary leading-relaxed">
                 {this.state.attempts < MAX_INPLACE_RETRIES
                   ? '本地数据未被清除。你可以先尝试恢复界面，或刷新重新加载应用。'
                   : '本地数据未被清除。界面已连续恢复失败，请点「重新加载」重启应用。'}
@@ -65,7 +65,7 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
             </div>
           </div>
 
-          <div className="rounded-xl bg-muted border border-line px-3 py-2 text-[12px] text-secondary font-mono break-all max-h-28 overflow-y-auto">
+          <div className="rounded-xl bg-muted border border-line px-3 py-2 text-[13px] text-secondary font-mono break-all max-h-28 overflow-y-auto">
             {this.state.error.message || '未知渲染错误'}
           </div>
 

@@ -326,7 +326,12 @@ export function buildCharacterImagePrompt(
 
   parts.push(`角色姓名：${character.name}`);
 
-  const identity = stripQuotedSegments(character.identity || '').trim();
+  // 「神秘三人组（外号『长腿妞』）」剥掉引号后会剩下「（外号，）」这种残渣，清掉
+  const identity = stripQuotedSegments(character.identity || '')
+    .replace(/[（(][^）)]{0,8}[，,、]\s*[)）]/g, '')
+    .replace(/[（(]\s*[)）]/g, '')
+    .replace(/[，,、\s]+$/, '')
+    .trim();
   if (identity) parts.push(`身份定位：${identity.slice(0, 40)}`);
 
   const look = extractVisualTraits(character.notes, 160);

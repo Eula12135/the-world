@@ -115,19 +115,19 @@ export const App: React.FC = () => {
   if (initError) {
     return (
       <div className="h-full w-full flex items-center justify-center bg-canvas text-ink p-4">
-        <div className="max-w-md w-full rounded-2xl border border-line bg-card p-6 space-y-4 shadow-lg">
+        <div className="max-w-md w-full rounded-xl border border-line bg-card p-6 space-y-4 shadow-lg">
           <div className="flex items-start gap-3">
             <div className="w-10 h-10 rounded-xl bg-red-500/10 text-red-500 flex items-center justify-center shrink-0">
               <AlertTriangle className="w-5 h-5" />
             </div>
             <div className="space-y-1 min-w-0">
               <h2 className="text-[15px] font-semibold text-ink">本地工作区初始化失败</h2>
-              <p className="text-[12.5px] text-secondary leading-relaxed">
+              <p className="text-[13px] text-secondary leading-relaxed">
                 可能是本地存储权限受限或数据库版本迁移异常，请重试或重启应用。
               </p>
             </div>
           </div>
-          <div className="rounded-xl bg-muted border border-line px-3 py-2 text-[12px] text-secondary font-mono break-all max-h-28 overflow-y-auto">
+          <div className="rounded-xl bg-muted border border-line px-3 py-2 text-[13px] text-secondary font-mono break-all max-h-28 overflow-y-auto">
             {initError}
           </div>
           <div className="flex items-center justify-end gap-2 pt-1">
@@ -164,7 +164,7 @@ export const App: React.FC = () => {
     <>
       <AppShell>
         {updateNotice?.hasUpdate && (
-          <div className="px-4 py-2 bg-accent-soft border-b border-accent/30 flex items-center justify-between gap-2 text-[12px]">
+          <div className="px-4 py-2 bg-accent-soft border-b border-accent/30 flex items-center justify-between gap-2 text-[13px]">
             <span className="text-ink truncate">
               {apkProgress && apkProgress.status !== 'error' && apkProgress.message
                 ? apkProgress.message

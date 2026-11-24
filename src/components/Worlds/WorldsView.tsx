@@ -171,7 +171,7 @@ export const WorldsView: React.FC = () => {
         <div className="max-w-2xl mx-auto space-y-6">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <h1 className="text-[18px] font-semibold text-ink">
+              <h1 className="text-[17px] font-semibold text-ink">
                 {worlds.length === 0 && !creating ? '创建你的第一部作品世界观' : '新建小说作品'}
               </h1>
               <p className="text-[13px] text-secondary mt-1">
@@ -208,7 +208,7 @@ export const WorldsView: React.FC = () => {
             </div>
           </div>
 
-          <div className="p-5 rounded-2xl bg-card border border-line space-y-5">
+          <div className="p-5 rounded-xl bg-card border border-line space-y-5">
             <div>
               <label className="block mb-1.5 text-[13px] font-medium text-ink">作品名称 *</label>
               <input
@@ -258,7 +258,7 @@ export const WorldsView: React.FC = () => {
                       }`}
                     >
                       <div className="text-[13px] font-semibold text-ink">{tpl.name}</div>
-                      <div className="text-[12px] text-dim mt-0.5 line-clamp-2">
+                      <div className="text-[13px] text-dim mt-0.5 line-clamp-2">
                         {tpl.description}
                       </div>
                     </button>
@@ -267,14 +267,14 @@ export const WorldsView: React.FC = () => {
               </div>
 
               <div className="p-3.5 rounded-xl bg-muted border border-line space-y-1.5">
-                <div className="text-[12px] font-medium text-secondary">
+                <div className="text-[13px] font-medium text-secondary">
                   模板包含 {templateHeadings.length} 个参考章节：
                 </div>
                 <div className="flex flex-wrap gap-1.5">
                   {templateHeadings.map((h) => (
                     <span
                       key={h.heading}
-                      className="text-[11px] px-2 py-0.5 rounded-md bg-card border border-line text-secondary"
+                      className="text-[11.5px] px-2 py-0.5 rounded-md bg-card border border-line text-secondary"
                     >
                       {h.heading}
                     </span>
@@ -295,7 +295,7 @@ export const WorldsView: React.FC = () => {
               <button
                 onClick={handleCreate}
                 disabled={!newName.trim()}
-                className="px-5 py-2.5 rounded-xl text-[14px] font-medium bg-accent text-white disabled:opacity-40 hover:opacity-95 cursor-pointer"
+                className="px-5 py-2.5 rounded-xl text-[15px] font-medium bg-accent text-white disabled:opacity-40 hover:opacity-95 cursor-pointer"
               >
                 创建并进入设定编辑
               </button>
@@ -331,27 +331,27 @@ export const WorldsView: React.FC = () => {
                 if (e.key === 'Enter' && !isImeComposing(e)) e.currentTarget.blur();
                 if (e.key === 'Escape') setRenaming(false);
               }}
-              className="w-full max-w-xs px-3 py-1.5 rounded-xl bg-card border border-accent text-[14px] font-semibold text-ink outline-none"
+              className="w-full max-w-xs px-3 py-1.5 rounded-xl bg-card border border-accent text-[15px] font-semibold text-ink outline-none"
             />
           ) : (
             <>
               <button
                 type="button"
                 onClick={() => setWorldPickerOpen((v) => !v)}
-                className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-card border border-line hover:border-accent text-[13.5px] font-semibold text-ink max-w-full cursor-pointer transition"
+                className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-card border border-line hover:border-accent text-[13px] font-semibold text-ink max-w-full cursor-pointer transition"
               >
                 {inStandaloneMode ? (
                   <>
                     <Users className="w-3.5 h-3.5 text-accent shrink-0" />
                     <span className="truncate">独立角色库</span>
-                    <span className="text-[11px] font-normal px-1.5 py-0.5 rounded bg-muted text-secondary shrink-0">
+                    <span className="text-[11.5px] font-normal px-1.5 py-0.5 rounded bg-muted text-secondary shrink-0">
                       {standaloneCharsCount} 人
                     </span>
                   </>
                 ) : activeWorld ? (
                   <>
                     <span className="truncate">《{activeWorld.name}》</span>
-                    <span className="text-[11px] font-normal px-1.5 py-0.5 rounded bg-muted text-secondary shrink-0">
+                    <span className="text-[11.5px] font-normal px-1.5 py-0.5 rounded bg-muted text-secondary shrink-0">
                       {activeWorld.genre}
                     </span>
                   </>
@@ -364,7 +364,7 @@ export const WorldsView: React.FC = () => {
               {worldPickerOpen && (
                 <>
                   <div className="fixed inset-0 z-30" onClick={() => setWorldPickerOpen(false)} />
-                  <div className="absolute left-0 top-full mt-1.5 z-40 w-64 max-w-[85vw] rounded-2xl bg-card border border-line shadow-xl overflow-hidden text-[13px]">
+                  <div className="absolute left-0 top-full mt-1.5 z-40 w-64 max-w-[85vw] rounded-xl bg-card border border-line shadow-xl overflow-hidden text-[13px]">
                     <div className="max-h-60 overflow-y-auto p-1.5 space-y-0.5">
                       <button
                         type="button"
@@ -383,7 +383,7 @@ export const WorldsView: React.FC = () => {
                           <span>独立角色库（不绑定作品）</span>
                         </span>
                         <span className="flex items-center gap-1.5 shrink-0">
-                          <span className="text-[11px] text-dim">{standaloneCharsCount}</span>
+                          <span className="text-[11.5px] text-dim">{standaloneCharsCount}</span>
                           {inStandaloneMode && <Check className="w-3.5 h-3.5" />}
                         </span>
                       </button>
@@ -408,7 +408,7 @@ export const WorldsView: React.FC = () => {
                           >
                             <span className="truncate">《{w.name}》</span>
                             <span className="flex items-center gap-1.5 shrink-0">
-                              <span className="text-[11px] text-dim">{w.genre}</span>
+                              <span className="text-[11.5px] text-dim">{w.genre}</span>
                               {selected && <Check className="w-3.5 h-3.5" />}
                             </span>
                           </button>
@@ -422,7 +422,7 @@ export const WorldsView: React.FC = () => {
                           setWorldPickerOpen(false);
                           openCreator();
                         }}
-                        className="flex items-center justify-center gap-1 px-2.5 py-1.5 rounded-xl bg-card border border-line text-[12px] text-ink hover:border-accent cursor-pointer"
+                        className="flex items-center justify-center gap-1 px-2.5 py-1.5 rounded-xl bg-card border border-line text-[13px] text-ink hover:border-accent cursor-pointer"
                       >
                         <Plus className="w-3.5 h-3.5 text-accent" />
                         <span>新建作品</span>
@@ -433,7 +433,7 @@ export const WorldsView: React.FC = () => {
                           setWorldPickerOpen(false);
                           setImportOpen(true);
                         }}
-                        className="flex items-center justify-center gap-1 px-2.5 py-1.5 rounded-xl bg-card border border-line text-[12px] text-ink hover:border-accent cursor-pointer"
+                        className="flex items-center justify-center gap-1 px-2.5 py-1.5 rounded-xl bg-card border border-line text-[13px] text-ink hover:border-accent cursor-pointer"
                       >
                         <Upload className="w-3.5 h-3.5 text-accent" />
                         <span>导入设定</span>
@@ -450,7 +450,7 @@ export const WorldsView: React.FC = () => {
           <div className="flex items-center gap-1.5 shrink-0">
             <button
               onClick={() => startNewDraft({ worldId: activeWorld.id })}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[12.5px] font-medium bg-accent text-white hover:opacity-95 cursor-pointer"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[13px] font-medium bg-accent text-white hover:opacity-95 cursor-pointer"
             >
               <MessageSquarePlus className="w-3.5 h-3.5" />
               <span>开始创作</span>
@@ -468,7 +468,7 @@ export const WorldsView: React.FC = () => {
               {menuOpen && (
                 <>
                   <div className="fixed inset-0 z-30" onClick={() => setMenuOpen(false)} />
-                  <div className="absolute right-0 top-full mt-1.5 z-40 w-44 rounded-2xl bg-card border border-line shadow-xl py-1.5 text-[13px]">
+                  <div className="absolute right-0 top-full mt-1.5 z-40 w-44 rounded-xl bg-card border border-line shadow-xl py-1.5 text-[13px]">
                     <button
                       onClick={() => {
                         setMenuOpen(false);
@@ -543,7 +543,7 @@ export const WorldsView: React.FC = () => {
                 <button
                   key={item.id}
                   onClick={() => setTab(item.id)}
-                  className={`flex items-center justify-center gap-1 px-2 md:px-3.5 py-1.5 rounded-lg text-[12px] md:text-[13px] font-medium transition cursor-pointer whitespace-nowrap ${
+                  className={`flex items-center justify-center gap-1 px-2 md:px-3.5 py-1.5 rounded-lg text-[13px] md:text-[13px] font-medium transition cursor-pointer whitespace-nowrap ${
                     active
                       ? 'bg-card text-accent shadow-xs'
                       : 'text-secondary hover:text-ink'
@@ -553,7 +553,7 @@ export const WorldsView: React.FC = () => {
                   <span>{item.label}</span>
                   {item.count !== null && (
                     <span
-                      className={`text-[10.5px] leading-tight px-1.5 py-0.5 rounded-full ${
+                      className={`text-[11.5px] leading-tight px-1.5 py-0.5 rounded-full ${
                         active ? 'bg-accent-soft text-accent' : 'bg-canvas/70 text-dim'
                       }`}
                     >

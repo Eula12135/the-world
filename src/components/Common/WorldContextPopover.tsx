@@ -241,7 +241,7 @@ export const WorldContextPopover: React.FC<WorldContextPopoverProps> = ({ draftI
     <div className="relative flex flex-wrap items-center gap-2">
       <button
         onClick={() => setOpen(true)}
-        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[12px] transition cursor-pointer ${
+        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[13px] transition cursor-pointer ${
           boundWorld && enableWorldContext
             ? 'bg-accent-soft text-accent font-medium'
             : 'bg-muted text-secondary hover:bg-hover'
@@ -267,7 +267,7 @@ export const WorldContextPopover: React.FC<WorldContextPopoverProps> = ({ draftI
             setTab('memory');
             setOpen(true);
           }}
-          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-amber-500/12 text-amber-500 text-[11px] font-medium cursor-pointer"
+          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-amber-500/12 text-amber-500 text-[11.5px] font-medium cursor-pointer"
         >
           <Sparkles className="w-3 h-3" />
           <span>对话较长 ({unsummarizedCount} 条)，建议压缩前情</span>
@@ -282,7 +282,7 @@ export const WorldContextPopover: React.FC<WorldContextPopoverProps> = ({ draftI
             onClick={() => setOpen(false)}
           >
           <div
-            className="w-full md:max-w-xl rounded-t-2xl md:rounded-2xl bg-card border border-line shadow-2xl overflow-hidden flex flex-col max-h-[85vh]"
+            className="w-full md:max-w-xl rounded-t-2xl md:rounded-xl bg-card border border-line shadow-2xl overflow-hidden flex flex-col max-h-[85vh]"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header Tabs */}
@@ -290,7 +290,7 @@ export const WorldContextPopover: React.FC<WorldContextPopoverProps> = ({ draftI
               <div className="flex items-center gap-1">
                 <button
                   onClick={() => setTab('world')}
-                  className={`px-2.5 py-1.5 rounded-lg text-[12px] font-medium cursor-pointer ${
+                  className={`px-2.5 py-1.5 rounded-lg text-[13px] font-medium cursor-pointer ${
                     tab === 'world' ? 'bg-accent-soft text-accent' : 'text-secondary hover:bg-hover'
                   }`}
                 >
@@ -298,7 +298,7 @@ export const WorldContextPopover: React.FC<WorldContextPopoverProps> = ({ draftI
                 </button>
                 <button
                   onClick={() => setTab('memory')}
-                  className={`px-2.5 py-1.5 rounded-lg text-[12px] font-medium cursor-pointer ${
+                  className={`px-2.5 py-1.5 rounded-lg text-[13px] font-medium cursor-pointer ${
                     tab === 'memory'
                       ? 'bg-accent-soft text-accent'
                       : 'text-secondary hover:bg-hover'
@@ -308,7 +308,7 @@ export const WorldContextPopover: React.FC<WorldContextPopoverProps> = ({ draftI
                 </button>
                 <button
                   onClick={() => setTab('preview')}
-                  className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[12px] font-medium cursor-pointer ${
+                  className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[13px] font-medium cursor-pointer ${
                     tab === 'preview'
                       ? 'bg-accent-soft text-accent'
                       : 'text-secondary hover:bg-hover'
@@ -330,7 +330,7 @@ export const WorldContextPopover: React.FC<WorldContextPopoverProps> = ({ draftI
             {tab === 'world' && (
               <div className="p-4 overflow-y-auto space-y-4 text-[13px]">
                 <div className="space-y-1.5">
-                  <div className="flex items-center justify-between text-[12px] text-dim">
+                  <div className="flex items-center justify-between text-[13px] text-dim">
                     <span>选择关联作品</span>
                     <button
                       onClick={() => {
@@ -347,7 +347,7 @@ export const WorldContextPopover: React.FC<WorldContextPopoverProps> = ({ draftI
                   <div className="flex flex-wrap gap-1.5">
                     <button
                       onClick={() => handleBindWorld(undefined)}
-                      className={`px-3 py-1.5 rounded-xl border text-[12px] cursor-pointer ${
+                      className={`px-3 py-1.5 rounded-xl border text-[13px] cursor-pointer ${
                         !boundWorld
                           ? 'bg-accent text-white border-transparent'
                           : 'border-line text-secondary hover:bg-hover'
@@ -359,7 +359,7 @@ export const WorldContextPopover: React.FC<WorldContextPopoverProps> = ({ draftI
                       <button
                         key={w.id}
                         onClick={() => handleBindWorld(w.id)}
-                        className={`px-3 py-1.5 rounded-xl border text-[12px] cursor-pointer ${
+                        className={`px-3 py-1.5 rounded-xl border text-[13px] cursor-pointer ${
                           boundWorld?.id === w.id
                             ? 'bg-accent text-white border-transparent'
                             : 'border-line text-secondary hover:bg-hover'
@@ -381,7 +381,7 @@ export const WorldContextPopover: React.FC<WorldContextPopoverProps> = ({ draftI
                             ? updateSession(session.id, { enableWorldContext: !enableWorldContext })
                             : updateDraftConfig({ enableWorldContext: !enableWorldContext })
                         }
-                        className={`px-3 py-1 rounded-full text-[12px] font-medium cursor-pointer ${
+                        className={`px-3 py-1 rounded-full text-[13px] font-medium cursor-pointer ${
                           enableWorldContext
                             ? 'bg-emerald-500/15 text-emerald-500'
                             : 'bg-muted text-dim'
@@ -393,7 +393,7 @@ export const WorldContextPopover: React.FC<WorldContextPopoverProps> = ({ draftI
 
                     {/* Context Mode */}
                     <div className="space-y-1.5">
-                      <div className="text-[12px] text-dim">上下文加载模式</div>
+                      <div className="text-[13px] text-dim">上下文加载模式</div>
                       <div className="grid grid-cols-2 gap-2">
                         <button
                           onClick={() => updateWorld(boundWorld.id, { contextMode: 'progressive' })}
@@ -403,8 +403,8 @@ export const WorldContextPopover: React.FC<WorldContextPopoverProps> = ({ draftI
                               : 'border-line hover:bg-hover'
                           }`}
                         >
-                          <div className="text-[12.5px] font-semibold text-ink">渐进式披露 (推荐)</div>
-                          <div className="text-[11px] text-dim mt-0.5">
+                          <div className="text-[13px] font-semibold text-ink">渐进式披露 (推荐)</div>
+                          <div className="text-[11.5px] text-dim mt-0.5">
                             仅发目录索引 + 钉选章节 + 自动命中章节，省 Token 不易爆掉
                           </div>
                         </button>
@@ -416,8 +416,8 @@ export const WorldContextPopover: React.FC<WorldContextPopoverProps> = ({ draftI
                               : 'border-line hover:bg-hover'
                           }`}
                         >
-                          <div className="text-[12.5px] font-semibold text-ink">手动勾选全量</div>
-                          <div className="text-[11px] text-dim mt-0.5">
+                          <div className="text-[13px] font-semibold text-ink">手动勾选全量</div>
+                          <div className="text-[11.5px] text-dim mt-0.5">
                             将勾中的设定章节全部发给 AI（适合长上下文短设定）
                           </div>
                         </button>
@@ -427,14 +427,14 @@ export const WorldContextPopover: React.FC<WorldContextPopoverProps> = ({ draftI
                     {/* Anti-spoiler story point */}
                     {worldEvents.length > 0 && (
                       <div className="space-y-1.5">
-                        <div className="flex items-center gap-1.5 text-[12px] text-dim">
+                        <div className="flex items-center gap-1.5 text-[13px] text-dim">
                           <Clock className="w-3.5 h-3.5" />
                           <span>当前创作所处时间点（防剧透 + 锁定该时刻人物关系）</span>
                         </div>
                         <div className="flex flex-wrap gap-1.5">
                           <button
                             onClick={() => handleStoryPointChange(undefined)}
-                            className={`px-2.5 py-1 rounded-lg border text-[12px] cursor-pointer ${
+                            className={`px-2.5 py-1 rounded-lg border text-[13px] cursor-pointer ${
                               !storyPointEventId
                                 ? 'bg-accent text-white border-transparent'
                                 : 'border-line text-secondary hover:bg-hover'
@@ -444,7 +444,7 @@ export const WorldContextPopover: React.FC<WorldContextPopoverProps> = ({ draftI
                           </button>
                           <button
                             onClick={() => handleStoryPointChange(INITIAL_STORY_POINT)}
-                            className={`px-2.5 py-1 rounded-lg border text-[12px] cursor-pointer ${
+                            className={`px-2.5 py-1 rounded-lg border text-[13px] cursor-pointer ${
                               storyPointEventId === INITIAL_STORY_POINT
                                 ? 'bg-accent text-white border-transparent'
                                 : 'border-line text-secondary hover:bg-hover'
@@ -456,7 +456,7 @@ export const WorldContextPopover: React.FC<WorldContextPopoverProps> = ({ draftI
                             <button
                               key={ev.id}
                               onClick={() => handleStoryPointChange(ev.id)}
-                              className={`px-2.5 py-1 rounded-lg border text-[12px] cursor-pointer ${
+                              className={`px-2.5 py-1 rounded-lg border text-[13px] cursor-pointer ${
                                 storyPointEventId === ev.id
                                   ? 'bg-accent text-white border-transparent'
                                   : 'border-line text-secondary hover:bg-hover'
@@ -473,7 +473,7 @@ export const WorldContextPopover: React.FC<WorldContextPopoverProps> = ({ draftI
                     {/* Sections list */}
                     {sections.length > 0 && (
                       <div className="space-y-1.5">
-                        <div className="flex items-center justify-between text-[12px] text-dim">
+                        <div className="flex items-center justify-between text-[13px] text-dim">
                           <span>
                             {boundWorld.contextMode === 'full'
                               ? '勾选要带入的设定章节'
@@ -496,7 +496,7 @@ export const WorldContextPopover: React.FC<WorldContextPopoverProps> = ({ draftI
                                     ? toggleSectionInFull(sec.heading)
                                     : togglePinnedSection(sec.heading)
                                 }
-                                className={`w-full flex items-center justify-between gap-2 px-3 py-1.5 rounded-xl border text-left text-[12px] cursor-pointer ${
+                                className={`w-full flex items-center justify-between gap-2 px-3 py-1.5 rounded-xl border text-left text-[13px] cursor-pointer ${
                                   checked
                                     ? 'border-accent/50 bg-accent-soft text-ink'
                                     : 'border-line text-dim hover:bg-hover'
@@ -520,7 +520,7 @@ export const WorldContextPopover: React.FC<WorldContextPopoverProps> = ({ draftI
                                   )}
                                   <span className="truncate">{sec.heading}</span>
                                 </span>
-                                <span className="text-[11px] text-dim shrink-0">
+                                <span className="text-[11.5px] text-dim shrink-0">
                                   {sec.charCount} 字
                                 </span>
                               </button>
@@ -537,7 +537,7 @@ export const WorldContextPopover: React.FC<WorldContextPopoverProps> = ({ draftI
                             includeCharacters: !boundWorld.includeCharacters,
                           })
                         }
-                        className={`px-3 py-2 rounded-xl border text-[12px] text-left cursor-pointer ${
+                        className={`px-3 py-2 rounded-xl border text-[13px] text-left cursor-pointer ${
                           boundWorld.includeCharacters
                             ? 'border-accent/50 bg-accent-soft text-ink'
                             : 'border-line text-dim'
@@ -551,7 +551,7 @@ export const WorldContextPopover: React.FC<WorldContextPopoverProps> = ({ draftI
                             includeTimeline: !boundWorld.includeTimeline,
                           })
                         }
-                        className={`px-3 py-2 rounded-xl border text-[12px] text-left cursor-pointer ${
+                        className={`px-3 py-2 rounded-xl border text-[13px] text-left cursor-pointer ${
                           boundWorld.includeTimeline
                             ? 'border-accent/50 bg-accent-soft text-ink'
                             : 'border-line text-dim'
@@ -574,7 +574,7 @@ export const WorldContextPopover: React.FC<WorldContextPopoverProps> = ({ draftI
                   </div>
                 ) : (
                   <>
-                    <div className="p-3 rounded-xl bg-muted border border-line flex flex-wrap items-center justify-between gap-2 text-[12px]">
+                    <div className="p-3 rounded-xl bg-muted border border-line flex flex-wrap items-center justify-between gap-2 text-[13px]">
                       <div className="text-secondary">
                         当前总消息 <strong>{messages.length}</strong> 条 · 已归档前{' '}
                         <strong>{session.summarizedCount || 0}</strong> 条 · 保留最近{' '}
@@ -616,7 +616,7 @@ export const WorldContextPopover: React.FC<WorldContextPopoverProps> = ({ draftI
             {/* Tab 3: Transparent Prompt Preview */}
             {tab === 'preview' && (
               <div className="p-4 overflow-y-auto space-y-3">
-                <div className="flex flex-wrap gap-2 text-[12px] text-dim">
+                <div className="flex flex-wrap gap-2 text-[13px] text-dim">
                   <span className="px-2 py-0.5 rounded bg-muted">
                     模式：{built.stats.mode === 'progressive' ? '渐进披露' : built.stats.mode === 'full' ? '全量' : '无'}
                   </span>
@@ -643,7 +643,7 @@ export const WorldContextPopover: React.FC<WorldContextPopoverProps> = ({ draftI
                   </div>
                 )}
 
-                <pre className="p-3 rounded-xl bg-muted border border-line text-[12px] leading-relaxed whitespace-pre-wrap text-secondary max-h-72 overflow-y-auto">
+                <pre className="p-3 rounded-xl bg-muted border border-line text-[13px] leading-relaxed whitespace-pre-wrap text-secondary max-h-72 overflow-y-auto">
                   {built.prompt || '（当前 System Prompt 为空）'}
                 </pre>
               </div>

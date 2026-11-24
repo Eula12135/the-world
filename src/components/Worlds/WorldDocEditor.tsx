@@ -308,16 +308,16 @@ export const WorldDocEditor: React.FC<WorldDocEditorProps> = ({ world }) => {
   return (
     <div className="flex-1 flex flex-col md:flex-row min-h-0 gap-3 md:gap-4">
       {/* Desktop Left TOC */}
-      <aside className="hidden md:flex flex-col w-56 shrink-0 rounded-2xl bg-sidebar border border-line p-3 overflow-y-auto">
+      <aside className="hidden md:flex flex-col w-56 shrink-0 rounded-xl bg-sidebar border border-line p-3 overflow-y-auto">
         <div className="flex items-center justify-between px-2 pb-2 mb-2 border-b border-line">
-          <span className="text-[12px] font-semibold text-secondary flex items-center gap-1.5">
+          <span className="text-[13px] font-semibold text-secondary flex items-center gap-1.5">
             <List className="w-3.5 h-3.5" />
             <span>章节目录 ({outlineItems.length})</span>
           </span>
         </div>
 
         {outlineItems.length === 0 ? (
-          <div className="px-2 py-4 text-[12px] text-dim leading-relaxed">
+          <div className="px-2 py-4 text-[13px] text-dim leading-relaxed">
             点击右侧「+ 新建章节」快速开始梳理设定
           </div>
         ) : (
@@ -330,7 +330,7 @@ export const WorldDocEditor: React.FC<WorldDocEditorProps> = ({ world }) => {
                 className="w-full flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-xl text-left text-[13px] text-secondary hover:bg-hover hover:text-ink transition cursor-pointer"
               >
                 <span className="truncate">{item.heading}</span>
-                <span className="text-[11px] text-dim shrink-0">{item.charCount}</span>
+                <span className="text-[11.5px] text-dim shrink-0">{item.charCount}</span>
               </button>
             ))}
           </div>
@@ -338,7 +338,7 @@ export const WorldDocEditor: React.FC<WorldDocEditorProps> = ({ world }) => {
       </aside>
 
       {/* Main Editor Column */}
-      <div className="flex-1 flex flex-col min-h-0 rounded-2xl bg-card border border-line overflow-hidden">
+      <div className="flex-1 flex flex-col min-h-0 rounded-xl bg-card border border-line overflow-hidden">
         {/* Strict Single-Row Editor Toolbar */}
         <div className="flex items-center justify-between gap-2 px-3 md:px-4 py-2 border-b border-line bg-sidebar shrink-0">
           <div className="flex items-center gap-2 min-w-0">
@@ -347,7 +347,7 @@ export const WorldDocEditor: React.FC<WorldDocEditorProps> = ({ world }) => {
                 <button
                   type="button"
                   onClick={handleToggleAllCards}
-                  className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-muted border border-line text-[12px] text-secondary hover:text-ink whitespace-nowrap cursor-pointer"
+                  className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-muted border border-line text-[13px] text-secondary hover:text-ink whitespace-nowrap cursor-pointer"
                 >
                   {allExpanded ? (
                     <ChevronDown className="w-3.5 h-3.5" />
@@ -357,12 +357,12 @@ export const WorldDocEditor: React.FC<WorldDocEditorProps> = ({ world }) => {
                   <span>{allExpanded ? '全部折叠' : `展开全部 (${sections.length})`}</span>
                 </button>
               ) : (
-                <span className="text-[12.5px] font-medium text-secondary whitespace-nowrap">
+                <span className="text-[13px] font-medium text-secondary whitespace-nowrap">
                   章节卡片 ({sections.length})
                 </span>
               )
             ) : (
-              <span className="text-[12.5px] font-medium text-secondary whitespace-nowrap">
+              <span className="text-[13px] font-medium text-secondary whitespace-nowrap">
                 Markdown 原文
               </span>
             )}
@@ -374,7 +374,7 @@ export const WorldDocEditor: React.FC<WorldDocEditorProps> = ({ world }) => {
               <button
                 type="button"
                 onClick={() => setInsertOpen((v) => !v)}
-                className="flex items-center gap-1 px-2.5 py-1 rounded-xl border border-accent/35 bg-accent-soft text-[12px] font-medium text-accent hover:opacity-90 whitespace-nowrap cursor-pointer"
+                className="flex items-center gap-1 px-2.5 py-1 rounded-xl border border-accent/35 bg-accent-soft text-[13px] font-medium text-accent hover:opacity-90 whitespace-nowrap cursor-pointer"
               >
                 <Plus className="w-3.5 h-3.5 shrink-0" />
                 <span>新建章节</span>
@@ -383,7 +383,7 @@ export const WorldDocEditor: React.FC<WorldDocEditorProps> = ({ world }) => {
               {insertOpen && (
                 <>
                   <div className="fixed inset-0 z-30" onClick={() => setInsertOpen(false)} />
-                  <div className="absolute right-0 top-full mt-1.5 z-40 w-72 max-w-[calc(100vw-2rem)] rounded-2xl bg-card border border-line shadow-2xl overflow-hidden text-[12.5px]">
+                  <div className="absolute right-0 top-full mt-1.5 z-40 w-72 max-w-[calc(100vw-2rem)] rounded-xl bg-card border border-line shadow-2xl overflow-hidden text-[13px]">
                     <div className="p-3 border-b border-line space-y-2 bg-sidebar">
                       <div className="text-[11.5px] font-medium text-secondary">自定义新章节</div>
                       <div className="flex gap-1.5">
@@ -412,7 +412,7 @@ export const WorldDocEditor: React.FC<WorldDocEditorProps> = ({ world }) => {
                     </div>
 
                     <div className="p-1.5 max-h-60 overflow-y-auto space-y-0.5">
-                      <div className="px-2.5 py-1 text-[11px] font-medium text-dim">
+                      <div className="px-2.5 py-1 text-[11.5px] font-medium text-dim">
                         参考模板章节（点击插入）
                       </div>
                       {templateSnippets.map((sec) => {
@@ -431,7 +431,7 @@ export const WorldDocEditor: React.FC<WorldDocEditorProps> = ({ world }) => {
                           >
                             <span className="truncate">{sec.heading}</span>
                             {exists && (
-                              <span className="text-[10.5px] px-1.5 py-0.5 rounded bg-muted text-dim shrink-0">
+                              <span className="text-[11.5px] px-1.5 py-0.5 rounded bg-muted text-dim shrink-0">
                                 已有
                               </span>
                             )}
@@ -448,7 +448,7 @@ export const WorldDocEditor: React.FC<WorldDocEditorProps> = ({ world }) => {
             <button
               type="button"
               onClick={handleToggleMode}
-              className="flex items-center gap-1 px-2.5 py-1 rounded-xl border border-line bg-canvas text-[12px] text-secondary hover:text-ink hover:bg-hover whitespace-nowrap cursor-pointer"
+              className="flex items-center gap-1 px-2.5 py-1 rounded-xl border border-line bg-canvas text-[13px] text-secondary hover:text-ink hover:bg-hover whitespace-nowrap cursor-pointer"
               title={mode === 'cards' ? '切换为整篇 Markdown 原文编辑' : '切换为章节卡片模式'}
             >
               {mode === 'cards' ? (
@@ -470,16 +470,16 @@ export const WorldDocEditor: React.FC<WorldDocEditorProps> = ({ world }) => {
         {mode === 'cards' ? (
           <div className="flex-1 overflow-y-auto p-3 md:p-5 space-y-3">
             {sections.length === 0 ? (
-              <div className="py-12 px-4 text-center rounded-2xl border border-dashed border-line space-y-3">
-                <div className="text-[14px] font-medium text-ink">还没有设定章节</div>
-                <p className="text-[12px] text-dim max-w-md mx-auto">
+              <div className="py-12 px-4 text-center rounded-xl border border-dashed border-line space-y-3">
+                <div className="text-[15px] font-medium text-ink">还没有设定章节</div>
+                <p className="text-[13px] text-dim max-w-md mx-auto">
                   每个章节都会自动参与对话时的渐进式披露，按需带入上下文、节省 Token。
                 </p>
                 <div className="flex flex-wrap justify-center gap-2 pt-1">
                   <button
                     type="button"
                     onClick={() => handleCreateSection('一、世界设定')}
-                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-accent text-white text-[12.5px] font-medium cursor-pointer"
+                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-accent text-white text-[13px] font-medium cursor-pointer"
                   >
                     <Plus className="w-4 h-4" />
                     <span>新建第一个章节</span>
@@ -515,16 +515,16 @@ export const WorldDocEditor: React.FC<WorldDocEditorProps> = ({ world }) => {
                         cardRefs.current[sec.id] = el;
                       }}
                       onClick={() => toggleCardExpanded(sec.id)}
-                      className="rounded-2xl bg-sidebar border border-line hover:border-accent/40 px-3.5 py-2.5 transition cursor-pointer"
+                      className="rounded-xl bg-sidebar border border-line hover:border-accent/40 px-3.5 py-2.5 transition cursor-pointer"
                     >
                       <div className="flex items-center justify-between gap-2">
                         <div className="flex items-center gap-2 min-w-0">
                           <ChevronRight className="w-4 h-4 text-dim shrink-0" />
-                          <span className="font-semibold text-[14px] text-ink truncate">
+                          <span className="font-semibold text-[15px] text-ink truncate">
                             {sec.heading || '未命名章节'}
                           </span>
                           {isPinned && (
-                            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-accent-soft text-accent text-[10.5px] font-medium shrink-0">
+                            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-accent-soft text-accent text-[11.5px] font-medium shrink-0">
                               <Pin className="w-2.5 h-2.5" />
                               <span>常驻</span>
                             </span>
@@ -533,7 +533,7 @@ export const WorldDocEditor: React.FC<WorldDocEditorProps> = ({ world }) => {
                         <span className="text-[11.5px] text-dim shrink-0">{bodyCharCount} 字</span>
                       </div>
                       {sec.body.trim() && (
-                        <div className="line-clamp-1 text-[12px] text-dim mt-1 pl-6">
+                        <div className="line-clamp-1 text-[13px] text-dim mt-1 pl-6">
                           {sec.body.trim()}
                         </div>
                       )}
@@ -547,7 +547,7 @@ export const WorldDocEditor: React.FC<WorldDocEditorProps> = ({ world }) => {
                     ref={(el) => {
                       cardRefs.current[sec.id] = el;
                     }}
-                    className="rounded-2xl bg-sidebar border border-line overflow-hidden transition"
+                    className="rounded-xl bg-sidebar border border-line overflow-hidden transition"
                   >
                     <div className="flex items-center justify-between gap-2 px-3 py-2 border-b border-line/70">
                       <div className="flex items-center gap-1.5 flex-1 min-w-0">
@@ -560,7 +560,7 @@ export const WorldDocEditor: React.FC<WorldDocEditorProps> = ({ world }) => {
                           <ChevronDown className="w-4 h-4" />
                         </button>
                         {sec.isPreamble ? (
-                          <span className="font-semibold text-[14px] text-secondary truncate px-1">
+                          <span className="font-semibold text-[15px] text-secondary truncate px-1">
                             {sec.heading}
                           </span>
                         ) : (
@@ -579,7 +579,7 @@ export const WorldDocEditor: React.FC<WorldDocEditorProps> = ({ world }) => {
                             }}
                             onBlur={() => void handleHeadingBlur(sec)}
                             placeholder="章节标题..."
-                            className="flex-1 min-w-0 px-2 py-1 rounded-lg bg-transparent hover:bg-canvas/50 focus:bg-canvas border border-transparent focus:border-accent text-[14px] font-semibold text-ink outline-none"
+                            className="flex-1 min-w-0 px-2 py-1 rounded-lg bg-transparent hover:bg-canvas/50 focus:bg-canvas border border-transparent focus:border-accent text-[15px] font-semibold text-ink outline-none"
                           />
                         )}
                       </div>
@@ -644,7 +644,7 @@ export const WorldDocEditor: React.FC<WorldDocEditorProps> = ({ world }) => {
                           );
                         }}
                         placeholder="写下这一章节的设定内容..."
-                        className="w-full bg-canvas/70 rounded-xl border border-line p-3 text-[14.5px] leading-7 text-ink outline-none focus:border-accent resize-y placeholder:text-dim"
+                        className="w-full bg-canvas/70 rounded-xl border border-line p-3 text-[15px] leading-7 text-ink outline-none focus:border-accent resize-y placeholder:text-dim"
                       />
                     </div>
                   </div>

@@ -430,12 +430,12 @@ export const ProvidersModal: React.FC = () => {
       onClick={() => setActiveModal('none')}
     >
       <div
-        className="w-full max-w-4xl h-[90vh] md:h-[670px] rounded-2xl bg-card border border-line shadow-2xl flex flex-col overflow-hidden"
+        className="w-full max-w-4xl h-[90vh] md:h-[670px] rounded-xl bg-card border border-line shadow-2xl flex flex-col overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2.5 px-4 md:px-5 py-3 border-b border-line shrink-0">
           <div className="flex items-center justify-between gap-2">
-            <h2 className="text-[16px] font-semibold text-ink">模型与多模态配置</h2>
+            <h2 className="text-[17px] font-semibold text-ink">模型与多模态配置</h2>
             <button
               onClick={() => setActiveModal('none')}
               className="p-1.5 rounded-lg text-dim hover:text-ink hover:bg-hover cursor-pointer md:hidden"
@@ -449,7 +449,7 @@ export const ProvidersModal: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setProvidersModalTab('llm')}
-                className={`flex items-center justify-center gap-1 px-2.5 py-1.5 md:py-1 rounded-lg text-[12px] font-medium whitespace-nowrap cursor-pointer ${
+                className={`flex items-center justify-center gap-1 px-2.5 py-1.5 md:py-1 rounded-lg text-[13px] font-medium whitespace-nowrap cursor-pointer ${
                   providersModalTab === 'llm'
                     ? 'bg-card text-accent shadow-xs'
                     : 'text-secondary hover:text-ink'
@@ -461,7 +461,7 @@ export const ProvidersModal: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setProvidersModalTab('image')}
-                className={`flex items-center justify-center gap-1 px-2.5 py-1.5 md:py-1 rounded-lg text-[12px] font-medium whitespace-nowrap cursor-pointer ${
+                className={`flex items-center justify-center gap-1 px-2.5 py-1.5 md:py-1 rounded-lg text-[13px] font-medium whitespace-nowrap cursor-pointer ${
                   providersModalTab === 'image'
                     ? 'bg-card text-accent shadow-xs'
                     : 'text-secondary hover:text-ink'
@@ -473,7 +473,7 @@ export const ProvidersModal: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setProvidersModalTab('voice')}
-                className={`flex items-center justify-center gap-1 px-2.5 py-1.5 md:py-1 rounded-lg text-[12px] font-medium whitespace-nowrap cursor-pointer ${
+                className={`flex items-center justify-center gap-1 px-2.5 py-1.5 md:py-1 rounded-lg text-[13px] font-medium whitespace-nowrap cursor-pointer ${
                   providersModalTab === 'voice'
                     ? 'bg-card text-accent shadow-xs'
                     : 'text-secondary hover:text-ink'
@@ -497,7 +497,7 @@ export const ProvidersModal: React.FC = () => {
         {providersModalTab === 'llm' && (
           <>
             {!hasReadyKeyProvider && (
-              <div className="px-4 md:px-5 py-2.5 bg-accent-soft border-b border-line flex flex-wrap items-center justify-between gap-2 text-[12px] shrink-0">
+              <div className="px-4 md:px-5 py-2.5 bg-accent-soft border-b border-line flex flex-wrap items-center justify-between gap-2 text-[13px] shrink-0">
                 <div className="flex items-center gap-2 text-ink">
                   <Sparkles className="w-3.5 h-3.5 text-accent shrink-0" />
                   <span>
@@ -551,7 +551,7 @@ export const ProvidersModal: React.FC = () => {
 
                 <button
                   onClick={handleAddCustomProvider}
-                  className="flex items-center justify-center gap-1 px-3 py-2 rounded-xl text-[12px] border border-dashed border-line text-secondary hover:border-accent hover:text-accent shrink-0 md:mt-2 cursor-pointer"
+                  className="flex items-center justify-center gap-1 px-3 py-2 rounded-xl text-[13px] border border-dashed border-line text-secondary hover:border-accent hover:text-accent shrink-0 md:mt-2 cursor-pointer"
                 >
                   <Plus className="w-3.5 h-3.5" />
                   <span>新增自定义端点</span>
@@ -562,13 +562,13 @@ export const ProvidersModal: React.FC = () => {
               <div className="flex-1 overflow-y-auto p-4 md:p-5 space-y-4 text-[13px]">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
-                    <h3 className="text-[16px] font-semibold text-ink">{draft.name}</h3>
-                    <p className="mt-0.5 text-[12.5px] text-secondary">{draft.description}</p>
+                    <h3 className="text-[17px] font-semibold text-ink">{draft.name}</h3>
+                    <p className="mt-0.5 text-[13px] text-secondary">{draft.description}</p>
                   </div>
                   {draft.consoleUrl && (
                     <button
                       onClick={() => openExternalUrl(draft.consoleUrl)}
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[12px] font-medium bg-accent text-white hover:opacity-95 cursor-pointer shrink-0"
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[13px] font-medium bg-accent text-white hover:opacity-95 cursor-pointer shrink-0"
                     >
                       <span>去官网获取 API Key</span>
                       <ExternalLink className="w-3.5 h-3.5" />
@@ -577,7 +577,7 @@ export const ProvidersModal: React.FC = () => {
                 </div>
 
                 {/* Card 1: Basic Connection */}
-                <div className="p-3.5 md:p-4 rounded-2xl bg-sidebar border border-line space-y-3">
+                <div className="p-3.5 md:p-4 rounded-xl bg-sidebar border border-line space-y-3">
                   <div>
                     <label className="block mb-1.5 font-medium text-ink">
                       API Key {!draft.requiresKey && '（本地 Ollama 通常无需填写）'}
@@ -602,7 +602,7 @@ export const ProvidersModal: React.FC = () => {
                 </div>
 
                 {/* Card 2: Model Configuration */}
-                <div className="p-3.5 md:p-4 rounded-2xl bg-sidebar border border-line space-y-3">
+                <div className="p-3.5 md:p-4 rounded-xl bg-sidebar border border-line space-y-3">
                   <div className="flex flex-wrap items-start justify-between gap-2">
                     <div>
                       <label className="font-medium text-ink">
@@ -617,7 +617,7 @@ export const ProvidersModal: React.FC = () => {
                         <button
                           type="button"
                           onClick={handleKeepOnlySelected}
-                          className="px-2.5 py-1 rounded-lg border border-line bg-canvas text-[12px] text-secondary hover:text-ink hover:bg-hover cursor-pointer"
+                          className="px-2.5 py-1 rounded-lg border border-line bg-canvas text-[13px] text-secondary hover:text-ink hover:bg-hover cursor-pointer"
                         >
                           仅保留当前
                         </button>
@@ -626,7 +626,7 @@ export const ProvidersModal: React.FC = () => {
                         <button
                           type="button"
                           onClick={handleRestoreDefaultModels}
-                          className="px-2.5 py-1 rounded-lg border border-line bg-canvas text-[12px] text-secondary hover:text-ink hover:bg-hover cursor-pointer"
+                          className="px-2.5 py-1 rounded-lg border border-line bg-canvas text-[13px] text-secondary hover:text-ink hover:bg-hover cursor-pointer"
                         >
                           恢复默认
                         </button>
@@ -635,7 +635,7 @@ export const ProvidersModal: React.FC = () => {
                         type="button"
                         onClick={handleFetchModels}
                         disabled={fetchingModels}
-                        className="flex items-center gap-1 px-2.5 py-1 rounded-lg border border-line bg-canvas text-[12px] text-accent hover:bg-accent-soft cursor-pointer disabled:opacity-50"
+                        className="flex items-center gap-1 px-2.5 py-1 rounded-lg border border-line bg-canvas text-[13px] text-accent hover:bg-accent-soft cursor-pointer disabled:opacity-50"
                       >
                         <RefreshCw className={`w-3 h-3 ${fetchingModels ? 'animate-spin' : ''}`} />
                         <span>拉取模型</span>
@@ -648,7 +648,7 @@ export const ProvidersModal: React.FC = () => {
                       <div
                         key={m}
                         onClick={() => setDraft({ ...draft, selectedModel: m })}
-                        className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border cursor-pointer text-[12px] ${
+                        className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border cursor-pointer text-[13px] ${
                           draft.selectedModel === m
                             ? 'bg-accent-soft border-accent text-accent font-medium'
                             : 'bg-canvas border-line text-secondary hover:bg-hover'
@@ -690,7 +690,7 @@ export const ProvidersModal: React.FC = () => {
                       return (
                         <div className="p-3 rounded-xl bg-canvas border border-line space-y-2.5">
                           <div className="flex items-center justify-between gap-2">
-                            <span className="text-[12px] font-medium text-ink">
+                            <span className="text-[13px] font-medium text-ink">
                               远程可用模型（已选 {selectedFetchedCount} / 共 {fetchedModels.length}）
                             </span>
                             <button
@@ -708,13 +708,13 @@ export const ProvidersModal: React.FC = () => {
                               value={fetchedModelQuery}
                               onChange={(e) => setFetchedModelQuery(e.target.value)}
                               placeholder="搜索拉取的模型 ID..."
-                              className="w-full bg-transparent text-[12px] font-mono text-ink outline-none placeholder:text-dim"
+                              className="w-full bg-transparent text-[13px] font-mono text-ink outline-none placeholder:text-dim"
                             />
                           </div>
 
                           <div className="max-h-52 overflow-y-auto space-y-1 pr-0.5">
                             {filteredFetched.length === 0 ? (
-                              <div className="py-4 text-center text-[12px] text-dim">
+                              <div className="py-4 text-center text-[13px] text-dim">
                                 没有匹配的远程模型
                               </div>
                             ) : (
@@ -728,7 +728,7 @@ export const ProvidersModal: React.FC = () => {
                                     disabled={disabledRemove}
                                     onClick={() => handleToggleFetchedModel(m)}
                                     title={disabledRemove ? '至少保留一个已配置模型' : undefined}
-                                    className={`w-full flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg text-[12px] text-left transition ${
+                                    className={`w-full flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg text-[13px] text-left transition ${
                                       checked
                                         ? 'bg-accent-soft text-accent font-medium'
                                         : 'text-ink hover:bg-hover'
@@ -742,7 +742,7 @@ export const ProvidersModal: React.FC = () => {
                             )}
                           </div>
 
-                          <p className="text-[11px] text-dim">
+                          <p className="text-[11.5px] text-dim">
                             勾选后请点击下方「保存配置」生效（至少保留 1 个已配置模型）。
                           </p>
                         </div>
@@ -757,7 +757,7 @@ export const ProvidersModal: React.FC = () => {
                         if (e.key === 'Enter' && !isImeComposing(e)) handleAddModel();
                       }}
                       placeholder="手动添加模型 ID，例如 deepseek-chat"
-                      className="flex-1 px-3 py-2 rounded-xl bg-canvas border border-line text-ink outline-none font-mono text-[12.5px] focus:border-accent"
+                      className="flex-1 px-3 py-2 rounded-xl bg-canvas border border-line text-ink outline-none font-mono text-[13px] focus:border-accent"
                     />
                     <button
                       type="button"
@@ -770,12 +770,12 @@ export const ProvidersModal: React.FC = () => {
                 </div>
 
                 {/* Card 3: Collapsible Advanced Endpoint Options */}
-                <div className="rounded-2xl bg-sidebar border border-line overflow-hidden">
+                <div className="rounded-xl bg-sidebar border border-line overflow-hidden">
                   {!draft.isCustom && (
                     <button
                       type="button"
                       onClick={() => setShowLlmAdvanced((v) => !v)}
-                      className="w-full flex items-center justify-between px-4 py-2.5 text-[12.5px] font-medium text-secondary hover:text-ink hover:bg-hover cursor-pointer"
+                      className="w-full flex items-center justify-between px-4 py-2.5 text-[13px] font-medium text-secondary hover:text-ink hover:bg-hover cursor-pointer"
                     >
                       <span className="flex items-center gap-1.5">
                         {showLlmAdvanced ? (
@@ -785,7 +785,7 @@ export const ProvidersModal: React.FC = () => {
                         )}
                         <span>高级接口选项（Base URL / 协议 / 文档）</span>
                       </span>
-                      <span className="text-[11px] font-mono text-dim truncate max-w-[180px]">
+                      <span className="text-[11.5px] font-mono text-dim truncate max-w-[180px]">
                         {draft.baseUrl}
                       </span>
                     </button>
@@ -820,7 +820,7 @@ export const ProvidersModal: React.FC = () => {
                                   key={proto.id}
                                   type="button"
                                   onClick={() => setDraft({ ...draft, protocol: proto.id })}
-                                  className={`py-2 rounded-xl border text-[12px] cursor-pointer ${
+                                  className={`py-2 rounded-xl border text-[13px] cursor-pointer ${
                                     draft.protocol === proto.id
                                       ? 'bg-accent-soft border-accent text-accent font-medium'
                                       : 'border-line text-secondary'
@@ -840,12 +840,12 @@ export const ProvidersModal: React.FC = () => {
                           value={draft.baseUrl}
                           onChange={(e) => setDraft({ ...draft, baseUrl: e.target.value })}
                           placeholder="https://api.deepseek.com/v1"
-                          className="w-full px-3 py-2 rounded-xl bg-canvas border border-line text-ink outline-none font-mono text-[12.5px] focus:border-accent"
+                          className="w-full px-3 py-2 rounded-xl bg-canvas border border-line text-ink outline-none font-mono text-[13px] focus:border-accent"
                         />
                       </div>
 
                       {!draft.isCustom && (
-                        <div className="flex flex-wrap items-center justify-between gap-2 text-[12px] text-dim pt-1">
+                        <div className="flex flex-wrap items-center justify-between gap-2 text-[13px] text-dim pt-1">
                           <span>协议：{draft.protocol === 'anthropic' ? 'Anthropic 原生' : 'OpenAI 兼容'}</span>
                           {draft.docsUrl && (
                             <button
@@ -917,7 +917,7 @@ export const ProvidersModal: React.FC = () => {
         {/* TAB 2: Image Generation Models */}
         {providersModalTab === 'image' && (
           <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-4 text-[13px]">
-            <div className="p-3.5 rounded-xl bg-accent-soft border border-accent/25 text-[12px] text-ink">
+            <div className="p-3.5 rounded-xl bg-accent-soft border border-accent/25 text-[13px] text-ink">
               支持所有兼容 OpenAI <code className="font-mono">/v1/images/generations</code>{' '}
               协议的生图服务。各厂商 API Key 独立保存、切换互不覆盖；生成后的角色图会压缩并直接存放在本机。
             </div>
@@ -964,7 +964,7 @@ export const ProvidersModal: React.FC = () => {
             </div>
 
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <span className="text-[12px] text-secondary">
+              <span className="text-[13px] text-secondary">
                 {resolveMediaApiKey({
                   providerId: draftImg.presetId,
                   baseUrl: draftImg.baseUrl,
@@ -979,7 +979,7 @@ export const ProvidersModal: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => openExternalUrl(activeImgPreset.consoleUrl).catch(() => {})}
-                  className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-accent text-white text-[12px] font-medium cursor-pointer"
+                  className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-accent text-white text-[13px] font-medium cursor-pointer"
                 >
                   <span>去官网拿 Key</span>
                   <ExternalLink className="w-3.5 h-3.5" />
@@ -993,7 +993,7 @@ export const ProvidersModal: React.FC = () => {
                 <input
                   value={draftImg.baseUrl}
                   onChange={(e) => updateImgField({ baseUrl: e.target.value })}
-                  className="w-full px-3 py-2 rounded-xl bg-canvas border border-line text-ink font-mono text-[12.5px] outline-none focus:border-accent"
+                  className="w-full px-3 py-2 rounded-xl bg-canvas border border-line text-ink font-mono text-[13px] outline-none focus:border-accent"
                 />
               </div>
               <div>
@@ -1006,7 +1006,7 @@ export const ProvidersModal: React.FC = () => {
                     value={draftImg.apiKey}
                     onChange={(e) => updateImgField({ apiKey: e.target.value })}
                     placeholder="sk-... 或留空自动复用"
-                    className="flex-1 py-2 bg-transparent text-ink font-mono text-[12.5px] outline-none"
+                    className="flex-1 py-2 bg-transparent text-ink font-mono text-[13px] outline-none"
                   />
                   <button
                     type="button"
@@ -1027,7 +1027,7 @@ export const ProvidersModal: React.FC = () => {
                     type="button"
                     onClick={handleRefreshImgModels}
                     disabled={fetchingImgModels}
-                    className="flex items-center gap-1 text-[12px] text-accent hover:underline cursor-pointer disabled:opacity-50"
+                    className="flex items-center gap-1 text-[13px] text-accent hover:underline cursor-pointer disabled:opacity-50"
                   >
                     {fetchingImgModels ? (
                       <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -1040,7 +1040,7 @@ export const ProvidersModal: React.FC = () => {
                 <input
                   value={draftImg.model}
                   onChange={(e) => updateImgField({ model: e.target.value })}
-                  className="w-full px-3 py-2 rounded-xl bg-canvas border border-line text-ink font-mono text-[12.5px] outline-none focus:border-accent"
+                  className="w-full px-3 py-2 rounded-xl bg-canvas border border-line text-ink font-mono text-[13px] outline-none focus:border-accent"
                 />
                 <div className="flex flex-wrap gap-1.5 mt-2">
                   {Array.from(
@@ -1053,7 +1053,7 @@ export const ProvidersModal: React.FC = () => {
                       key={m}
                       type="button"
                       onClick={() => updateImgField({ model: m })}
-                      className={`px-2 py-0.5 rounded-lg border text-[11px] font-mono cursor-pointer ${
+                      className={`px-2 py-0.5 rounded-lg border text-[11.5px] font-mono cursor-pointer ${
                         draftImg.model === m
                           ? 'border-accent bg-accent-soft text-accent font-medium'
                           : 'border-line text-dim hover:bg-hover'

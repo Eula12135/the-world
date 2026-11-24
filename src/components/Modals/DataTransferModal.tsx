@@ -136,11 +136,11 @@ export const DataTransferModal: React.FC = () => {
       onClick={() => setActiveModal('none')}
     >
       <div
-        className="w-full max-w-2xl max-h-[88vh] rounded-2xl bg-card border border-line shadow-2xl flex flex-col overflow-hidden"
+        className="w-full max-w-2xl max-h-[88vh] rounded-xl bg-card border border-line shadow-2xl flex flex-col overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between px-5 py-3.5 border-b border-line">
-          <h2 className="text-[16px] font-semibold text-ink">DeepSeek 记录导入与数据备份</h2>
+          <h2 className="text-[17px] font-semibold text-ink">DeepSeek 记录导入与数据备份</h2>
           <button
             onClick={() => setActiveModal('none')}
             className="p-1.5 rounded-lg text-dim hover:text-ink hover:bg-hover cursor-pointer"
@@ -163,13 +163,13 @@ export const DataTransferModal: React.FC = () => {
           )}
 
           {/* DeepSeek Import */}
-          <div className="p-4 rounded-2xl bg-sidebar border border-line space-y-3">
+          <div className="p-4 rounded-xl bg-sidebar border border-line space-y-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-2 font-semibold text-[15px] text-ink">
                 <FileArchive className="w-4 h-4 text-accent" />
                 <span>导入 DeepSeek 聊天记录</span>
               </div>
-              <span className="text-[12px] text-dim">支持官方 Export v3 .zip / .json</span>
+              <span className="text-[13px] text-dim">支持官方 Export v3 .zip / .json</span>
             </div>
 
             <p className="text-secondary leading-relaxed">
@@ -198,7 +198,7 @@ export const DataTransferModal: React.FC = () => {
 
             {bundle && (
               <div className="space-y-3 pt-3 border-t border-line">
-                <div className="flex items-center justify-between text-[12px]">
+                <div className="flex items-center justify-between text-[13px]">
                   <span className="font-medium text-ink">
                     识别格式：{bundle.formatVersion} · 共 {bundle.sessions.length} 个会话
                   </span>
@@ -242,14 +242,14 @@ export const DataTransferModal: React.FC = () => {
                           )}
                           <div className="min-w-0">
                             <div className="truncate font-medium text-ink">{s.title}</div>
-                            <div className="text-[11px] text-dim">
+                            <div className="text-[11.5px] text-dim">
                               {s.messages.length} 条消息 · {s.thinkingCount} 段思考 ·{' '}
                               {new Date(s.updatedAt).toLocaleDateString()}
                             </div>
                           </div>
                         </div>
                         {s.isDuplicate && (
-                          <span className="text-[11px] px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-500 shrink-0">
+                          <span className="text-[11.5px] px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-500 shrink-0">
                             已导入过
                           </span>
                         )}
@@ -270,7 +270,7 @@ export const DataTransferModal: React.FC = () => {
           </div>
 
           {/* Backup & Export */}
-          <div className="p-4 rounded-2xl bg-sidebar border border-line space-y-3">
+          <div className="p-4 rounded-xl bg-sidebar border border-line space-y-3">
             <div className="font-semibold text-[15px] text-ink flex items-center gap-2">
               <FileJson className="w-4 h-4 text-accent" />
               <span>数据导出与跨设备迁移</span>
@@ -315,7 +315,7 @@ export const DataTransferModal: React.FC = () => {
               </button>
             </div>
 
-            <label className="flex items-center gap-2 cursor-pointer text-[12px] text-secondary">
+            <label className="flex items-center gap-2 cursor-pointer text-[13px] text-secondary">
               <input
                 type="checkbox"
                 checked={includeKeys}

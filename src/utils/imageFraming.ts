@@ -7,7 +7,9 @@
  * 三处都从这里取，避免各写一套说法。
  */
 
-export type ImageFramingId = 'avatar' | 'halfBody' | 'scene';
+import type { ImageFramingId } from '../types';
+
+export type { ImageFramingId };
 
 export interface ImageFraming {
   id: ImageFramingId;
@@ -15,6 +17,8 @@ export interface ImageFraming {
   size: string;
   /** 给用户看的取景名 */
   label: string;
+  /** 胶囊上的短名 */
+  short: string;
   /** 接在题材后面充当画面主体，如「奇幻题材角色头像」 */
   subject: string;
   /** 正向构图指令 */
@@ -28,6 +32,7 @@ export const IMAGE_FRAMINGS: readonly ImageFraming[] = [
     id: 'avatar',
     size: '1024x1024',
     label: '头像特写',
+    short: '头像',
     subject: '角色头像',
     composition: '头像特写构图，只画头部与肩颈，脸部占据画面主体，正面平视镜头',
     avoid: '不要画出腰部以下，不要全身像，不要多人同框',
@@ -36,6 +41,7 @@ export const IMAGE_FRAMINGS: readonly ImageFraming[] = [
     id: 'halfBody',
     size: '768x1024',
     label: '半身立绘',
+    short: '半身',
     subject: '角色立绘',
     composition: '半身立绘构图，取景到膝盖以上，展示完整的上装与身形',
     avoid: '不要只切到脸部特写，不要远景全身像',
@@ -44,6 +50,7 @@ export const IMAGE_FRAMINGS: readonly ImageFraming[] = [
     id: 'scene',
     size: '1024x768',
     label: '横版场景',
+    short: '场景',
     subject: '角色场景插画',
     composition: '横版场景构图，角色与所处环境同框，保留背景空间与光影层次',
     avoid: '不要纯色背景，不要只有头部特写',
@@ -51,6 +58,11 @@ export const IMAGE_FRAMINGS: readonly ImageFraming[] = [
 ] as const;
 
 const DEFAULT_FRAMING = IMAGE_FRAMINGS[0];
+
+export function getFramingById(id?: ImageFramingId): ImageFraming {
+  if (!id) return DEFAULT_FRAMING;
+  return byId(id);
+}
 
 function byId(id: ImageFramingId): ImageFraming {
   return IMAGE_FRAMINGS.find((f) => f.id === id) ?? DEFAULT_FRAMING;

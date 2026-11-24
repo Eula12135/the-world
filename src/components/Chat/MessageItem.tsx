@@ -242,7 +242,7 @@ export const MessageItem: React.FC<MessageItemProps> = React.memo(({
             </div>
           )}
           {editing ? (
-            <div className="p-3 rounded-2xl bg-card border border-accent space-y-2 min-w-[260px]">
+            <div className="p-3 rounded-xl bg-card border border-accent space-y-2 min-w-[260px]">
               <textarea
                 value={draftEdit}
                 onChange={(e) => setDraftEdit(e.target.value)}
@@ -252,13 +252,13 @@ export const MessageItem: React.FC<MessageItemProps> = React.memo(({
               <div className="flex justify-end gap-2">
                 <button
                   onClick={() => setEditing(false)}
-                  className="px-3 py-1 rounded-lg text-[12px] border border-line text-secondary cursor-pointer"
+                  className="px-3 py-1 rounded-lg text-[13px] border border-line text-secondary cursor-pointer"
                 >
                   取消
                 </button>
                 <button
                   onClick={handleSaveEdit}
-                  className="px-3 py-1 rounded-lg text-[12px] bg-accent text-white cursor-pointer"
+                  className="px-3 py-1 rounded-lg text-[13px] bg-accent text-white cursor-pointer"
                 >
                   重新发送
                 </button>
@@ -267,7 +267,7 @@ export const MessageItem: React.FC<MessageItemProps> = React.memo(({
           ) : (
             <div
               onClick={() => setUserActionsOpen((v) => !v)}
-              className="px-4 py-2.5 rounded-2xl rounded-tr-sm bg-user-bubble text-[15px] leading-relaxed text-ink whitespace-pre-wrap break-words cursor-pointer"
+              className="px-4 py-2.5 rounded-xl rounded-tr-sm bg-user-bubble text-[15px] leading-relaxed text-ink whitespace-pre-wrap break-words cursor-pointer"
               title="点击展开操作菜单"
             >
               {message.content}
@@ -278,7 +278,7 @@ export const MessageItem: React.FC<MessageItemProps> = React.memo(({
             <div className="flex justify-end gap-1">
               <button
                 onClick={handleCopy}
-                className="flex items-center gap-1 px-2 py-1 rounded-lg text-[12px] text-dim hover:text-ink hover:bg-hover cursor-pointer"
+                className="flex items-center gap-1 px-2 py-1 rounded-lg text-[13px] text-dim hover:text-ink hover:bg-hover cursor-pointer"
               >
                 {copied ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
                 <span>复制</span>
@@ -286,7 +286,7 @@ export const MessageItem: React.FC<MessageItemProps> = React.memo(({
               {voiceSettings.ttsEnabled && message.content && showUserIdentity && (
                 <button
                   onClick={handleSpeakUserToggle}
-                  className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[12px] cursor-pointer ${
+                  className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[13px] cursor-pointer ${
                     isSpeaking
                       ? 'text-accent bg-accent-soft font-medium'
                       : 'text-dim hover:text-ink hover:bg-hover'
@@ -311,14 +311,14 @@ export const MessageItem: React.FC<MessageItemProps> = React.memo(({
                   setEditing(true);
                   setUserActionsOpen(false);
                 }}
-                className="flex items-center gap-1 px-2 py-1 rounded-lg text-[12px] text-dim hover:text-ink hover:bg-hover cursor-pointer"
+                className="flex items-center gap-1 px-2 py-1 rounded-lg text-[13px] text-dim hover:text-ink hover:bg-hover cursor-pointer"
               >
                 <Edit3 className="w-3.5 h-3.5" />
                 <span>编辑重发</span>
               </button>
               <button
                 onClick={handleDelete}
-                className="flex items-center gap-1 px-2 py-1 rounded-lg text-[12px] text-dim hover:text-red-500 hover:bg-red-500/10 cursor-pointer"
+                className="flex items-center gap-1 px-2 py-1 rounded-lg text-[13px] text-dim hover:text-red-500 hover:bg-red-500/10 cursor-pointer"
               >
                 <Trash2 className="w-3.5 h-3.5" />
                 <span>删除</span>
@@ -379,7 +379,7 @@ export const MessageItem: React.FC<MessageItemProps> = React.memo(({
         )}
 
         {message.searchQueries && message.searchQueries.length > 0 && (
-          <div className="flex flex-wrap items-center gap-1.5 text-[12px] text-dim">
+          <div className="flex flex-wrap items-center gap-1.5 text-[13px] text-dim">
             <Globe className="w-3.5 h-3.5" />
             <span>检索词：</span>
             {message.searchQueries.map((q, idx) => (
@@ -422,7 +422,7 @@ export const MessageItem: React.FC<MessageItemProps> = React.memo(({
                 block.kind === 'action' ? (
                   <div
                     key={idx}
-                    className="my-1.5 px-3 py-1.5 rounded-xl bg-muted/55 border-l-2 border-accent/45 text-[13.5px] leading-relaxed text-secondary italic"
+                    className="my-1.5 px-3 py-1.5 rounded-xl bg-muted/55 border-l-2 border-accent/45 text-[13px] leading-relaxed text-secondary italic"
                   >
                     {block.text}
                   </div>
@@ -430,7 +430,7 @@ export const MessageItem: React.FC<MessageItemProps> = React.memo(({
                   <p key={idx} className="text-[15px] leading-relaxed text-ink whitespace-pre-wrap">
                     {block.segments.map((seg, sIdx) =>
                       seg.kind === 'tone' ? (
-                        <span key={sIdx} className="text-[12.5px] text-accent/85 italic mx-0.5">
+                        <span key={sIdx} className="text-[13px] text-accent/85 italic mx-0.5">
                           {seg.text}
                         </span>
                       ) : (
@@ -481,7 +481,7 @@ export const MessageItem: React.FC<MessageItemProps> = React.memo(({
         )}
 
         {message.warningNote && (
-          <div className="flex items-start gap-2 px-3 py-2 rounded-xl bg-amber-500/10 text-amber-500 text-[12px]">
+          <div className="flex items-start gap-2 px-3 py-2 rounded-xl bg-amber-500/10 text-amber-500 text-[13px]">
             <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
             <span>{message.warningNote}</span>
           </div>
@@ -491,7 +491,7 @@ export const MessageItem: React.FC<MessageItemProps> = React.memo(({
           <div className="flex flex-wrap items-center gap-1 pt-0.5">
             <button
               onClick={handleCopy}
-              className="flex items-center gap-1 px-2 py-1 rounded-lg text-[12px] text-dim hover:text-ink hover:bg-hover cursor-pointer"
+              className="flex items-center gap-1 px-2 py-1 rounded-lg text-[13px] text-dim hover:text-ink hover:bg-hover cursor-pointer"
             >
               {copied ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
               <span>{copied ? '已复制' : '复制'}</span>
@@ -500,7 +500,7 @@ export const MessageItem: React.FC<MessageItemProps> = React.memo(({
             {voiceSettings.ttsEnabled && message.content && (
               <button
                 onClick={handleSpeakToggle}
-                className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[12px] cursor-pointer ${
+                className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[13px] cursor-pointer ${
                   isSpeaking
                     ? 'text-accent bg-accent-soft font-medium'
                     : 'text-dim hover:text-ink hover:bg-hover'
@@ -523,7 +523,7 @@ export const MessageItem: React.FC<MessageItemProps> = React.memo(({
             {isLastAssistant && (
               <button
                 onClick={regenerateLastAssistant}
-                className="flex items-center gap-1 px-2 py-1 rounded-lg text-[12px] text-dim hover:text-ink hover:bg-hover cursor-pointer"
+                className="flex items-center gap-1 px-2 py-1 rounded-lg text-[13px] text-dim hover:text-ink hover:bg-hover cursor-pointer"
               >
                 <RefreshCw className="w-3.5 h-3.5" />
                 <span>重新生成</span>
@@ -533,7 +533,7 @@ export const MessageItem: React.FC<MessageItemProps> = React.memo(({
             {sessionWorldId && message.content && (
               <button
                 onClick={handleAppendToWorld}
-                className="flex items-center gap-1 px-2 py-1 rounded-lg text-[12px] text-dim hover:text-accent hover:bg-accent-soft cursor-pointer"
+                className="flex items-center gap-1 px-2 py-1 rounded-lg text-[13px] text-dim hover:text-accent hover:bg-accent-soft cursor-pointer"
               >
                 <BookmarkPlus className="w-3.5 h-3.5" />
                 <span>追加到设定文档</span>
@@ -542,7 +542,7 @@ export const MessageItem: React.FC<MessageItemProps> = React.memo(({
 
             <button
               onClick={handleDelete}
-              className="flex items-center gap-1 px-2 py-1 rounded-lg text-[12px] text-dim hover:text-red-500 hover:bg-red-500/10 cursor-pointer"
+              className="flex items-center gap-1 px-2 py-1 rounded-lg text-[13px] text-dim hover:text-red-500 hover:bg-red-500/10 cursor-pointer"
               aria-label="删除此条回复"
             >
               <Trash2 className="w-3.5 h-3.5" />

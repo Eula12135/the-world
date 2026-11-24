@@ -225,7 +225,7 @@ export const ImageLightbox: React.FC<ImageLightboxProps> = ({ src, alt = '图片
           <Download className="w-4 h-4" />
           <span>{saveState === 'done' ? '已保存' : saveState === 'error' ? '保存失败' : '下载图片'}</span>
         </button>
-        <div className={`text-[11px] ${saveState === 'error' ? 'text-red-300' : 'text-white/45'}`}>
+        <div className={`text-[11.5px] ${saveState === 'error' ? 'text-red-300' : 'text-white/45'}`}>
           {saveMessage || '双击或双指放大 · 点击任意处关闭'}
         </div>
       </div>

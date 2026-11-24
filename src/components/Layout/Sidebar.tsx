@@ -176,7 +176,7 @@ export const Sidebar: React.FC = () => {
               setActiveView('chat');
               setSidebarOpen(true);
             }}
-            className={`w-10 h-10 rounded-xl flex flex-col items-center justify-center gap-0.5 text-[10px] font-medium transition cursor-pointer ${
+            className={`w-10 h-10 rounded-xl flex flex-col items-center justify-center gap-0.5 text-[11.5px] font-medium transition cursor-pointer ${
               activeView === 'chat'
                 ? 'bg-accent-soft text-accent'
                 : 'text-secondary hover:bg-hover hover:text-ink'
@@ -189,7 +189,7 @@ export const Sidebar: React.FC = () => {
 
           <button
             onClick={() => setActiveView('worlds')}
-            className={`w-10 h-10 rounded-xl flex flex-col items-center justify-center gap-0.5 text-[10px] font-medium transition cursor-pointer ${
+            className={`w-10 h-10 rounded-xl flex flex-col items-center justify-center gap-0.5 text-[11.5px] font-medium transition cursor-pointer ${
               activeView === 'worlds'
                 ? 'bg-accent-soft text-accent'
                 : 'text-secondary hover:bg-hover hover:text-ink'
@@ -300,7 +300,7 @@ export const Sidebar: React.FC = () => {
             ) : (
               groups.map((group) => (
                 <div key={group.label}>
-                  <div className="px-2.5 pb-1 text-[11px] font-medium text-dim">
+                  <div className="px-2.5 pb-1 text-[11.5px] font-medium text-dim">
                     {group.label}
                   </div>
                   <div className="space-y-0.5">
@@ -346,7 +346,7 @@ export const Sidebar: React.FC = () => {
                                 )}
                                 <span className="truncate text-[13px]">{s.title}</span>
                                 {s.importedFrom === 'deepseek' && (
-                                  <span className="text-[10px] px-1 rounded bg-accent-soft text-accent shrink-0">
+                                  <span className="text-[11.5px] px-1 rounded bg-accent-soft text-accent shrink-0">
                                     DS
                                   </span>
                                 )}
@@ -437,7 +437,7 @@ export const Sidebar: React.FC = () => {
                 <BookOpen className="w-4 h-4 text-accent" />
                 <span>作品与世界观工坊</span>
               </span>
-              <span className="text-[12px] text-dim">{worlds.length} 部</span>
+              <span className="text-[13px] text-dim">{worlds.length} 部</span>
             </button>
             <button
               onClick={() => {

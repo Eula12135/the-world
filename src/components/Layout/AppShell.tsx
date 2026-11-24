@@ -53,7 +53,7 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
               setActiveModal('none');
               setActiveView('chat');
             }}
-            className={`flex flex-col items-center justify-center py-2 gap-0.5 text-[11px] cursor-pointer ${
+            className={`flex flex-col items-center justify-center py-2 gap-0.5 text-[11.5px] cursor-pointer ${
               activeView === 'chat' && activeModal === 'none'
                 ? 'text-accent font-medium'
                 : 'text-secondary'
@@ -68,7 +68,7 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
               setActiveModal('none');
               setActiveView('worlds');
             }}
-            className={`flex flex-col items-center justify-center py-2 gap-0.5 text-[11px] cursor-pointer ${
+            className={`flex flex-col items-center justify-center py-2 gap-0.5 text-[11.5px] cursor-pointer ${
               activeView === 'worlds' && activeModal === 'none'
                 ? 'text-accent font-medium'
                 : 'text-secondary'
@@ -80,7 +80,7 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
 
           <button
             onClick={() => setActiveModal('providers')}
-            className={`relative flex flex-col items-center justify-center py-2 gap-0.5 text-[11px] cursor-pointer ${
+            className={`relative flex flex-col items-center justify-center py-2 gap-0.5 text-[11.5px] cursor-pointer ${
               activeModal === 'providers' ? 'text-accent font-medium' : 'text-secondary'
             }`}
           >
@@ -97,7 +97,7 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
 
           <button
             onClick={() => setActiveModal('settings')}
-            className={`flex flex-col items-center justify-center py-2 gap-0.5 text-[11px] cursor-pointer ${
+            className={`flex flex-col items-center justify-center py-2 gap-0.5 text-[11.5px] cursor-pointer ${
               activeModal === 'settings' ? 'text-accent font-medium' : 'text-secondary'
             }`}
           >

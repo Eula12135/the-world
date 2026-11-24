@@ -204,13 +204,13 @@ export const WorldImportModal: React.FC<WorldImportModalProps> = ({
           onClick={onClose}
         >
       <div
-        className="w-full max-w-2xl max-h-[88vh] rounded-2xl bg-card border border-line shadow-2xl flex flex-col overflow-hidden"
+        className="w-full max-w-2xl max-h-[88vh] rounded-xl bg-card border border-line shadow-2xl flex flex-col overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between px-5 py-3.5 border-b border-line">
           <div className="flex items-center gap-2">
             <FileText className="w-4 h-4 text-accent" />
-            <h2 className="text-[16px] font-semibold text-ink">导入已有设定文档 / 小说全文</h2>
+            <h2 className="text-[17px] font-semibold text-ink">导入已有设定文档 / 小说全文</h2>
           </div>
           <button
             onClick={onClose}
@@ -265,7 +265,7 @@ export const WorldImportModal: React.FC<WorldImportModalProps> = ({
                       key={g}
                       type="button"
                       onClick={() => setGenreInput(g)}
-                      className={`px-2.5 py-1 rounded-full border text-[12px] cursor-pointer ${
+                      className={`px-2.5 py-1 rounded-full border text-[13px] cursor-pointer ${
                         genreInput === g
                           ? 'bg-accent text-white border-transparent'
                           : 'border-line text-secondary'
@@ -297,7 +297,7 @@ export const WorldImportModal: React.FC<WorldImportModalProps> = ({
               />
               <button
                 onClick={() => fileInputRef.current?.click()}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-muted hover:bg-hover border border-line text-[12px] text-ink cursor-pointer"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-muted hover:bg-hover border border-line text-[13px] text-ink cursor-pointer"
               >
                 <Upload className="w-3.5 h-3.5 text-accent" />
                 <span>选择文件</span>
@@ -333,7 +333,7 @@ export const WorldImportModal: React.FC<WorldImportModalProps> = ({
           {/* Model selector for AI extraction */}
           {activeProvider && (
             <div className="p-3 rounded-xl bg-sidebar border border-line space-y-2">
-              <div className="flex flex-wrap items-center gap-2 text-[12px]">
+              <div className="flex flex-wrap items-center gap-2 text-[13px]">
                 <span className="text-secondary font-medium shrink-0">AI 提取模型：</span>
                 <select
                   value={activeProvider.id}
@@ -347,7 +347,7 @@ export const WorldImportModal: React.FC<WorldImportModalProps> = ({
                       setSelectedModel(nonReasoner || nextP.selectedModel || nextP.models[0] || '');
                     }
                   }}
-                  className="px-2.5 py-1 rounded-lg bg-canvas border border-line text-ink text-[12px] outline-none"
+                  className="px-2.5 py-1 rounded-lg bg-canvas border border-line text-ink text-[13px] outline-none"
                 >
                   {providers.map((p) => (
                     <option key={p.id} value={p.id}>
@@ -358,7 +358,7 @@ export const WorldImportModal: React.FC<WorldImportModalProps> = ({
                 <select
                   value={activeModel}
                   onChange={(e) => setSelectedModel(e.target.value)}
-                  className="px-2.5 py-1 rounded-lg bg-canvas border border-line text-ink font-mono text-[12px] outline-none max-w-[220px]"
+                  className="px-2.5 py-1 rounded-lg bg-canvas border border-line text-ink font-mono text-[13px] outline-none max-w-[220px]"
                 >
                   {activeProvider.models.map((m) => (
                     <option key={m} value={m}>
@@ -379,7 +379,7 @@ export const WorldImportModal: React.FC<WorldImportModalProps> = ({
           )}
 
           {errorMsg && (
-            <div className="px-3.5 py-2.5 rounded-xl bg-red-500/10 border border-red-500/30 text-red-500 text-[12px]">
+            <div className="px-3.5 py-2.5 rounded-xl bg-red-500/10 border border-red-500/30 text-red-500 text-[13px]">
               {errorMsg}
             </div>
           )}
@@ -390,20 +390,20 @@ export const WorldImportModal: React.FC<WorldImportModalProps> = ({
                 <CheckCircle2 className="w-4 h-4" />
                 <span>AI 提取完成：《{extracted.name}》（{extracted.genre}）</span>
               </div>
-              <div className="text-[12px] text-secondary flex flex-wrap gap-3">
+              <div className="text-[13px] text-secondary flex flex-wrap gap-3">
                 <span>AI 提炼设定：{extracted.document.length} 字</span>
                 <span>角色卡：{extracted.characters.length} 位</span>
                 <span>时间线事件：{extracted.timelineEvents.length} 个</span>
                 <span>跨时间关系：{extracted.relations.length} 条</span>
               </div>
               {extracted.characters.length > 0 && (
-                <div className="text-[12px] text-dim">
+                <div className="text-[13px] text-dim">
                   识别角色：{extracted.characters.map((c) => c.name).join('、')}
                 </div>
               )}
 
               {extracted.originalDocument && extracted.originalDocument.length > extracted.document.length && (
-                <div className="flex flex-wrap gap-2 pt-1 text-[12px]">
+                <div className="flex flex-wrap gap-2 pt-1 text-[13px]">
                   <button
                     type="button"
                     onClick={() => setUseAiSummaryDoc(true)}

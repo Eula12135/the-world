@@ -187,6 +187,9 @@ export interface WorldProject {
   updatedAt: number;
 }
 
+/** 生图取景：头像特写 / 半身立绘 / 横版场景，与「分辨率尺寸」一一对应 */
+export type ImageFramingId = 'avatar' | 'halfBody' | 'scene';
+
 export interface Character {
   id: string;
   /** 所属作品 ID；为空字符串 '' 表示不绑定任何作品的独立角色 */
@@ -199,6 +202,10 @@ export interface Character {
   notes: string;
   /** 可选自定义完整系统提示词（适合工具型人设或完全自由发挥的角色） */
   systemPrompt?: string;
+  /** 生图取景；不填则跟随「模型 → 生图模型 → 分辨率尺寸」 */
+  imageFramingId?: ImageFramingId;
+  /** 生图画风预设 id；'none' 表示不指定（完全手写提示词），不填则跟随默认画风 */
+  imageStyleId?: string;
   avatarColor: string;
   avatarImage?: string;
   voiceName?: string;

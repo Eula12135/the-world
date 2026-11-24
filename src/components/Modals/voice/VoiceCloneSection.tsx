@@ -273,7 +273,7 @@ export const VoiceCloneSection: React.FC<VoiceCloneSectionProps> = ({
       <button
         type="button"
         onClick={() => setCloneSectionOpen((v) => !v)}
-        className="w-full flex items-center justify-between px-3 py-2.5 text-[12.5px] font-medium text-ink hover:bg-hover cursor-pointer"
+        className="w-full flex items-center justify-between px-3 py-2.5 text-[13px] font-medium text-ink hover:bg-hover cursor-pointer"
       >
         <span className="flex items-center gap-1.5">
           {cloneSectionOpen ? (
@@ -283,13 +283,13 @@ export const VoiceCloneSection: React.FC<VoiceCloneSectionProps> = ({
           )}
           <span>参考音频克隆（上传/录制 5~15 秒人声定制专属音色）</span>
         </span>
-        <span className="text-[11px] text-dim">CosyVoice2</span>
+        <span className="text-[11.5px] text-dim">CosyVoice2</span>
       </button>
 
       {cloneSectionOpen && (
         <div className="p-3 border-t border-line space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <label className="flex items-center gap-1.5 text-[12px] text-secondary cursor-pointer">
+            <label className="flex items-center gap-1.5 text-[13px] text-secondary cursor-pointer">
               <ShieldAlert className="w-3.5 h-3.5 text-amber-500 shrink-0" />
               <input
                 type="checkbox"
@@ -303,7 +303,7 @@ export const VoiceCloneSection: React.FC<VoiceCloneSectionProps> = ({
               type="button"
               onClick={handleSyncRemoteCloned}
               disabled={syncingRemote}
-              className="flex items-center gap-1 text-[12px] text-accent hover:underline cursor-pointer disabled:opacity-50"
+              className="flex items-center gap-1 text-[13px] text-accent hover:underline cursor-pointer disabled:opacity-50"
             >
               {syncingRemote ? (
                 <Loader2 className="w-3 h-3 animate-spin" />
@@ -324,7 +324,7 @@ export const VoiceCloneSection: React.FC<VoiceCloneSectionProps> = ({
                     updateTtsField({ ttsVoice: rc.uri });
                     setNewProfileName(rc.customName);
                   }}
-                  className={`px-2.5 py-1 rounded-lg border text-[12px] cursor-pointer ${
+                  className={`px-2.5 py-1 rounded-lg border text-[13px] cursor-pointer ${
                     draftVoice.ttsVoice === rc.uri
                       ? 'border-accent bg-accent-soft text-accent font-medium'
                       : 'border-line bg-sidebar text-ink'
@@ -341,13 +341,13 @@ export const VoiceCloneSection: React.FC<VoiceCloneSectionProps> = ({
               value={cloneName}
               onChange={(e) => setCloneName(e.target.value)}
               placeholder="克隆音色名称（支持中文，如：清冷师姐）"
-              className="px-3 py-2 rounded-xl bg-sidebar border border-line text-[12.5px] text-ink outline-none focus:border-accent"
+              className="px-3 py-2 rounded-xl bg-sidebar border border-line text-[13px] text-ink outline-none focus:border-accent"
             />
             <input
               value={cloneText}
               onChange={(e) => setCloneText(e.target.value)}
               placeholder="参考音频里实际念的文字台词（必填）"
-              className="px-3 py-2 rounded-xl bg-sidebar border border-line text-[12.5px] text-ink outline-none focus:border-accent"
+              className="px-3 py-2 rounded-xl bg-sidebar border border-line text-[13px] text-ink outline-none focus:border-accent"
             />
           </div>
 
@@ -366,7 +366,7 @@ export const VoiceCloneSection: React.FC<VoiceCloneSectionProps> = ({
             <button
               type="button"
               onClick={() => cloneFileInputRef.current?.click()}
-              className="flex items-center gap-1 px-3 py-1.5 rounded-xl border border-line bg-sidebar text-[12px] text-ink hover:bg-hover cursor-pointer"
+              className="flex items-center gap-1 px-3 py-1.5 rounded-xl border border-line bg-sidebar text-[13px] text-ink hover:bg-hover cursor-pointer"
             >
               <Upload className="w-3.5 h-3.5" />
               <span>上传音频文件</span>
@@ -374,7 +374,7 @@ export const VoiceCloneSection: React.FC<VoiceCloneSectionProps> = ({
             <button
               type="button"
               onClick={recordingSample ? stopSampleRecording : startSampleRecording}
-              className={`flex items-center gap-1 px-3 py-1.5 rounded-xl border text-[12px] cursor-pointer ${
+              className={`flex items-center gap-1 px-3 py-1.5 rounded-xl border text-[13px] cursor-pointer ${
                 recordingSample
                   ? 'border-red-500 bg-red-500/15 text-red-500'
                   : 'border-line bg-sidebar text-ink hover:bg-hover'
@@ -401,7 +401,7 @@ export const VoiceCloneSection: React.FC<VoiceCloneSectionProps> = ({
               type="button"
               onClick={handleUploadCloneAndCreateProfile}
               disabled={cloning}
-              className="flex items-center gap-1.5 px-4 py-1.5 rounded-xl bg-accent text-white text-[12.5px] font-medium cursor-pointer disabled:opacity-50"
+              className="flex items-center gap-1.5 px-4 py-1.5 rounded-xl bg-accent text-white text-[13px] font-medium cursor-pointer disabled:opacity-50"
             >
               {cloning ? (
                 <Loader2 className="w-3.5 h-3.5 animate-spin" />

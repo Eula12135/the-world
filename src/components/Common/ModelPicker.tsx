@@ -81,7 +81,7 @@ export const ModelPicker: React.FC<ModelPickerProps> = ({ providerId, model, onS
             isReady ? 'bg-emerald-500' : 'bg-amber-400'
           }`}
         />
-        <span className="truncate font-mono text-[12.5px]">{model || '选择模型'}</span>
+        <span className="truncate font-mono text-[13px]">{model || '选择模型'}</span>
         <ChevronDown className="w-3.5 h-3.5 text-dim shrink-0" />
       </button>
 
@@ -97,7 +97,7 @@ export const ModelPicker: React.FC<ModelPickerProps> = ({ providerId, model, onS
             <div
               ref={dropdownRef}
               style={{ top: dropdownTop }}
-              className="fixed left-1/2 z-[70] w-[min(92vw,22rem)] -translate-x-1/2 rounded-2xl bg-card border border-line shadow-2xl overflow-hidden flex flex-col max-h-[60vh]"
+              className="fixed left-1/2 z-[70] w-[min(92vw,22rem)] -translate-x-1/2 rounded-xl bg-card border border-line shadow-2xl overflow-hidden flex flex-col max-h-[60vh]"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="flex items-center justify-between px-4 py-2.5 border-b border-line">
@@ -133,9 +133,9 @@ export const ModelPicker: React.FC<ModelPickerProps> = ({ providerId, model, onS
                 ) : (
                   grouped.map(({ provider, models }) => (
                     <div key={provider.id} className="space-y-1">
-                      <div className="flex items-center justify-between px-2.5 py-1 text-[12px] font-medium text-dim">
+                      <div className="flex items-center justify-between px-2.5 py-1 text-[13px] font-medium text-dim">
                         <span>{provider.name}</span>
-                        <span className="text-[11px] px-1.5 py-0.5 rounded bg-emerald-500/12 text-emerald-500">
+                        <span className="text-[11.5px] px-1.5 py-0.5 rounded bg-emerald-500/12 text-emerald-500">
                           已就绪
                         </span>
                       </div>
@@ -155,7 +155,7 @@ export const ModelPicker: React.FC<ModelPickerProps> = ({ providerId, model, onS
                                 : 'text-ink hover:bg-hover'
                             }`}
                           >
-                            <span className="truncate font-mono text-[12.5px]">{m}</span>
+                            <span className="truncate font-mono text-[13px]">{m}</span>
                             {active && <Check className="w-4 h-4 shrink-0" />}
                           </button>
                         );

@@ -259,10 +259,10 @@ export const TemporalRelationGraph: React.FC<{ worldId: string }> = ({ worldId }
 
   if (worldChars.length < 2) {
     return (
-      <div className="py-16 text-center rounded-2xl border border-dashed border-line space-y-2">
+      <div className="py-16 text-center rounded-xl border border-dashed border-line space-y-2">
         <GitBranch className="w-8 h-8 mx-auto text-dim" />
-        <div className="text-[14px] text-secondary">请先创建至少 2 位角色</div>
-        <p className="text-[12px] text-dim">
+        <div className="text-[15px] text-secondary">请先创建至少 2 位角色</div>
+        <p className="text-[13px] text-dim">
           在「角色卡」添加角色后，即可在此绘制随时间线演变的多维度人物关系图谱。
         </p>
       </div>
@@ -272,7 +272,7 @@ export const TemporalRelationGraph: React.FC<{ worldId: string }> = ({ worldId }
   // Full-panel multi-phase relation editor (no nested modal-on-modal)
   if (editing) {
     return (
-      <div className="flex-1 flex flex-col min-h-0 rounded-2xl bg-card border border-line overflow-hidden">
+      <div className="flex-1 flex flex-col min-h-0 rounded-xl bg-card border border-line overflow-hidden">
         <div className="flex items-center justify-between px-4 py-3 border-b border-line bg-sidebar">
           <button
             onClick={() => setEditing(null)}
@@ -285,7 +285,7 @@ export const TemporalRelationGraph: React.FC<{ worldId: string }> = ({ worldId }
             {worldRels.some((r) => r.id === editing.id) && (
               <button
                 onClick={() => handleDeleteRelation(editing)}
-                className="flex items-center gap-1 px-3 py-1.5 rounded-xl text-[12px] text-red-500 border border-red-500/30 hover:bg-red-500/10 cursor-pointer"
+                className="flex items-center gap-1 px-3 py-1.5 rounded-xl text-[13px] text-red-500 border border-red-500/30 hover:bg-red-500/10 cursor-pointer"
               >
                 <Trash2 className="w-3.5 h-3.5" />
                 <span>删除关系</span>
@@ -346,7 +346,7 @@ export const TemporalRelationGraph: React.FC<{ worldId: string }> = ({ worldId }
               <div className="flex items-center justify-between">
                 <div>
                   <div className="font-semibold text-ink">跨时间演进阶段</div>
-                  <div className="text-[12px] text-dim">
+                  <div className="text-[13px] text-dim">
                     可设置「故事初始」及「某时间线事件发生后」的关系变化（如：好友 → 背叛之夜后变为敌对）
                   </div>
                 </div>
@@ -368,7 +368,7 @@ export const TemporalRelationGraph: React.FC<{ worldId: string }> = ({ worldId }
                       ],
                     })
                   }
-                  className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-accent-soft text-accent font-medium text-[12px] cursor-pointer"
+                  className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-accent-soft text-accent font-medium text-[13px] cursor-pointer"
                 >
                   <Plus className="w-3.5 h-3.5" />
                   <span>添加时间转折</span>
@@ -378,10 +378,10 @@ export const TemporalRelationGraph: React.FC<{ worldId: string }> = ({ worldId }
               {editing.phases.map((ph, idx) => (
                 <div
                   key={ph.id}
-                  className="p-4 rounded-2xl bg-sidebar border border-line space-y-3"
+                  className="p-4 rounded-xl bg-sidebar border border-line space-y-3"
                 >
                   <div className="flex items-center justify-between">
-                    <span className="text-[12px] font-semibold text-accent">
+                    <span className="text-[13px] font-semibold text-accent">
                       阶段 {idx + 1}
                     </span>
                     {editing.phases.length > 1 && (
@@ -393,7 +393,7 @@ export const TemporalRelationGraph: React.FC<{ worldId: string }> = ({ worldId }
                             phases: editing.phases.filter((p) => p.id !== ph.id),
                           })
                         }
-                        className="text-[12px] text-red-500 hover:underline cursor-pointer"
+                        className="text-[13px] text-red-500 hover:underline cursor-pointer"
                       >
                         移除此阶段
                       </button>
@@ -402,7 +402,7 @@ export const TemporalRelationGraph: React.FC<{ worldId: string }> = ({ worldId }
 
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <div>
-                      <label className="block mb-1 text-[12px] text-secondary">生效时间节点</label>
+                      <label className="block mb-1 text-[13px] text-secondary">生效时间节点</label>
                       <select
                         value={ph.fromEventId || ''}
                         onChange={(e) => {
@@ -426,7 +426,7 @@ export const TemporalRelationGraph: React.FC<{ worldId: string }> = ({ worldId }
                     </div>
 
                     <div>
-                      <label className="block mb-1 text-[12px] text-secondary">关系性质</label>
+                      <label className="block mb-1 text-[13px] text-secondary">关系性质</label>
                       <select
                         value={ph.type}
                         onChange={(e) => {
@@ -450,7 +450,7 @@ export const TemporalRelationGraph: React.FC<{ worldId: string }> = ({ worldId }
                     </div>
 
                     <div>
-                      <label className="block mb-1 text-[12px] text-secondary">显示标签</label>
+                      <label className="block mb-1 text-[13px] text-secondary">显示标签</label>
                       <input
                         value={ph.label}
                         onChange={(e) =>
@@ -468,7 +468,7 @@ export const TemporalRelationGraph: React.FC<{ worldId: string }> = ({ worldId }
                   </div>
 
                   <div>
-                    <label className="block mb-1 text-[12px] text-secondary">该阶段关系说明</label>
+                    <label className="block mb-1 text-[13px] text-secondary">该阶段关系说明</label>
                     <input
                       value={ph.description}
                       onChange={(e) =>
@@ -495,9 +495,9 @@ export const TemporalRelationGraph: React.FC<{ worldId: string }> = ({ worldId }
   return (
     <div className="flex-1 flex flex-col min-h-0 gap-2.5 overflow-hidden">
       {/* Timeline Scrubber Bar */}
-      <div className="p-2.5 md:p-3 rounded-2xl bg-card border border-line space-y-2 shrink-0">
+      <div className="p-2.5 md:p-3 rounded-xl bg-card border border-line space-y-2 shrink-0">
         <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-1.5 text-[12px] font-medium text-ink min-w-0">
+          <div className="flex items-center gap-1.5 text-[13px] font-medium text-ink min-w-0">
             <Clock className="w-3.5 h-3.5 text-accent shrink-0" />
             <span className="truncate">时间轴演进（点选节点查看关系变化）</span>
           </div>
@@ -507,7 +507,7 @@ export const TemporalRelationGraph: React.FC<{ worldId: string }> = ({ worldId }
               <button
                 type="button"
                 onClick={handleTogglePlay}
-                className={`flex items-center gap-1 px-2.5 py-1 rounded-xl border text-[12px] whitespace-nowrap shrink-0 cursor-pointer transition ${
+                className={`flex items-center gap-1 px-2.5 py-1 rounded-xl border text-[13px] whitespace-nowrap shrink-0 cursor-pointer transition ${
                   playing
                     ? 'border-accent bg-accent-soft text-accent font-medium'
                     : 'border-line text-secondary hover:bg-hover hover:text-ink'
@@ -526,7 +526,7 @@ export const TemporalRelationGraph: React.FC<{ worldId: string }> = ({ worldId }
             <button
               type="button"
               onClick={() => setViewMode((m) => (m === 'graph' ? 'list' : 'graph'))}
-              className="flex items-center gap-1 px-2.5 py-1 rounded-xl border border-line bg-canvas text-[12px] text-secondary hover:bg-hover hover:text-ink whitespace-nowrap shrink-0 cursor-pointer transition"
+              className="flex items-center gap-1 px-2.5 py-1 rounded-xl border border-line bg-canvas text-[13px] text-secondary hover:bg-hover hover:text-ink whitespace-nowrap shrink-0 cursor-pointer transition"
               title={viewMode === 'graph' ? '切换到关系演进列表' : '切换到关系图谱'}
             >
               {viewMode === 'graph' ? (
@@ -571,8 +571,8 @@ export const TemporalRelationGraph: React.FC<{ worldId: string }> = ({ worldId }
                       : 'bg-sidebar border-line text-secondary hover:bg-hover hover:text-ink'
                   }`}
                 >
-                  <div className="text-[12px] font-medium whitespace-nowrap">{pt.label}</div>
-                  <div className={`text-[10px] whitespace-nowrap ${active ? 'text-white/80' : 'text-dim'}`}>
+                  <div className="text-[13px] font-medium whitespace-nowrap">{pt.label}</div>
+                  <div className={`text-[11.5px] whitespace-nowrap ${active ? 'text-white/80' : 'text-dim'}`}>
                     {pt.sub}
                   </div>
                 </button>
@@ -589,13 +589,13 @@ export const TemporalRelationGraph: React.FC<{ worldId: string }> = ({ worldId }
       {viewMode === 'graph' ? (
         <div
           data-no-swipe={zoom > 1 ? 'true' : undefined}
-          className="relative flex-1 min-h-[220px] rounded-2xl bg-card border border-line overflow-hidden select-none"
+          className="relative flex-1 min-h-[220px] rounded-xl bg-card border border-line overflow-hidden select-none"
         >
           <div className="absolute top-3 right-3 z-10 flex items-center gap-1">
             {selectedCharId && (
               <button
                 onClick={() => setSelectedCharId(null)}
-                className="px-2.5 py-1 rounded-lg bg-sidebar border border-line text-[12px] text-ink cursor-pointer"
+                className="px-2.5 py-1 rounded-lg bg-sidebar border border-line text-[13px] text-ink cursor-pointer"
               >
                 取消聚焦
               </button>
@@ -614,7 +614,7 @@ export const TemporalRelationGraph: React.FC<{ worldId: string }> = ({ worldId }
             </button>
           </div>
 
-          <div className="absolute bottom-3 left-3 z-10 px-2.5 py-1 rounded-lg bg-sidebar/90 border border-line text-[11px] text-dim">
+          <div className="absolute bottom-3 left-3 z-10 px-2.5 py-1 rounded-lg bg-sidebar/90 border border-line text-[11.5px] text-dim">
             拖拽节点可调整位置 · 点击节点聚焦 · 点击连线编辑跨时间转折
           </div>
 
@@ -806,7 +806,7 @@ export const TemporalRelationGraph: React.FC<{ worldId: string }> = ({ worldId }
       ) : (
         <div className="flex-1 overflow-y-auto space-y-2.5">
           {worldRels.length === 0 ? (
-            <div className="py-12 text-center rounded-2xl border border-dashed border-line text-[13px] text-dim">
+            <div className="py-12 text-center rounded-xl border border-dashed border-line text-[13px] text-dim">
               暂无跨时间关系记录，点击「添加关系」开始建立人物羁绊与转折。
             </div>
           ) : (
@@ -820,15 +820,15 @@ export const TemporalRelationGraph: React.FC<{ worldId: string }> = ({ worldId }
                   onClick={() =>
                     setEditing({ ...rel, phases: rel.phases.map((p) => ({ ...p })) })
                   }
-                  className="p-4 rounded-2xl bg-card border border-line hover:border-accent/50 transition cursor-pointer space-y-2.5"
+                  className="p-4 rounded-xl bg-card border border-line hover:border-accent/50 transition cursor-pointer space-y-2.5"
                 >
                   <div className="flex items-center justify-between">
-                    <div className="text-[14px] font-semibold text-ink flex items-center gap-2">
+                    <div className="text-[15px] font-semibold text-ink flex items-center gap-2">
                       <span>
                         {src} {rel.directed ? '→' : '↔'} {dst}
                       </span>
                       {resolved.changedAtCurrentEvent && (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-accent-soft text-accent text-[11px]">
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-accent-soft text-accent text-[11.5px]">
                           <Sparkles className="w-3 h-3" />
                           <span>当前节点发生转折</span>
                         </span>
@@ -844,11 +844,11 @@ export const TemporalRelationGraph: React.FC<{ worldId: string }> = ({ worldId }
                       return (
                         <React.Fragment key={ph.id}>
                           <div
-                            className={`px-2.5 py-1.5 rounded-xl border text-[12px] ${
+                            className={`px-2.5 py-1.5 rounded-xl border text-[13px] ${
                               isActivePhase ? 'border-accent bg-accent-soft' : 'border-line bg-sidebar'
                             }`}
                           >
-                            <div className="text-[10.5px] text-dim">
+                            <div className="text-[11.5px] text-dim">
                               {ev ? `事件「${ev.title}」后` : '故事初始'}
                             </div>
                             <div

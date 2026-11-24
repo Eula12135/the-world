@@ -76,7 +76,7 @@ export const TopBar: React.FC = () => {
           ) : (
             <div className="flex items-center gap-2">
               <BookOpen className="w-4 h-4 text-accent shrink-0" />
-              <span className="text-[16px] font-semibold text-ink">作品与世界观</span>
+              <span className="text-[17px] font-semibold text-ink">作品与世界观</span>
             </div>
           )}
         </div>
@@ -115,7 +115,7 @@ export const TopBar: React.FC = () => {
           ) : (
             <button
               onClick={() => setActiveView('chat')}
-              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl border border-line text-[12.5px] md:text-[13px] text-secondary hover:bg-hover hover:text-ink transition cursor-pointer"
+              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl border border-line text-[13px] md:text-[13px] text-secondary hover:bg-hover hover:text-ink transition cursor-pointer"
             >
               返回对话
             </button>
