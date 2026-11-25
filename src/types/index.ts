@@ -129,8 +129,25 @@ export interface VoiceProfile {
   styleInstruction: string;
   isCloned?: boolean;
   sourceText?: string;
+  /** 可选参考音频（idb://media/<id> 引用或内联 data:audio/...），用于角色卡分享与跨账号复刻 */
+  sampleAudio?: string;
+  /** 提示词捏声线时的原始音色描述配方 */
+  designPrompt?: string;
   createdAt: number;
   updatedAt: number;
+}
+
+/**
+ * 独立二进制媒体表条目（v11）：将立绘图片与语音样本从角色卡/人设主表剥离，
+ * 避免全表加载时把大量大体积 Base64 字符串常驻在主状态树中。
+ */
+export interface MediaBlobEntry {
+  id: string;
+  mimeType: string;
+  /** 二进制字节（支持原生 Blob/Uint8Array 的环境）或 Base64 兜底 */
+  bytes: Uint8Array;
+  size: number;
+  createdAt: number;
 }
 
 export interface ChatSession {
@@ -410,7 +427,10 @@ declare global {
       saveImageToGallery?: (dataUrl: string, filename: string) => void;
       downloadAndInstallApk?: (apkUrl: string) => void;
       exportTextFile?: (filename: string, content: string, mimeType: string) => void;
+      exportBinaryFile?: (filename: string, base64Content: string, mimeType: string) => void;
       uploadMultipart?: (reqId: string, jsonSpec: string) => void;
+      streamStart?: (reqId: string, jsonSpec: string) => void;
+      streamAbort?: (reqId: string) => void;
     };
   }
 }

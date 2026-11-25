@@ -1,4 +1,5 @@
 import { db } from '../db/database';
+import { hydrateCharactersFromDb } from '../services/mediaStore';
 import type {
   Character,
   CharacterRelation,
@@ -10,11 +11,12 @@ import type {
 import type { DraftSessionConfig } from './types';
 
 export async function loadWorldChildren(_worldId?: string | null) {
-  const [characters, relations, timelineEvents] = await Promise.all([
+  const [rawCharacters, relations, timelineEvents] = await Promise.all([
     db.characters.toArray(),
     db.relations.toArray(),
     db.timelineEvents.orderBy('orderIndex').toArray(),
   ]);
+  const characters = await hydrateCharactersFromDb(rawCharacters);
   return { characters, relations, timelineEvents };
 }
 

@@ -9,6 +9,7 @@ import {
   Upload,
   X,
 } from 'lucide-react';
+import { useShallow } from 'zustand/react/shallow';
 import { useAppStore } from '../../store/useAppStore';
 import {
   extractWorldWithAI,
@@ -39,7 +40,18 @@ export const WorldImportModal: React.FC<WorldImportModalProps> = ({
     createWorld,
     appendWorldImportData,
     showToast,
-  } = useAppStore();
+  } = useAppStore(
+    useShallow((s) => ({
+      providers: s.providers,
+      settings: s.settings,
+      worlds: s.worlds,
+      characters: s.characters,
+      timelineEvents: s.timelineEvents,
+      createWorld: s.createWorld,
+      appendWorldImportData: s.appendWorldImportData,
+      showToast: s.showToast,
+    }))
+  );
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [titleInput, setTitleInput] = useState('');
@@ -200,11 +212,11 @@ export const WorldImportModal: React.FC<WorldImportModalProps> = ({
   return typeof document !== 'undefined'
     ? createPortal(
         <div
-          className="fixed inset-0 z-50 bg-black/55 backdrop-blur-[2px] flex items-center justify-center p-3 md:p-4"
+          className="fixed inset-0 z-50 bg-[#111827]/45 flex items-center justify-center p-3 md:p-4 anim-overlay"
           onClick={onClose}
         >
       <div
-        className="w-full max-w-2xl max-h-[88vh] rounded-xl bg-card border border-line shadow-2xl flex flex-col overflow-hidden"
+        className="w-full max-w-2xl max-h-[88vh] rounded-xl bg-card border border-line shadow-2xl flex flex-col overflow-hidden anim-panel"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between px-5 py-3.5 border-b border-line">
@@ -379,7 +391,7 @@ export const WorldImportModal: React.FC<WorldImportModalProps> = ({
           )}
 
           {errorMsg && (
-            <div className="px-3.5 py-2.5 rounded-xl bg-red-500/10 border border-red-500/30 text-red-500 text-[13px]">
+            <div className="px-3.5 py-2.5 rounded-xl bg-danger/10 border border-danger/30 text-danger text-[13px]">
               {errorMsg}
             </div>
           )}

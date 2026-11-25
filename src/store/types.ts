@@ -61,6 +61,8 @@ export interface UiSlice {
   worldStudioMode: 'world' | 'standalone_characters';
   pendingCreateStandaloneChar: boolean;
   activeModal: ModalKind;
+  /** 若从「设置」页点进二级弹窗（如模型配置），返回时平滑退回「设置」而非直接关回主页 */
+  modalReturnTo: ModalKind;
   providersModalTab: ProvidersModalTab;
   voiceStudioSubTab: VoiceStudioSubTab;
   pendingVoiceBindTarget: PendingVoiceBindTarget;
@@ -80,6 +82,7 @@ export interface UiSlice {
   openStandaloneCharacters: (autoCreate?: boolean) => void;
   clearPendingCreateStandaloneChar: () => void;
   setActiveModal: (m: ModalKind) => void;
+  closeOrStepBackModal: () => void;
   setProvidersModalTab: (tab: ProvidersModalTab) => void;
   setContextTokens: (n: number | null) => void;
   setSwipeOffset: (n: number) => void;

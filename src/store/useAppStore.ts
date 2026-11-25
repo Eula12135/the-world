@@ -5,6 +5,11 @@ import {
   loadProvidersDecrypted,
   loadSettingsDecrypted,
 } from '../db/database';
+import {
+  hydratePersonaPresetsFromDb,
+  hydrateUserPersonasFromDb,
+  hydrateVoiceProfilesFromDb,
+} from '../services/mediaStore';
 import { loadWorldChildren, pickDefaultModelConfig } from './helpers';
 import { createChatSlice } from './slices/chatSlice';
 import { createProvidersSlice } from './slices/providersSlice';
@@ -53,9 +58,9 @@ export const useAppStore = create<AppState>((set, get, store) => ({
       sessions,
       worlds,
       resolvedSettings,
-      personaPresets,
-      userPersonas,
-      voiceProfiles,
+      rawPersonaPresets,
+      rawUserPersonas,
+      rawVoiceProfiles,
       worldData,
     ] = await Promise.all([
       loadProvidersDecrypted(),
@@ -66,6 +71,12 @@ export const useAppStore = create<AppState>((set, get, store) => ({
       db.userPersonas.orderBy('updatedAt').reverse().toArray(),
       db.voiceProfiles.orderBy('updatedAt').reverse().toArray(),
       loadWorldChildren(null),
+    ]);
+
+    const [personaPresets, userPersonas, voiceProfiles] = await Promise.all([
+      hydratePersonaPresetsFromDb(rawPersonaPresets),
+      hydrateUserPersonasFromDb(rawUserPersonas),
+      hydrateVoiceProfilesFromDb(rawVoiceProfiles),
     ]);
 
     const currentSessionId = get().activeSessionId;

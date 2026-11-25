@@ -33,6 +33,9 @@ interface VoiceCloneSectionProps {
     overrideVoiceId?: string;
     overrideModel?: string;
     isCloned?: boolean;
+    sourceText?: string;
+    sampleAudio?: string;
+    designPrompt?: string;
   }) => VoiceProfile;
 }
 
@@ -207,6 +210,8 @@ export const VoiceCloneSection: React.FC<VoiceCloneSectionProps> = ({
         overrideVoiceId: uri,
         overrideModel: targetModel,
         isCloned: true,
+        sourceText: cloneText.trim(),
+        sampleAudio: cloneAudioDataUrl,
       });
       await upsertVoiceProfile(profile);
 
@@ -376,7 +381,7 @@ export const VoiceCloneSection: React.FC<VoiceCloneSectionProps> = ({
               onClick={recordingSample ? stopSampleRecording : startSampleRecording}
               className={`flex items-center gap-1 px-3 py-1.5 rounded-xl border text-[13px] cursor-pointer ${
                 recordingSample
-                  ? 'border-red-500 bg-red-500/15 text-red-500'
+                  ? 'border-accent bg-accent-soft text-accent-strong font-medium'
                   : 'border-line bg-sidebar text-ink hover:bg-hover'
               }`}
             >

@@ -8,6 +8,7 @@ import {
   Plus,
   Trash2,
 } from 'lucide-react';
+import { useShallow } from 'zustand/react/shallow';
 import { useAppStore } from '../../store/useAppStore';
 import type { TimelineEvent } from '../../types';
 import { createId } from '../../utils/platform';
@@ -21,7 +22,17 @@ export const TimelinePanel: React.FC<{ worldId: string }> = ({ worldId }) => {
     startNewDraft,
     requestConfirm,
     showToast,
-  } = useAppStore();
+  } = useAppStore(
+    useShallow((s) => ({
+      timelineEvents: s.timelineEvents,
+      characters: s.characters,
+      upsertTimelineEvent: s.upsertTimelineEvent,
+      deleteTimelineEvent: s.deleteTimelineEvent,
+      startNewDraft: s.startNewDraft,
+      requestConfirm: s.requestConfirm,
+      showToast: s.showToast,
+    }))
+  );
 
   const [editing, setEditing] = useState<TimelineEvent | null>(null);
 
@@ -115,7 +126,7 @@ export const TimelinePanel: React.FC<{ worldId: string }> = ({ worldId }) => {
             {sorted.some((e) => e.id === editing.id) && (
               <button
                 onClick={() => handleDelete(editing)}
-                className="flex items-center gap-1 px-3 py-1.5 rounded-xl text-[13px] text-red-500 border border-red-500/30 hover:bg-red-500/10 cursor-pointer"
+                className="flex items-center gap-1 px-3 py-1.5 rounded-xl text-[13px] text-danger border border-danger/30 hover:bg-danger/10 cursor-pointer"
               >
                 <Trash2 className="w-3.5 h-3.5" />
                 <span>删除</span>
@@ -274,7 +285,7 @@ export const TimelinePanel: React.FC<{ worldId: string }> = ({ worldId }) => {
                     </button>
                     <button
                       onClick={() => handleDelete(ev)}
-                      className="p-1.5 rounded-lg text-dim hover:text-red-500 cursor-pointer"
+                      className="p-1.5 rounded-lg text-dim hover:text-danger cursor-pointer"
                       aria-label="删除事件"
                     >
                       <Trash2 className="w-3.5 h-3.5" />

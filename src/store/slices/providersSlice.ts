@@ -5,6 +5,15 @@ import {
   saveProviderEncrypted,
   saveSettingsEncrypted,
 } from '../../db/database';
+import {
+  deleteMediaBlob,
+  hydrateCharactersFromDb,
+  hydratePersonaPresetsFromDb,
+  hydrateUserPersonasFromDb,
+  hydrateVoiceProfilesFromDb,
+  preparePersonaPresetForDb,
+  prepareVoiceProfileForDb,
+} from '../../services/mediaStore';
 import type { AppSettings } from '../../types';
 import { pickDefaultModelConfig } from '../helpers';
 import type { AppSliceCreator, ProvidersSlice } from '../types';
@@ -51,12 +60,16 @@ export const createProvidersSlice: AppSliceCreator<ProvidersSlice> = (set, get) 
   },
 
   upsertPersonaPreset: async (preset) => {
-    await db.personaPresets.put(preset);
-    const personaPresets = await db.personaPresets.orderBy('updatedAt').reverse().toArray();
+    const prepared = await preparePersonaPresetForDb(preset);
+    await db.personaPresets.put(prepared);
+    const personaPresets = await hydratePersonaPresetsFromDb(
+      await db.personaPresets.orderBy('updatedAt').reverse().toArray()
+    );
     set({ personaPresets });
   },
 
   deletePersonaPreset: async (id) => {
+    await deleteMediaBlob(`preset_avatar_${id}`);
     await db.transaction('rw', db.personaPresets, db.sessions, async () => {
       await db.personaPresets.delete(id);
       await db.sessions.toCollection().modify((s) => {
@@ -65,10 +78,11 @@ export const createProvidersSlice: AppSliceCreator<ProvidersSlice> = (set, get) 
         }
       });
     });
-    const [personaPresets, sessions] = await Promise.all([
+    const [rawPresets, sessions] = await Promise.all([
       db.personaPresets.orderBy('updatedAt').reverse().toArray(),
       db.sessions.orderBy('updatedAt').reverse().toArray(),
     ]);
+    const personaPresets = await hydratePersonaPresetsFromDb(rawPresets);
     const draft = get().draftConfig;
     set({
       personaPresets,
@@ -79,12 +93,16 @@ export const createProvidersSlice: AppSliceCreator<ProvidersSlice> = (set, get) 
   },
 
   upsertVoiceProfile: async (profile) => {
-    await db.voiceProfiles.put(profile);
-    const voiceProfiles = await db.voiceProfiles.orderBy('updatedAt').reverse().toArray();
+    const prepared = await prepareVoiceProfileForDb(profile);
+    await db.voiceProfiles.put(prepared);
+    const voiceProfiles = await hydrateVoiceProfilesFromDb(
+      await db.voiceProfiles.orderBy('updatedAt').reverse().toArray()
+    );
     set({ voiceProfiles });
   },
 
   deleteVoiceProfile: async (id) => {
+    await deleteMediaBlob(`voice_sample_${id}`);
     await db.transaction(
       'rw',
       [db.voiceProfiles, db.characters, db.personaPresets, db.userPersonas],
@@ -102,11 +120,17 @@ export const createProvidersSlice: AppSliceCreator<ProvidersSlice> = (set, get) 
         });
       }
     );
-    const [voiceProfiles, characters, personaPresets, userPersonas] = await Promise.all([
+    const [rawProfiles, rawChars, rawPresets, rawUserPersonas] = await Promise.all([
       db.voiceProfiles.orderBy('updatedAt').reverse().toArray(),
       db.characters.toArray(),
       db.personaPresets.orderBy('updatedAt').reverse().toArray(),
       db.userPersonas.orderBy('updatedAt').reverse().toArray(),
+    ]);
+    const [voiceProfiles, characters, personaPresets, userPersonas] = await Promise.all([
+      hydrateVoiceProfilesFromDb(rawProfiles),
+      hydrateCharactersFromDb(rawChars),
+      hydratePersonaPresetsFromDb(rawPresets),
+      hydrateUserPersonasFromDb(rawUserPersonas),
     ]);
     set({ voiceProfiles, characters, personaPresets, userPersonas });
     if (get().settings.voice.activeVoiceProfileId === id) {

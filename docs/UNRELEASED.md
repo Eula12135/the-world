@@ -25,7 +25,7 @@
    cd android; .\gradlew.bat assembleRelease; cd ..
    ```
 5. 发布：
-   - Gitee：`npm run release:gitee`（token 从 `git remote get-url gitee` 里取，需要 `GITEE_TOKEN` 环境变量）
+   - Gitee：`npm run release:gitee`（令牌走系统凭据管理器或临时环境变量 `$env:GITEE_TOKEN`，切勿写进 `git remote` URL）
    - GitHub：`gh release create vX.Y.Z <apk> --title ... --notes-file release-notes.md`
      **APK 资产名必须是 `The-World-X.Y.Z-android.apk`**，否则 `latest.json` 里的地址会 404
 6. 提交并推送 `latest.json`，再验证 raw 地址与两端资产字节数。

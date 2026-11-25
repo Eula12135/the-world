@@ -189,7 +189,7 @@ export const VoiceLibrarySubTab: React.FC<VoiceLibrarySubTabProps> = ({
                     <button
                       type="button"
                       onClick={() => onDeleteProfile(vp)}
-                      className="p-1.5 rounded-lg text-dim hover:text-red-500 hover:bg-red-500/10 cursor-pointer"
+                      className="p-1.5 rounded-lg text-dim hover:text-danger hover:bg-danger/10 cursor-pointer"
                       title="删除此声音"
                     >
                       <Trash2 className="w-3.5 h-3.5" />

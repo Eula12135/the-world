@@ -13,5 +13,34 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     emptyOutDir: true,
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (!id.includes('node_modules')) return undefined;
+          if (
+            id.includes('react-markdown') ||
+            id.includes('remark-') ||
+            id.includes('rehype-') ||
+            id.includes('micromark') ||
+            id.includes('mdast-') ||
+            id.includes('hast-') ||
+            id.includes('unified') ||
+            id.includes('vfile')
+          ) {
+            return 'vendor-markdown';
+          }
+          if (id.includes('fflate')) {
+            return 'vendor-archive';
+          }
+          if (id.includes('dexie')) {
+            return 'vendor-db';
+          }
+          if (id.includes('lucide-react')) {
+            return 'vendor-icons';
+          }
+          return undefined;
+        },
+      },
+    },
   },
 });

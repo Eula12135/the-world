@@ -34,6 +34,9 @@ interface VoiceBreezeDesignSectionProps {
     overrideVoiceId?: string;
     overrideModel?: string;
     isCloned?: boolean;
+    sourceText?: string;
+    sampleAudio?: string;
+    designPrompt?: string;
   }) => VoiceProfile;
 }
 
@@ -178,10 +181,16 @@ export const VoiceBreezeDesignSection: React.FC<VoiceBreezeDesignSectionProps> =
         name: label,
         description: designPrompt.trim() || draftVoice.ttsStyleInstruction,
       });
+      const sampleDataUrl = preview.audioBase64
+        ? `data:${preview.mediaType || 'audio/mpeg'};base64,${preview.audioBase64}`
+        : undefined;
       const profile = buildVoiceProfileFromDraft({
         overrideName: saved.name || label,
         overrideVoiceId: saved.voiceId,
         overrideModel: draftVoice.ttsModel.trim() || 'breeze-tts-2',
+        sourceText: previewText.trim() || undefined,
+        sampleAudio: sampleDataUrl,
+        designPrompt: designPrompt.trim() || draftVoice.ttsStyleInstruction.trim() || undefined,
       });
       await upsertVoiceProfile(profile);
 

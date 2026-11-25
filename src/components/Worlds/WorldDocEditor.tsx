@@ -20,6 +20,7 @@ import {
   serializeEditableSections,
   WORLD_TEMPLATES,
 } from '../../data/worldTemplates';
+import { useShallow } from 'zustand/react/shallow';
 import { useAppStore } from '../../store/useAppStore';
 import { createId, isImeComposing } from '../../utils/platform';
 
@@ -34,7 +35,13 @@ function getInitialExpandedIds(sections: EditableDocSection[]): Set<string> {
 }
 
 export const WorldDocEditor: React.FC<WorldDocEditorProps> = ({ world }) => {
-  const { updateWorld, requestConfirm, showToast } = useAppStore();
+  const { updateWorld, requestConfirm, showToast } = useAppStore(
+    useShallow((s) => ({
+      updateWorld: s.updateWorld,
+      requestConfirm: s.requestConfirm,
+      showToast: s.showToast,
+    }))
+  );
   const [draft, setDraft] = useState(world.document);
   const [sections, setSections] = useState<EditableDocSection[]>(() =>
     parseEditableSections(world.document)
@@ -620,7 +627,7 @@ export const WorldDocEditor: React.FC<WorldDocEditorProps> = ({ world }) => {
                         <button
                           type="button"
                           onClick={() => handleDeleteSection(sec)}
-                          className="p-1.5 rounded-lg text-dim hover:text-red-500 hover:bg-red-500/10 cursor-pointer"
+                          className="p-1.5 rounded-lg text-dim hover:text-danger hover:bg-danger/10 cursor-pointer"
                           title="删除章节"
                         >
                           <Trash2 className="w-3.5 h-3.5" />

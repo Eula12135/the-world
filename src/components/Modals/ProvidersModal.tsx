@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
   Check,
   CheckCircle2,
@@ -21,8 +22,8 @@ import {
   XCircle,
 } from 'lucide-react';
 import { BUILTIN_PROVIDERS } from '../../data/providers';
-import { IMAGE_FRAMINGS } from '../../utils/imageFraming';
 import { OptionPicker } from '../Common/OptionPicker';
+import { useShallow } from 'zustand/react/shallow';
 import { pushBackLayer } from '../../utils/backStack';
 import { useAppStore } from '../../store/useAppStore';
 import type {
@@ -32,19 +33,17 @@ import type {
   VoiceConfig,
 } from '../../types';
 import { fetchProviderModels, testProviderConnection } from '../../services/llm';
-import {
-  fetchImageGenModels,
-  IMAGE_GEN_PRESETS,
-  resolveMediaApiKey,
-} from '../../services/imageGenService';
 import { findSttPresetByBaseUrl, findTtsPresetByBaseUrl } from '../../services/voiceService';
+import { ImageGenTab } from './ImageGenTab';
 import { VoiceStudioTab } from './VoiceStudioTab';
 import { createId, isImeComposing, openExternalUrl } from '../../utils/platform';
 
-export const ProvidersModal: React.FC = () => {
+export const ProvidersModal: React.FC<{ closing?: boolean }> = ({ closing = false }) => {
   const {
     activeModal,
+    modalReturnTo,
     setActiveModal,
+    closeOrStepBackModal,
     providersModalTab,
     setProvidersModalTab,
     providers,
@@ -54,15 +53,36 @@ export const ProvidersModal: React.FC = () => {
     updateSettings,
     requestConfirm,
     showToast,
-  } = useAppStore();
+  } = useAppStore(
+    useShallow((s) => ({
+      activeModal: s.activeModal,
+      modalReturnTo: s.modalReturnTo,
+      setActiveModal: s.setActiveModal,
+      closeOrStepBackModal: s.closeOrStepBackModal,
+      providersModalTab: s.providersModalTab,
+      setProvidersModalTab: s.setProvidersModalTab,
+      providers: s.providers,
+      settings: s.settings,
+      saveProvider: s.saveProvider,
+      deleteProvider: s.deleteProvider,
+      updateSettings: s.updateSettings,
+      requestConfirm: s.requestConfirm,
+      showToast: s.showToast,
+    }))
+  );
 
-  const [selectedId, setSelectedId] = useState<string>('deepseek');
-  const [draft, setDraft] = useState<ProviderConfig | null>(null);
+  const [selectedId, setSelectedId] = useState<string>(() => {
+    const preferred = providers.find((p) => p.id === 'deepseek') || providers[0];
+    return preferred?.id || 'deepseek';
+  });
+  const [draft, setDraft] = useState<ProviderConfig | null>(() => {
+    const found = providers.find((p) => p.id === 'deepseek') || providers[0];
+    return found ? { ...found, models: [...found.models] } : null;
+  });
   const [showKey, setShowKey] = useState(false);
   const [newModelInput, setNewModelInput] = useState('');
   const [testing, setTesting] = useState(false);
   const [fetchingModels, setFetchingModels] = useState(false);
-  const [fetchingImgModels, setFetchingImgModels] = useState(false);
   const [statusMsg, setStatusMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [showLlmAdvanced, setShowLlmAdvanced] = useState(false);
   const [fetchedModels, setFetchedModels] = useState<string[]>([]);
@@ -80,34 +100,48 @@ export const ProvidersModal: React.FC = () => {
     });
   }, [fetchedModels.length]);
 
-  const [draftImg, setDraftImg] = useState<ImageGenConfig>(settings.imageGen);
-  const [showImgKey, setShowImgKey] = useState(false);
+  const [draftImg, setDraftImg] = useState<ImageGenConfig>(() => ({
+    ...settings.imageGen,
+    providerConfigs: settings.imageGen.providerConfigs
+      ? { ...settings.imageGen.providerConfigs }
+      : {},
+  }));
 
-  const [draftVoice, setDraftVoice] = useState<VoiceConfig>(settings.voice);
+  const [draftVoice, setDraftVoice] = useState<VoiceConfig>(() => ({
+    ...settings.voice,
+    ttsProviderConfigs: settings.voice.ttsProviderConfigs
+      ? { ...settings.voice.ttsProviderConfigs }
+      : {},
+    sttProviderConfigs: settings.voice.sttProviderConfigs
+      ? { ...settings.voice.sttProviderConfigs }
+      : {},
+  }));
 
   const hasReadyKeyProvider = providers.some(
     (p) => p.enabled && p.requiresKey && p.apiKey.trim().length > 0
   );
 
   useEffect(() => {
-    if (activeModal !== 'providers') return;
+    if (activeModal !== 'providers' && !closing) return;
+    if (closing) return;
     const found = providers.find((p) => p.id === selectedId) || providers[0];
     if (found) {
-      setSelectedId(found.id);
+      if (found.id !== selectedId) setSelectedId(found.id);
       setDraft({ ...found, models: [...found.models] });
     }
-  }, [activeModal, selectedId, providers]);
+  }, [activeModal, closing, selectedId, providers]);
 
   useEffect(() => {
+    if (closing) return;
     setStatusMsg(null);
     setShowLlmAdvanced(false);
     setFetchedModels([]);
     setFetchedModelQuery('');
     setPickerSelection([]);
-  }, [activeModal, selectedId]);
+  }, [selectedId, closing]);
 
   useEffect(() => {
-    if (activeModal === 'providers') {
+    if (activeModal === 'providers' && !closing) {
       setDraftImg({
         ...settings.imageGen,
         providerConfigs: settings.imageGen.providerConfigs
@@ -124,12 +158,9 @@ export const ProvidersModal: React.FC = () => {
           : {},
       });
     }
-  }, [activeModal, settings.imageGen, settings.voice]);
+  }, [activeModal, closing, settings.imageGen, settings.voice]);
 
-  if (activeModal !== 'providers' || !draft) return null;
-
-  const activeImgPreset =
-    IMAGE_GEN_PRESETS.find((p) => p.id === draftImg.presetId) || IMAGE_GEN_PRESETS[0];
+  if (!draft) return null;
 
   const handleSave = async () => {
     await saveProvider({
@@ -264,125 +295,6 @@ export const ProvidersModal: React.FC = () => {
     });
   };
 
-  const updateImgField = (patch: Partial<ImageGenConfig>) => {
-    setDraftImg((prev) => {
-      const pid = prev.presetId || 'zhipu';
-      const next = { ...prev, ...patch };
-      const existingCred = prev.providerConfigs?.[pid] || {};
-      return {
-        ...next,
-        providerConfigs: {
-          ...(prev.providerConfigs || {}),
-          [pid]: {
-            ...existingCred,
-            baseUrl: next.baseUrl,
-            apiKey: next.apiKey,
-            model: next.model,
-          },
-        },
-      };
-    });
-  };
-
-  const switchImgPreset = (preset: (typeof IMAGE_GEN_PRESETS)[number]) => {
-    setDraftImg((prev) => {
-      const curId = prev.presetId || 'zhipu';
-      const nextConfigs: Record<string, MediaProviderCredential> = {
-        ...(prev.providerConfigs || {}),
-        [curId]: {
-          ...(prev.providerConfigs?.[curId] || {}),
-          baseUrl: prev.baseUrl,
-          apiKey: prev.apiKey,
-          model: prev.model,
-        },
-      };
-      const saved = nextConfigs[preset.id];
-      const nextBaseUrl = saved?.baseUrl ?? preset.baseUrl;
-      const nextApiKey = saved?.apiKey ?? '';
-      const nextModel = saved?.model ?? preset.defaultModel;
-      return {
-        ...prev,
-        presetId: preset.id,
-        baseUrl: nextBaseUrl,
-        apiKey: nextApiKey,
-        model: nextModel,
-        providerConfigs: {
-          ...nextConfigs,
-          [preset.id]: {
-            ...(saved || {}),
-            baseUrl: nextBaseUrl,
-            apiKey: nextApiKey,
-            model: nextModel,
-          },
-        },
-      };
-    });
-  };
-
-  const handleRefreshImgModels = async () => {
-    setFetchingImgModels(true);
-    try {
-      const pid = draftImg.presetId || 'zhipu';
-      const list = await fetchImageGenModels({
-        providerId: pid,
-        baseUrl: draftImg.baseUrl,
-        apiKey: draftImg.apiKey,
-        providerConfigs: draftImg.providerConfigs,
-        providers,
-      });
-      const currentModel = draftImg.model.trim();
-      const nextModel = list.includes(currentModel) ? currentModel : list[0] || currentModel;
-      setDraftImg((prev) => {
-        const curCred = prev.providerConfigs?.[pid] || {};
-        return {
-          ...prev,
-          model: nextModel,
-          providerConfigs: {
-            ...(prev.providerConfigs || {}),
-            [pid]: {
-              ...curCred,
-              baseUrl: prev.baseUrl,
-              apiKey: prev.apiKey,
-              model: nextModel,
-              models: list,
-            },
-          },
-        };
-      });
-      showToast(`已刷新 ${list.length} 个可用生图模型`, 'success');
-    } catch (err) {
-      showToast(err instanceof Error ? err.message : '拉取生图模型失败', 'error');
-    } finally {
-      setFetchingImgModels(false);
-    }
-  };
-
-  const handleSaveImageGen = async () => {
-    const pid = draftImg.presetId || 'zhipu';
-    const nextBaseUrl = draftImg.baseUrl.trim();
-    const nextApiKey = draftImg.apiKey.trim();
-    const nextModel = draftImg.model.trim();
-    const nextConfigs: Record<string, MediaProviderCredential> = {
-      ...(draftImg.providerConfigs || {}),
-      [pid]: {
-        ...(draftImg.providerConfigs?.[pid] || {}),
-        baseUrl: nextBaseUrl,
-        apiKey: nextApiKey,
-        model: nextModel,
-      },
-    };
-    const nextImg: ImageGenConfig = {
-      ...draftImg,
-      baseUrl: nextBaseUrl,
-      apiKey: nextApiKey,
-      model: nextModel,
-      providerConfigs: nextConfigs,
-    };
-    setDraftImg(nextImg);
-    await updateSettings({ imageGen: nextImg });
-    showToast('生图模型配置已保存（各厂商 Key 已独立持久化）', 'success');
-  };
-
   const handleSaveVoice = async (options?: { keepActiveProfile?: boolean }) => {
     const ttsId =
       draftVoice.ttsEngine === 'native'
@@ -446,40 +358,34 @@ export const ProvidersModal: React.FC = () => {
   };
 
   return (
-    <div
-      className="fixed inset-0 z-50 bg-black/55 md:bg-black/45 backdrop-blur-[2px] flex items-stretch md:items-center justify-center p-0 md:p-4 anim-overlay"
-      onClick={() => setActiveModal('none')}
-    >
       <div
-        className="w-full h-full md:max-w-4xl md:h-[670px] bg-card md:rounded-xl md:border md:border-line md:shadow-2xl flex flex-col overflow-hidden anim-page"
+        className={`w-full h-full md:max-w-4xl md:h-[670px] bg-card md:rounded-xl md:border md:border-line md:shadow-2xl flex flex-col overflow-hidden ${
+          closing ? 'anim-page-out' : 'anim-page'
+        }`}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2.5 px-3 md:px-5 py-2.5 md:py-3 border-b border-line shrink-0 safe-top">
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-1">
               <button
-                onClick={() => setActiveModal('none')}
-                className="p-1.5 -ml-1 rounded-lg text-dim hover:text-ink hover:bg-hover cursor-pointer md:hidden"
-                aria-label="返回"
+                onClick={closeOrStepBackModal}
+                className={`p-1.5 -ml-1 rounded-lg text-dim hover:text-ink hover:bg-hover cursor-pointer ${
+                  modalReturnTo === 'settings' ? 'inline-flex items-center gap-0.5' : 'md:hidden'
+                }`}
+                aria-label={modalReturnTo === 'settings' ? '返回设置' : '返回'}
+                title={modalReturnTo === 'settings' ? '返回应用设置' : '返回'}
               >
                 <ChevronLeft className="w-5 h-5" />
               </button>
               <h2 className="text-[17px] font-semibold text-ink">模型与多模态配置</h2>
             </div>
-            <button
-              onClick={() => setActiveModal('none')}
-              className="p-1.5 rounded-lg text-dim hover:text-ink hover:bg-hover cursor-pointer hidden md:inline-flex"
-              aria-label="关闭"
-            >
-              <X className="w-4 h-4" />
-            </button>
           </div>
           <div className="flex items-center gap-2">
             <div className="flex-1 md:flex-initial grid grid-cols-3 md:flex items-center gap-4 border-b border-line">
               <button
                 type="button"
                 onClick={() => setProvidersModalTab('llm')}
-                className={`flex items-center justify-center gap-1 px-2.5 py-1.5 md:py-1 rounded-lg text-[13px] font-medium whitespace-nowrap cursor-pointer ${
+                className={`flex items-center justify-center gap-1 px-2.5 py-1.5 md:py-1 rounded-lg text-[13px] font-medium whitespace-nowrap cursor-pointer transition-colors ${
                   providersModalTab === 'llm'
                     ? 'border-accent text-ink'
                     : 'border-transparent text-secondary hover:text-ink'
@@ -491,7 +397,7 @@ export const ProvidersModal: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setProvidersModalTab('image')}
-                className={`flex items-center justify-center gap-1 px-2.5 py-1.5 md:py-1 rounded-lg text-[13px] font-medium whitespace-nowrap cursor-pointer ${
+                className={`flex items-center justify-center gap-1 px-2.5 py-1.5 md:py-1 rounded-lg text-[13px] font-medium whitespace-nowrap cursor-pointer transition-colors ${
                   providersModalTab === 'image'
                     ? 'border-accent text-ink'
                     : 'border-transparent text-secondary hover:text-ink'
@@ -503,7 +409,7 @@ export const ProvidersModal: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setProvidersModalTab('voice')}
-                className={`flex items-center justify-center gap-1 px-2.5 py-1.5 md:py-1 rounded-lg text-[13px] font-medium whitespace-nowrap cursor-pointer ${
+                className={`flex items-center justify-center gap-1 px-2.5 py-1.5 md:py-1 rounded-lg text-[13px] font-medium whitespace-nowrap cursor-pointer transition-colors ${
                   providersModalTab === 'voice'
                     ? 'border-accent text-ink'
                     : 'border-transparent text-secondary hover:text-ink'
@@ -525,7 +431,7 @@ export const ProvidersModal: React.FC = () => {
 
         {/* TAB 1: Text LLM Providers */}
         {providersModalTab === 'llm' && (
-          <>
+          <div key="tab-llm" className="flex-1 flex flex-col min-h-0 anim-subview">
             {!hasReadyKeyProvider && (
               <div className="px-4 md:px-5 py-2.5 bg-accent-soft border-b border-line flex flex-wrap items-center justify-between gap-2 text-[13px] shrink-0">
                 <div className="flex items-center gap-2 text-ink">
@@ -614,7 +520,10 @@ export const ProvidersModal: React.FC = () => {
               </div>
 
               {/* Config Detail */}
-              <div className="flex-1 overflow-y-auto p-4 md:p-5 pb-[max(env(safe-area-inset-bottom),20px)] md:pb-5 space-y-4 text-[13px]">
+              <div
+                key={draft.id}
+                className="flex-1 overflow-y-auto p-4 md:p-5 pb-[max(env(safe-area-inset-bottom),20px)] md:pb-5 space-y-4 text-[13px] anim-subview"
+              >
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
                     <h3 className="text-[17px] font-semibold text-ink">{draft.name}</h3>
@@ -723,7 +632,7 @@ export const ProvidersModal: React.FC = () => {
                                   draft.selectedModel === m ? nextModels[0] : draft.selectedModel,
                               });
                             }}
-                            className="hover:text-red-500 cursor-pointer"
+                            className="hover:text-danger cursor-pointer"
                           >
                             <X className="w-3 h-3" />
                           </button>
@@ -852,7 +761,7 @@ export const ProvidersModal: React.FC = () => {
                     className={`flex items-center gap-2 px-3.5 py-2.5 rounded-xl border text-[13px] ${
                       statusMsg.ok
                         ? 'bg-emerald-500/10 border-emerald-500/35 text-emerald-500'
-                        : 'bg-red-500/10 border-red-500/35 text-red-500'
+                        : 'bg-danger/10 border-danger/35 text-danger'
                     }`}
                   >
                     {statusMsg.ok ? (
@@ -869,7 +778,7 @@ export const ProvidersModal: React.FC = () => {
                     {draft.isCustom && (
                       <button
                         onClick={handleDeleteCustom}
-                        className="flex items-center gap-1 px-3 py-2 rounded-xl text-red-500 border border-red-500/30 hover:bg-red-500/10 cursor-pointer"
+                        className="flex items-center gap-1 px-3 py-2 rounded-xl text-danger border border-danger/30 hover:bg-danger/10 cursor-pointer"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                         <span>删除此端点</span>
@@ -895,218 +804,35 @@ export const ProvidersModal: React.FC = () => {
                 </div>
               </div>
             </div>
-          </>
+          </div>
         )}
 
         {/* TAB 2: Image Generation Models */}
         {providersModalTab === 'image' && (
-          <div className="flex-1 overflow-y-auto p-4 md:p-6 pb-[max(env(safe-area-inset-bottom),20px)] md:pb-6 space-y-4 text-[13px]">
-            <div className="p-3.5 rounded-xl bg-accent-soft border border-accent/25 text-[13px] text-ink">
-              支持所有兼容 OpenAI <code className="font-mono">/v1/images/generations</code>{' '}
-              协议的生图服务。各厂商 API Key 独立保存、切换互不覆盖；生成后的角色图会压缩并直接存放在本机。
-            </div>
-
-            <div className="space-y-2">
-              <div className="font-medium text-secondary">选择生图厂商（切换不丢失其他厂商 Key）</div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                {IMAGE_GEN_PRESETS.map((preset) => {
-                  const active = draftImg.presetId === preset.id;
-                  const cred = draftImg.providerConfigs?.[preset.id];
-                  const hasCred = Boolean(
-                    cred?.apiKey?.trim() ||
-                      resolveMediaApiKey({
-                        providerId: preset.id,
-                        baseUrl: cred?.baseUrl || preset.baseUrl,
-                        explicitKey: cred?.apiKey || '',
-                        providerConfigs: draftImg.providerConfigs,
-                        providers,
-                      })
-                  );
-                  return (
-                    <button
-                      key={preset.id}
-                      type="button"
-                      onClick={() => switchImgPreset(preset)}
-                      className={`p-3 rounded-xl border text-left cursor-pointer transition ${
-                        active ? 'border-accent bg-accent-soft' : 'border-line hover:bg-hover'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="font-semibold text-ink">{preset.name}</span>
-                        <span
-                          className={`w-2 h-2 rounded-full shrink-0 ${
-                            hasCred ? 'bg-emerald-500' : 'bg-line'
-                          }`}
-                          title={hasCred ? '已配置密钥或可复用同域 Key' : '未配置密钥'}
-                        />
-                      </div>
-                      <div className="text-[11.5px] text-dim mt-1">{preset.description}</div>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <span className="text-[13px] text-secondary">
-                {resolveMediaApiKey({
-                  providerId: draftImg.presetId,
-                  baseUrl: draftImg.baseUrl,
-                  explicitKey: '',
-                  providerConfigs: draftImg.providerConfigs,
-                  providers,
-                }) && !draftImg.apiKey.trim()
-                  ? '已检测到「文本模型」中的同域名 Key，下方留空即可自动复用。'
-                  : '各家生图厂商密钥独立存储在对应卡片中；留空时会自动检查同域名文本 Key。'}
-              </span>
-              {activeImgPreset.consoleUrl && (
-                <button
-                  type="button"
-                  onClick={() => openExternalUrl(activeImgPreset.consoleUrl).catch(() => {})}
-                  className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-accent text-white text-[13px] font-medium cursor-pointer"
-                >
-                  <span>去官网拿 Key</span>
-                  <ExternalLink className="w-3.5 h-3.5" />
-                </button>
-              )}
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <label className="block mb-1.5 font-medium text-secondary">生图 Base URL</label>
-                <input
-                  value={draftImg.baseUrl}
-                  onChange={(e) => updateImgField({ baseUrl: e.target.value })}
-                  className="w-full px-3 py-2 rounded-xl bg-canvas border border-line text-ink font-mono text-[13px] outline-none focus:border-accent"
-                />
-              </div>
-              <div>
-                <label className="block mb-1.5 font-medium text-secondary">
-                  API Key（当前厂商独立保存，留空可复用同域 Key）
-                </label>
-                <div className="flex items-center rounded-xl bg-canvas border border-line px-3 focus-within:border-accent">
-                  <input
-                    type={showImgKey ? 'text' : 'password'}
-                    value={draftImg.apiKey}
-                    onChange={(e) => updateImgField({ apiKey: e.target.value })}
-                    placeholder="sk-... 或留空自动复用"
-                    className="flex-1 py-2 bg-transparent text-ink font-mono text-[13px] outline-none"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowImgKey((v) => !v)}
-                    className="p-1 text-dim hover:text-ink cursor-pointer"
-                  >
-                    {showImgKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <div className="flex items-center justify-between mb-1.5">
-                  <label className="font-medium text-secondary">生图模型 ID</label>
-                  <button
-                    type="button"
-                    onClick={handleRefreshImgModels}
-                    disabled={fetchingImgModels}
-                    className="flex items-center gap-1 text-[13px] text-accent hover:underline cursor-pointer disabled:opacity-50"
-                  >
-                    {fetchingImgModels ? (
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    ) : (
-                      <RefreshCw className="w-3.5 h-3.5" />
-                    )}
-                    <span>刷新可用模型</span>
-                  </button>
-                </div>
-                <input
-                  value={draftImg.model}
-                  onChange={(e) => updateImgField({ model: e.target.value })}
-                  className="w-full px-3 py-2 rounded-xl bg-canvas border border-line text-ink font-mono text-[13px] outline-none focus:border-accent"
-                />
-                <div className="flex flex-wrap gap-1.5 mt-2">
-                  {Array.from(
-                    new Set([
-                      ...(draftImg.providerConfigs?.[draftImg.presetId]?.models || []),
-                      ...activeImgPreset.models,
-                    ])
-                  ).map((m) => (
-                    <button
-                      key={m}
-                      type="button"
-                      onClick={() => updateImgField({ model: m })}
-                      className={`px-2 py-0.5 rounded-lg border text-[11.5px] font-mono cursor-pointer ${
-                        draftImg.model === m
-                          ? 'border-accent bg-accent-soft text-accent font-medium'
-                          : 'border-line text-dim hover:bg-hover'
-                      }`}
-                    >
-                      {m}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div>
-                <label className="block mb-1.5 font-medium text-secondary">
-                  分辨率尺寸（决定取景与构图）
-                </label>
-                <select
-                  value={draftImg.size}
-                  onChange={(e) => setDraftImg({ ...draftImg, size: e.target.value })}
-                  className="w-full px-3 py-2 rounded-xl bg-canvas border border-line text-ink outline-none focus:border-accent"
-                >
-                  {IMAGE_FRAMINGS.map((framing) => (
-                    <option key={framing.id} value={framing.size}>
-                      {framing.size}（{framing.label}）
-                    </option>
-                  ))}
-                  {draftImg.size && !IMAGE_FRAMINGS.some((f) => f.size === draftImg.size) && (
-                    <option value={draftImg.size}>{draftImg.size}（自定义尺寸）</option>
-                  )}
-                </select>
-                <p className="mt-1.5 text-[11.5px] text-dim">
-                  头像只画头肩、半身到膝盖、横版带背景 —— 取景会写进内置提示词，
-                  避免选了头像却画出全身像。
-                </p>
-              </div>
-            </div>
-
-            <div>
-              <label className="block mb-1.5 font-medium text-secondary">
-                默认画风提示词缀（可选，生成角色图时自动附带）
-              </label>
-              <input
-                value={draftImg.styleHint}
-                onChange={(e) => setDraftImg({ ...draftImg, styleHint: e.target.value })}
-                placeholder="例如：国风工笔厚涂插画，电影级光影，高质量细节"
-                className="w-full px-3 py-2 rounded-xl bg-canvas border border-line text-ink outline-none focus:border-accent"
-              />
-            </div>
-
-            <div className="flex justify-end pt-3 border-t border-line">
-              <button
-                type="button"
-                onClick={handleSaveImageGen}
-                className="flex items-center gap-1.5 px-4 py-2.5 rounded-control text-body font-medium bg-accent text-white hover:opacity-95 cursor-pointer"
-              >
-                保存生图配置
-              </button>
-            </div>
+          <div key="tab-image" className="flex-1 flex flex-col min-h-0 anim-subview">
+            <ImageGenTab
+              draftImg={draftImg}
+              setDraftImg={setDraftImg}
+              providers={providers}
+              updateSettings={updateSettings}
+              showToast={showToast}
+            />
           </div>
         )}
 
         {/* TAB 3: Voice Tuning & Cloning Studio */}
         {providersModalTab === 'voice' && (
-          <VoiceStudioTab
-            draftVoice={draftVoice}
-            setDraftVoice={setDraftVoice}
-            onSaveVoice={handleSaveVoice}
-          />
+          <div key="tab-voice" className="flex-1 flex flex-col min-h-0 anim-subview">
+            <VoiceStudioTab
+              draftVoice={draftVoice}
+              setDraftVoice={setDraftVoice}
+              onSaveVoice={handleSaveVoice}
+            />
+          </div>
         )}
         {/* 从远程可用模型里挑几个加入列表（不直接改已配置列表） */}
         {fetchedModels.length > 0 &&
+          typeof document !== 'undefined' &&
           (() => {
             const q = fetchedModelQuery.trim().toLowerCase();
             const filtered = q
@@ -1117,9 +843,9 @@ export const ProvidersModal: React.FC = () => {
             const keptCount = draft.models.filter((m) => !fetchedModels.includes(m)).length;
             const willRemain = keptCount + pickerSelection.length;
 
-            return (
+            return createPortal(
               <div
-                className="fixed inset-0 z-[80] bg-black/45 flex items-end md:items-center justify-center p-0 md:p-4 anim-overlay"
+                className="fixed inset-0 z-[80] bg-[#111827]/45 flex items-end md:items-center justify-center p-0 md:p-4 anim-overlay"
                 onClick={() => {
                   setFetchedModels([]);
                   setPickerSelection([]);
@@ -1234,11 +960,11 @@ export const ProvidersModal: React.FC = () => {
                     </div>
                   </div>
                 </div>
-              </div>
+              </div>,
+              document.body
             );
           })()}
 
       </div>
-    </div>
   );
 };

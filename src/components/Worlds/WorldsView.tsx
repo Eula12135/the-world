@@ -15,6 +15,7 @@ import {
   Upload,
   Users,
 } from 'lucide-react';
+import { useShallow } from 'zustand/react/shallow';
 import { useAppStore } from '../../store/useAppStore';
 import {
   getRecommendedTemplateId,
@@ -48,7 +49,24 @@ export const WorldsView: React.FC = () => {
     setWorldStudioMode,
     requestConfirm,
     showToast,
-  } = useAppStore();
+  } = useAppStore(
+    useShallow((s) => ({
+      worlds: s.worlds,
+      activeWorldId: s.activeWorldId,
+      characters: s.characters,
+      relations: s.relations,
+      timelineEvents: s.timelineEvents,
+      selectWorld: s.selectWorld,
+      createWorld: s.createWorld,
+      updateWorld: s.updateWorld,
+      deleteWorld: s.deleteWorld,
+      startNewDraft: s.startNewDraft,
+      worldStudioMode: s.worldStudioMode,
+      setWorldStudioMode: s.setWorldStudioMode,
+      requestConfirm: s.requestConfirm,
+      showToast: s.showToast,
+    }))
+  );
 
   const [tab, setTab] = useState<StudioTab>('doc');
   const [creating, setCreating] = useState(false);
@@ -509,7 +527,7 @@ export const WorldsView: React.FC = () => {
                     </button>
                     <button
                       onClick={handleDeleteWorld}
-                      className="w-full flex items-center gap-2 px-3.5 py-2 text-left text-red-500 hover:bg-red-500/10 cursor-pointer"
+                      className="w-full flex items-center gap-2 px-3.5 py-2 text-left text-danger hover:bg-danger/10 cursor-pointer"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
                       <span>删除此作品</span>

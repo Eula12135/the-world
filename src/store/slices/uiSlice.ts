@@ -7,6 +7,7 @@ export const createUiSlice: AppSliceCreator<UiSlice> = (set, get) => ({
   worldStudioMode: 'world',
   pendingCreateStandaloneChar: false,
   activeModal: 'none',
+  modalReturnTo: 'none',
   providersModalTab: 'llm',
   voiceStudioSubTab: 'library',
   pendingVoiceBindTarget: null,
@@ -35,8 +36,23 @@ export const createUiSlice: AppSliceCreator<UiSlice> = (set, get) => ({
   setActiveModal: (m) =>
     set((s) => ({
       activeModal: m,
+      modalReturnTo: m === 'none' ? 'none' : s.activeModal === 'settings' && m !== 'settings' ? 'settings' : 'none',
       pendingVoiceBindTarget: m === 'none' ? null : s.pendingVoiceBindTarget,
     })),
+  closeOrStepBackModal: () =>
+    set((s) => {
+      if (s.modalReturnTo !== 'none' && !s.pendingVoiceBindTarget) {
+        return {
+          activeModal: s.modalReturnTo,
+          modalReturnTo: 'none',
+        };
+      }
+      return {
+        activeModal: 'none',
+        modalReturnTo: 'none',
+        pendingVoiceBindTarget: null,
+      };
+    }),
   setProvidersModalTab: (tab) => set({ providersModalTab: tab }),
 
   setContextTokens: (n) => set({ contextTokens: n }),
@@ -44,12 +60,13 @@ export const createUiSlice: AppSliceCreator<UiSlice> = (set, get) => ({
   setSwipeOffset: (n) => set({ swipeOffset: n }),
   setVoiceStudioSubTab: (subTab) => set({ voiceStudioSubTab: subTab }),
   openProvidersModal: (tab, opts) =>
-    set({
+    set((s) => ({
       activeModal: 'providers',
+      modalReturnTo: s.activeModal === 'settings' && !opts?.bindTarget ? 'settings' : 'none',
       providersModalTab: tab,
-      voiceStudioSubTab: opts?.voiceSubTab ?? (tab === 'voice' ? 'library' : get().voiceStudioSubTab),
+      voiceStudioSubTab: opts?.voiceSubTab ?? (tab === 'voice' ? 'library' : s.voiceStudioSubTab),
       pendingVoiceBindTarget: opts?.bindTarget ?? null,
-    }),
+    })),
   clearPendingVoiceBind: () => set({ pendingVoiceBindTarget: null }),
   completePendingVoiceBind: async (profileId) => {
     const target = get().pendingVoiceBindTarget;

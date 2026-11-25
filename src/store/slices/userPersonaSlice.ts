@@ -1,22 +1,29 @@
 import { db } from '../../db/database';
+import {
+  deleteMediaBlob,
+  hydrateUserPersonasFromDb,
+  prepareUserPersonaForDb,
+} from '../../services/mediaStore';
 import type { UserPersona } from '../../types';
 import { buildUserIdentityComboKey, resolveUserIdentity } from '../../services/userIdentity';
 import { createId } from '../../utils/platform';
 import type { AppSliceCreator, UserPersonaSlice } from '../types';
 
 async function loadUserPersonas(): Promise<UserPersona[]> {
-  return db.userPersonas.orderBy('updatedAt').reverse().toArray();
+  return hydrateUserPersonasFromDb(await db.userPersonas.orderBy('updatedAt').reverse().toArray());
 }
 
 export const createUserPersonaSlice: AppSliceCreator<UserPersonaSlice> = (set, get) => ({
   userPersonas: [],
 
   upsertUserPersona: async (persona) => {
-    await db.userPersonas.put({ ...persona, updatedAt: Date.now() });
+    const prepared = await prepareUserPersonaForDb({ ...persona, updatedAt: Date.now() });
+    await db.userPersonas.put(prepared);
     set({ userPersonas: await loadUserPersonas() });
   },
 
   deleteUserPersona: async (id) => {
+    await deleteMediaBlob(`up_avatar_${id}`);
     await db.userPersonas.delete(id);
     // 会话里的引用保留不清理：解析时自然降级为匿名（设计 §8.3：不做快照兜底）
     set({ userPersonas: await loadUserPersonas() });
@@ -46,7 +53,8 @@ export const createUserPersonaSlice: AppSliceCreator<UserPersonaSlice> = (set, g
       updatedAt: now,
     };
 
-    await db.userPersonas.put(persona);
+    const prepared = await prepareUserPersonaForDb(persona);
+    await db.userPersonas.put(prepared);
     set({ userPersonas: await loadUserPersonas() });
     return persona.id;
   },
