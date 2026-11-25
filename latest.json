@@ -1,9 +1,9 @@
 {
-  "version": "0.6.1",
-  "name": "The World v0.6.1",
-  "pageUrl": "https://gitee.com/qiutonger/the-world/releases/tag/v0.6.1",
-  "releaseUrl": "https://gitee.com/qiutonger/the-world/releases/tag/v0.6.1",
-  "windowsUrl": "https://gitee.com/qiutonger/the-world/releases/download/v0.6.1/The-World-Setup-0.6.1.exe",
-  "androidUrl": "https://github.com/Eula12135/the-world/releases/download/v0.6.1/The-World-0.6.1-android.apk",
-  "notes": "## v0.6.1\n\n- 修复：**没开自动朗读也会朗读** —— 语音开着就自动念的老毛病，现在只看「自动朗读」这个开关\n- 界面重做一轮：顶栏只留「在跟谁对话 + 关联哪部作品」，模型选择器移到输入框里，腾出的高度全给正文\n- 手机底部导航取消，作品与设置移入侧边抽屉；**在正文上向右滑即可展开**\n- 安卓返回键改为逐级返回：先关下拉/浮层/大图，再回对话页，最后才退出\n- 消息操作改成一行图标（复制、重新生成、朗读、存为设定、删除），右侧显示当前上下文用量\n- 输入框随内容自动长高，最高约十行，不再是固定的两行高\n- 角色卡可分别选**取景**（头像 / 半身 / 场景）和**画风**（厚涂、国风工笔、日系赛璐璐等，也可不指定）\n- 生图取景跟随尺寸：选头像就只画头肩，不会再画成全身\n- 生图提示词只取可画的信息，台词、口头禅和剧情不再混进画面描述；也可让文本模型提炼\n- 「拉取模型」改为弹窗勾选：只把你选的模型加入列表，主界面下拉不再堆几十个\n- 设置与模型配置在手机上改为整页，转场更顺，保存按钮不再被手势条挡住\n- 全站字号、圆角、颜色收敛成一套，小字对比度达标，深色浅色都更清楚"
+  "version": "0.7.0",
+  "name": "The World v0.7.0",
+  "pageUrl": "https://gitee.com/qiutonger/the-world/releases/tag/v0.7.0",
+  "releaseUrl": "https://gitee.com/qiutonger/the-world/releases/tag/v0.7.0",
+  "windowsUrl": "https://gitee.com/qiutonger/the-world/releases/download/v0.7.0/The-World-Setup-0.7.0.exe",
+  "androidUrl": "https://github.com/Eula12135/the-world/releases/download/v0.7.0/The-World-0.7.0-android.apk",
+  "notes": "## v0.7.0\n\n- 新增**角色卡分享**：角色编辑页可导出 `.twcard` 文件，或导出一张内嵌角色数据的 PNG 角色卡，\n  发给别人导入就能得到完整的设定、立绘与声线；也兼容导入 SillyTavern 的 TavernCard v2\n- 手机上的回复改走**原生流式通道**：不再受浏览器内核的网络限制，长回复更稳，「停止生成」随时可断\n- 立绘、头像等图片改存到本地数据库：切页刷新不再闪一下，长期使用也不会把存储撑满\n- 弹层补上退场动画：关闭时不再瞬间消失；「设置 → 模型配置」之间切换共用同一层背景，\n  不再黑屏闪一下，返回也回到上一层而不是直接退回聊天\n- 拆分了几个上千行的大组件，并给第三方库单独分包，页面切换更轻\n- 恢复跟随系统的字体缩放（之前把页面缩放锁死了，系统调大字体无效）"
 }
