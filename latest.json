@@ -1,9 +1,9 @@
 {
-  "version": "0.7.0",
-  "name": "The World v0.7.0",
-  "pageUrl": "https://gitee.com/qiutonger/the-world/releases/tag/v0.7.0",
-  "releaseUrl": "https://gitee.com/qiutonger/the-world/releases/tag/v0.7.0",
-  "windowsUrl": "https://gitee.com/qiutonger/the-world/releases/download/v0.7.0/The-World-Setup-0.7.0.exe",
-  "androidUrl": "https://github.com/Eula12135/the-world/releases/download/v0.7.0/The-World-0.7.0-android.apk",
-  "notes": "## v0.7.0\n\n- 新增**角色卡分享**：角色编辑页可导出 `.twcard` 文件，或导出一张内嵌角色数据的 PNG 角色卡，\n  发给别人导入就能得到完整的设定、立绘与声线；也兼容导入 SillyTavern 的 TavernCard v2\n- 手机上的回复改走**原生流式通道**：不再受浏览器内核的网络限制，长回复更稳，「停止生成」随时可断\n- 立绘、头像等图片改存到本地数据库：切页刷新不再闪一下，长期使用也不会把存储撑满\n- 弹层补上退场动画：关闭时不再瞬间消失；「设置 → 模型配置」之间切换共用同一层背景，\n  不再黑屏闪一下，返回也回到上一层而不是直接退回聊天\n- 拆分了几个上千行的大组件，并给第三方库单独分包，页面切换更轻\n- 恢复跟随系统的字体缩放（之前把页面缩放锁死了，系统调大字体无效）"
+  "version": "0.7.1",
+  "name": "The World v0.7.1",
+  "pageUrl": "https://gitee.com/qiutonger/the-world/releases/tag/v0.7.1",
+  "releaseUrl": "https://gitee.com/qiutonger/the-world/releases/tag/v0.7.1",
+  "windowsUrl": "https://gitee.com/qiutonger/the-world/releases/download/v0.7.1/The-World-Setup-0.7.1.exe",
+  "androidUrl": "https://github.com/Eula12135/the-world/releases/download/v0.7.1/The-World-0.7.1-android.apk",
+  "notes": "## v0.7.1\n\n- 修复：**安卓上长回复出现乱码**（夹杂 `�` 或问号方块）—— 流式传输时汉字被从中间截断，\n  现在按完整字符解码；之前生成过的乱码消息点「重新生成」即可重写\n- 新增「**一键体验公版经典示例世界观**」：新建作品页可一键载入《贝克街221B：雾都探案录》\n  与《密斯卡托尼克：阿卡姆秘档》，含考据角色卡、时间线与跨时间关系图谱，零 API 消耗即可试玩\n  （只收录作者逝世满 50 年、进入公有领域的作品）\n- 修复：「我」扮演的角色卡现在使用该角色的**真名**，不再显示 AI 角色卡面向匿名用户的默认称呼"
 }
