@@ -5,6 +5,15 @@ import {
   parseEditableSections,
   serializeEditableSections,
 } from '../data/worldTemplates';
+import {
+  materializeSampleWorldPreset,
+  SAMPLE_WORLD_PRESETS,
+} from '../data/sampleWorlds';
+import {
+  INITIAL_STORY_POINT,
+  resolveRelationAtPoint,
+  sortEventsChronologically,
+} from '../services/temporalGraph';
 
 describe('worldTemplates section round-trip', () => {
   it('parses and serializes multi-section markdown documents including preamble', () => {
@@ -75,5 +84,50 @@ describe('worldTemplates section round-trip', () => {
       { heading: '序章设定', body: '内容 A' },
       { heading: '新增附录', body: '补充说明' },
     ]);
+  });
+
+  it('materializes public-domain sample worlds with valid sections, timeline events, and multi-phase relations', () => {
+    expect(SAMPLE_WORLD_PRESETS.length).toBeGreaterThanOrEqual(2);
+
+    for (const preset of SAMPLE_WORLD_PRESETS) {
+      const sections = parseDocumentSections(preset.document);
+      expect(sections.length).toBeGreaterThanOrEqual(7);
+      for (const pinned of preset.pinnedSections) {
+        expect(sections.some((s) => s.heading === pinned)).toBe(true);
+      }
+
+      const { characters, events, relations } = materializeSampleWorldPreset('world-demo', preset);
+      expect(characters.length).toBe(preset.characters.length);
+      expect(events.length).toBe(preset.timelineEvents.length);
+      expect(relations.length).toBe(preset.relations.length);
+
+      const orderedEvents = sortEventsChronologically(events);
+      const charIds = new Set(characters.map((c) => c.id));
+      const eventIds = new Set(events.map((e) => e.id));
+
+      for (const ev of events) {
+        expect(ev.characterIds.length).toBeGreaterThan(0);
+        for (const cid of ev.characterIds) {
+          expect(charIds.has(cid)).toBe(true);
+        }
+      }
+
+      for (const rel of relations) {
+        expect(charIds.has(rel.sourceId)).toBe(true);
+        expect(charIds.has(rel.targetId)).toBe(true);
+        expect(rel.phases.length).toBeGreaterThanOrEqual(2);
+        for (const ph of rel.phases) {
+          if (ph.fromEventId) {
+            expect(eventIds.has(ph.fromEventId)).toBe(true);
+          }
+        }
+
+        const initialResolved = resolveRelationAtPoint(rel, orderedEvents, INITIAL_STORY_POINT);
+        const latestResolved = resolveRelationAtPoint(rel, orderedEvents, undefined);
+        expect(initialResolved.activePhase).not.toBeNull();
+        expect(latestResolved.activePhase).not.toBeNull();
+        expect(latestResolved.activePhase?.label).not.toBe(initialResolved.activePhase?.label);
+      }
+    }
   });
 });

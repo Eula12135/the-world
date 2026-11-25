@@ -175,6 +175,7 @@ export interface WorldSlice {
 
   selectWorld: (worldId: string) => Promise<void>;
   createWorld: (data: { name: string; genre: string; document: string }) => Promise<string>;
+  loadSampleWorld: (presetId: string) => Promise<string | null>;
   updateWorld: (worldId: string, patch: Partial<WorldProject>) => Promise<void>;
   deleteWorld: (worldId: string, opts?: { keepCharacters?: boolean }) => Promise<void>;
   appendWorldImportData: (params: {

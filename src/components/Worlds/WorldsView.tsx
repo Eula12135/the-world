@@ -11,6 +11,7 @@ import {
   MessageSquarePlus,
   MoreHorizontal,
   Plus,
+  Sparkles,
   Trash2,
   Upload,
   Users,
@@ -23,6 +24,7 @@ import {
   WORLD_GENRES,
   WORLD_TEMPLATES,
 } from '../../data/worldTemplates';
+import { SAMPLE_WORLD_PRESETS } from '../../data/sampleWorlds';
 import { WorldDocEditor } from './WorldDocEditor';
 import { CharactersPanel } from './CharactersPanel';
 import { TimelinePanel } from './TimelinePanel';
@@ -42,6 +44,7 @@ export const WorldsView: React.FC = () => {
     timelineEvents,
     selectWorld,
     createWorld,
+    loadSampleWorld,
     updateWorld,
     deleteWorld,
     startNewDraft,
@@ -58,6 +61,7 @@ export const WorldsView: React.FC = () => {
       timelineEvents: s.timelineEvents,
       selectWorld: s.selectWorld,
       createWorld: s.createWorld,
+      loadSampleWorld: s.loadSampleWorld,
       updateWorld: s.updateWorld,
       deleteWorld: s.deleteWorld,
       startNewDraft: s.startNewDraft,
@@ -78,6 +82,7 @@ export const WorldsView: React.FC = () => {
   const [worldPickerOpen, setWorldPickerOpen] = useState(false);
   const [renaming, setRenaming] = useState(false);
   const [renameValue, setRenameValue] = useState('');
+  const [loadingSampleId, setLoadingSampleId] = useState<string | null>(null);
 
   const activeWorld = worlds.find((w) => w.id === activeWorldId) ?? null;
 
@@ -131,6 +136,25 @@ export const WorldsView: React.FC = () => {
     setCreating(false);
     setTab('doc');
     showToast(`已创建《${trimmed}》`, 'success');
+  };
+
+  const handleLoadSample = async (presetId: string) => {
+    const preset = SAMPLE_WORLD_PRESETS.find((p) => p.id === presetId);
+    if (!preset || loadingSampleId) return;
+    setLoadingSampleId(presetId);
+    try {
+      const wid = await loadSampleWorld(presetId);
+      if (wid) {
+        setCreating(false);
+        setTab('relations');
+        showToast(
+          `已加载公版示例《${preset.name}》（含 ${preset.characters.length} 位角色 · ${preset.timelineEvents.length} 个时间节点 · ${preset.relations.length} 条跨时间关系）`,
+          'success'
+        );
+      }
+    } finally {
+      setLoadingSampleId(null);
+    }
   };
 
   const handleExportMd = async () => {
@@ -317,6 +341,72 @@ export const WorldsView: React.FC = () => {
               >
                 创建并进入设定编辑
               </button>
+            </div>
+          </div>
+
+          <div className="p-5 rounded-xl bg-card border border-line space-y-3.5">
+            <div className="flex items-start justify-between gap-2">
+              <div>
+                <div className="flex items-center gap-1.5 text-[14px] font-semibold text-ink">
+                  <Sparkles className="w-4 h-4 text-accent shrink-0" />
+                  <span>一键体验公版经典示例世界观（零 API 消耗 · 含完整角色与时间线关系图谱）</span>
+                </div>
+                <p className="text-[12.5px] text-secondary mt-0.5">
+                  原作者均已逝世满 50 年进入全球公有领域，按原著文献深度考据编写，加载后可直接在「关系」页拖拽时间轴体验演变，或直接找角色对话。
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {SAMPLE_WORLD_PRESETS.map((sample) => {
+                const alreadyLoaded = worlds.some((w) => w.name === sample.name);
+                const busy = loadingSampleId === sample.id;
+                return (
+                  <div
+                    key={sample.id}
+                    className="p-3.5 rounded-xl bg-canvas border border-line flex flex-col justify-between gap-3"
+                  >
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-[14px] font-semibold text-ink">
+                          《{sample.name}》
+                        </span>
+                        <span className="text-[11px] px-2 py-0.5 rounded-full bg-accent-soft text-accent shrink-0">
+                          {sample.genre}
+                        </span>
+                      </div>
+                      <div className="text-[11.5px] text-accent font-medium">{sample.badge}</div>
+                      <p className="text-[12.5px] text-secondary leading-relaxed">
+                        {sample.summary}
+                      </p>
+                      <div className="flex flex-wrap gap-1.5 pt-1 text-[11.5px] text-dim">
+                        <span className="px-2 py-0.5 rounded bg-card border border-line">
+                          {sample.characters.length} 张考据角色卡
+                        </span>
+                        <span className="px-2 py-0.5 rounded bg-card border border-line">
+                          {sample.timelineEvents.length} 个关键时间点
+                        </span>
+                        <span className="px-2 py-0.5 rounded bg-card border border-line">
+                          {sample.relations.length} 条跨时间关系
+                        </span>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      disabled={Boolean(loadingSampleId)}
+                      onClick={() => void handleLoadSample(sample.id)}
+                      className="w-full py-2 px-3 rounded-xl border border-accent/40 bg-accent-soft text-accent text-[13px] font-medium hover:opacity-90 disabled:opacity-50 cursor-pointer transition"
+                    >
+                      {busy
+                        ? '正在加载示例…'
+                        : alreadyLoaded
+                          ? '重新加载一份副本'
+                          : '一键加载此示例世界观'}
+                    </button>
+                  </div>
+                );
+              })}
             </div>
           </div>
         </div>

@@ -5,6 +5,10 @@ import {
   deleteWorldCascade,
 } from '../../db/database';
 import {
+  materializeSampleWorldPreset,
+  SAMPLE_WORLD_PRESETS,
+} from '../../data/sampleWorlds';
+import {
   hydrateCharactersFromDb,
   prepareCharacterForDb,
   releaseMediaRefCache,
@@ -48,6 +52,50 @@ export const createWorldSlice: AppSliceCreator<WorldSlice> = (set, get) => ({
       worldStudioMode: 'world',
     });
     return world.id;
+  },
+
+  loadSampleWorld: async (presetId) => {
+    const preset = SAMPLE_WORLD_PRESETS.find((p) => p.id === presetId);
+    if (!preset) return null;
+    const now = Date.now();
+    const worldId = createId('world');
+    const world: WorldProject = {
+      id: worldId,
+      name: preset.name,
+      genre: preset.genre,
+      document: preset.document,
+      contextMode: 'progressive',
+      pinnedSections: [...preset.pinnedSections],
+      selectedSections: [],
+      includeCharacters: true,
+      includeTimeline: true,
+      createdAt: now,
+      updatedAt: now,
+    };
+    const { characters, events, relations } = materializeSampleWorldPreset(worldId, preset);
+    const preparedChars =
+      characters.length > 0 ? await Promise.all(characters.map(prepareCharacterForDb)) : [];
+    await db.transaction(
+      'rw',
+      [db.worlds, db.characters, db.timelineEvents, db.relations],
+      async () => {
+        await db.worlds.put(world);
+        if (preparedChars.length > 0) await db.characters.bulkPut(preparedChars);
+        if (events.length > 0) await db.timelineEvents.bulkPut(events);
+        if (relations.length > 0) await db.relations.bulkPut(relations);
+      }
+    );
+    const [worlds, data] = await Promise.all([
+      db.worlds.orderBy('updatedAt').reverse().toArray(),
+      loadWorldChildren(worldId),
+    ]);
+    set({
+      worlds,
+      activeWorldId: worldId,
+      worldStudioMode: 'world',
+      ...data,
+    });
+    return worldId;
   },
 
   updateWorld: async (worldId, patch) => {
