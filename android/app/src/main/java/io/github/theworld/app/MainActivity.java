@@ -34,6 +34,8 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.Reader;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
@@ -855,16 +857,17 @@ public class MainActivity extends BridgeActivity {
                         return;
                     }
 
-                    try (InputStream is = conn.getInputStream()) {
-                        byte[] buf = new byte[4096];
+                    // 用 Reader 而不是逐块 new String：UTF-8 一个汉字 3 字节，
+                    // 按 4096 字节硬切会把跨块的字劈成乱码（显示成 ？/�）
+                    try (Reader reader = new InputStreamReader(conn.getInputStream(), StandardCharsets.UTF_8)) {
+                        char[] buf = new char[4096];
                         int len;
-                        while ((len = is.read(buf)) != -1) {
+                        while ((len = reader.read(buf)) != -1) {
                             if (abortedStreamIds.containsKey(reqId)) {
                                 return;
                             }
                             if (len > 0) {
-                                String chunk = new String(buf, 0, len, StandardCharsets.UTF_8);
-                                dispatchStreamEvent(reqId, "chunk", chunk, status, "");
+                                dispatchStreamEvent(reqId, "chunk", new String(buf, 0, len), status, "");
                             }
                         }
                     }
