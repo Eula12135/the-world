@@ -1,7 +1,7 @@
 # 待发版改动
 
-> 当前已发布版本：**0.7.0**（tag `v0.7.0`，2026-11-25）。
-> 上一批改动已随 0.7.0 发布，这里重新开始记下一批。
+> 当前已发布版本：**0.7.1**（tag `v0.7.1`，2026-11-25）。
+> 上一批改动已随 0.7.1 发布，这里重新开始记下一批。
 
 ---
 
@@ -26,10 +26,13 @@
    ```
 5. 发布：
    - Gitee：`npm run release:gitee`，需要 `GITEE_TOKEN` 环境变量。
-     **注意**：`git remote get-url gitee` 里的 token 可能被清掉，届时直接从本机凭据或 gitee 后台取。
+     **注意**：`git remote get-url gitee` 里的 token 可能被清掉，届时从 gitee 后台取。
    - GitHub：`gh release create vX.Y.Z <apk> --title ... --notes-file release-notes.md`
      **APK 资产名必须是 `The-World-X.Y.Z-android.apk`**，否则 `latest.json` 里的地址会 404；
-     另外 `gh release create file#label` 里的 `#label` 只改显示名、不改文件名，别指望它。
+     `gh release create file#label` 里的 `#label` 只改显示名、不改文件名。
+     **GitHub 偶发 502 时先别重试上传**：很可能资产已经传上去了，
+     先用 `gh release view` 查 `assets`，再决定 `gh release edit --draft=false` 还是补传。
 6. 提交并推送 `latest.json`，再验证 raw 地址与两端资产字节数。
 7. 注意：改动可能在特性分支上，推之前确认 `main` 已包含它们（0.6.1 时差点把基线推上去）。
-8. 发完把 tag 打到「版本号 + latest.json」那个提交上，并核对两端 tag 一致。
+8. 发完把 tag 打到「版本号 + latest.json」那个提交上，核对两端 tag 一致。
+9. 推送偶发失败时先重试一次 —— GitHub 故障期间 `main` 和 tag 推送都会报错，但通常几分钟后自行恢复。
