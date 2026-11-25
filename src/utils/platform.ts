@@ -109,6 +109,54 @@ export function downloadTextFile(
   return Promise.resolve(true);
 }
 
+export function downloadBinaryFile(
+  filename: string,
+  bytes: Uint8Array,
+  mimeType = 'application/octet-stream'
+): Promise<boolean> {
+  const safeName = sanitizeFilename(filename);
+  if (typeof window !== 'undefined' && window.TheWorldAndroid?.exportBinaryFile) {
+    const chunkSize = 0x8000;
+    let binary = '';
+    for (let i = 0; i < bytes.length; i += chunkSize) {
+      binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
+    }
+    const base64 = btoa(binary);
+    return new Promise((resolve) => {
+      let settled = false;
+      const done = (ok: boolean) => {
+        if (settled) return;
+        settled = true;
+        window.removeEventListener('theworld-export', onExport);
+        window.clearTimeout(timer);
+        resolve(ok);
+      };
+      const onExport = (ev: Event) => {
+        const detail = (ev as CustomEvent<{ ok?: boolean }>).detail;
+        done(Boolean(detail?.ok));
+      };
+      const timer = window.setTimeout(() => done(false), 60_000);
+      window.addEventListener('theworld-export', onExport);
+      try {
+        window.TheWorldAndroid!.exportBinaryFile!(safeName, base64, mimeType);
+      } catch {
+        done(false);
+      }
+    });
+  }
+
+  const blob = new Blob([bytes.buffer as ArrayBuffer], { type: mimeType });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = safeName;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  return Promise.resolve(true);
+}
+
 export function createId(prefix = 'id'): string {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
     return `${prefix}_${crypto.randomUUID()}`;

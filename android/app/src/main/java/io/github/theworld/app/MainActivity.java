@@ -42,6 +42,7 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.Locale;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import org.json.JSONObject;
 
 public class MainActivity extends BridgeActivity {
@@ -58,6 +59,8 @@ public class MainActivity extends BridgeActivity {
     private File pendingExportTempFile = null;
     private String pendingExportMime = "text/plain";
     private volatile boolean apkDownloading = false;
+    private final ConcurrentHashMap<String, HttpURLConnection> activeStreams = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, Boolean> abortedStreamIds = new ConcurrentHashMap<>();
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -141,6 +144,14 @@ public class MainActivity extends BridgeActivity {
 
     @Override
     public void onDestroy() {
+        for (HttpURLConnection conn : activeStreams.values()) {
+            try {
+                conn.disconnect();
+            } catch (Exception ignored) {
+            }
+        }
+        activeStreams.clear();
+        abortedStreamIds.clear();
         if (tts != null) {
             try {
                 tts.stop();
@@ -189,6 +200,21 @@ public class MainActivity extends BridgeActivity {
                 ",\"text\":" + JSONObject.quote(text != null ? text : "") +
                 "}";
             String js = "window.dispatchEvent(new CustomEvent('theworld-multipart',{detail:" + detail + "}));";
+            webView.post(() -> webView.evaluateJavascript(js, null));
+        }
+    }
+
+    private void dispatchStreamEvent(String reqId, String type, String data, int status, String message) {
+        if (getBridge() != null && getBridge().getWebView() != null) {
+            WebView webView = getBridge().getWebView();
+            String detail =
+                "{\"reqId\":" + JSONObject.quote(reqId != null ? reqId : "") +
+                ",\"type\":" + JSONObject.quote(type != null ? type : "") +
+                ",\"data\":" + JSONObject.quote(data != null ? data : "") +
+                ",\"status\":" + status +
+                ",\"message\":" + JSONObject.quote(message != null ? message : "") +
+                "}";
+            String js = "window.dispatchEvent(new CustomEvent('theworld-stream',{detail:" + detail + "}));";
             webView.post(() -> webView.evaluateJavascript(js, null));
         }
     }
@@ -578,11 +604,26 @@ public class MainActivity extends BridgeActivity {
 
         @JavascriptInterface
         public void exportTextFile(String filename, String content, String mimeType) {
+            byte[] utf8 = (content != null ? content : "").getBytes(StandardCharsets.UTF_8);
+            exportBytesInternal(filename, utf8, mimeType, "text/plain");
+        }
+
+        @JavascriptInterface
+        public void exportBinaryFile(String filename, String base64Content, String mimeType) {
+            try {
+                byte[] bytes = Base64.decode(base64Content != null ? base64Content : "", Base64.DEFAULT);
+                exportBytesInternal(filename, bytes, mimeType, "application/octet-stream");
+            } catch (Exception e) {
+                dispatchExportEvent(false, false, e.getMessage() != null ? e.getMessage() : "二进制文件编码无效");
+            }
+        }
+
+        private void exportBytesInternal(String filename, byte[] rawBytes, String mimeType, String fallbackMime) {
             String safeName = sanitizeExportFilename(filename);
             String cleanMime = (mimeType != null && !mimeType.trim().isEmpty())
                 ? mimeType.split(";")[0].trim()
-                : "text/plain";
-            String safeContent = content != null ? content : "";
+                : fallbackMime;
+            byte[] safeBytes = rawBytes != null ? rawBytes : new byte[0];
 
             new Thread(() -> {
                 try {
@@ -592,7 +633,7 @@ public class MainActivity extends BridgeActivity {
                     }
                     File tmp = new File(exportsDir, safeName);
                     try (FileOutputStream fos = new FileOutputStream(tmp)) {
-                        fos.write(safeContent.getBytes(StandardCharsets.UTF_8));
+                        fos.write(safeBytes);
                         fos.flush();
                     }
                     runOnUiThread(() -> {
@@ -734,6 +775,138 @@ public class MainActivity extends BridgeActivity {
                     }
                 }
             }, "theworld-multipart-upload").start();
+        }
+
+        @JavascriptInterface
+        public void streamStart(String reqId, String jsonSpec) {
+            new Thread(() -> {
+                HttpURLConnection conn = null;
+                try {
+                    JSONObject spec = new JSONObject(jsonSpec);
+                    String rawUrl = spec.optString("url", "").trim();
+                    if (!rawUrl.startsWith("http://") && !rawUrl.startsWith("https://")) {
+                        dispatchStreamEvent(reqId, "error", "", 400, "不支持的 URL 协议");
+                        return;
+                    }
+                    if (abortedStreamIds.containsKey(reqId)) {
+                        return;
+                    }
+                    JSONObject headersObj = spec.optJSONObject("headers");
+                    String body = spec.optString("body", "");
+
+                    URL url = new URL(rawUrl);
+                    conn = (HttpURLConnection) url.openConnection();
+                    conn.setRequestMethod("POST");
+                    conn.setDoOutput(true);
+                    conn.setDoInput(true);
+                    conn.setConnectTimeout(30000);
+                    conn.setReadTimeout(90000);
+
+                    if (headersObj != null) {
+                        Iterator<String> keys = headersObj.keys();
+                        while (keys.hasNext()) {
+                            String k = keys.next();
+                            conn.setRequestProperty(k, headersObj.optString(k, ""));
+                        }
+                    }
+
+                    activeStreams.put(reqId, conn);
+                    if (abortedStreamIds.containsKey(reqId)) {
+                        conn.disconnect();
+                        return;
+                    }
+
+                    try (OutputStream os = conn.getOutputStream()) {
+                        os.write(body.getBytes(StandardCharsets.UTF_8));
+                        os.flush();
+                    }
+
+                    int status = conn.getResponseCode();
+                    if (status < 200 || status >= 300) {
+                        InputStream errStream = conn.getErrorStream();
+                        String errText = "";
+                        if (errStream != null) {
+                            try (InputStream is = errStream; ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
+                                byte[] buf = new byte[4096];
+                                int len;
+                                while ((len = is.read(buf)) != -1) {
+                                    baos.write(buf, 0, len);
+                                }
+                                errText = new String(baos.toByteArray(), StandardCharsets.UTF_8);
+                            }
+                        }
+                        String msg = "请求失败 (HTTP " + status + ")";
+                        try {
+                            JSONObject errJson = new JSONObject(errText);
+                            JSONObject inner = errJson.optJSONObject("error");
+                            if (inner != null && !inner.optString("message").isEmpty()) {
+                                msg = inner.optString("message");
+                            } else if (!errJson.optString("message").isEmpty()) {
+                                msg = errJson.optString("message");
+                            }
+                        } catch (Exception ignored) {
+                            if (!errText.isEmpty()) {
+                                msg = msg + ": " + (errText.length() > 180 ? errText.substring(0, 180) : errText);
+                            }
+                        }
+                        if (!abortedStreamIds.containsKey(reqId)) {
+                            dispatchStreamEvent(reqId, "error", "", status, msg);
+                        }
+                        return;
+                    }
+
+                    try (InputStream is = conn.getInputStream()) {
+                        byte[] buf = new byte[4096];
+                        int len;
+                        while ((len = is.read(buf)) != -1) {
+                            if (abortedStreamIds.containsKey(reqId)) {
+                                return;
+                            }
+                            if (len > 0) {
+                                String chunk = new String(buf, 0, len, StandardCharsets.UTF_8);
+                                dispatchStreamEvent(reqId, "chunk", chunk, status, "");
+                            }
+                        }
+                    }
+                    if (!abortedStreamIds.containsKey(reqId)) {
+                        dispatchStreamEvent(reqId, "done", "", status, "");
+                    }
+                } catch (Exception e) {
+                    if (!abortedStreamIds.containsKey(reqId)) {
+                        dispatchStreamEvent(
+                            reqId,
+                            "error",
+                            "",
+                            0,
+                            e.getMessage() != null ? e.getMessage() : "原生流式请求失败"
+                        );
+                    }
+                } finally {
+                    activeStreams.remove(reqId);
+                    abortedStreamIds.remove(reqId);
+                    if (conn != null) {
+                        try {
+                            conn.disconnect();
+                        } catch (Exception ignored) {
+                        }
+                    }
+                }
+            }, "theworld-sse-stream").start();
+        }
+
+        @JavascriptInterface
+        public void streamAbort(String reqId) {
+            if (reqId == null || reqId.isEmpty()) return;
+            abortedStreamIds.put(reqId, Boolean.TRUE);
+            HttpURLConnection conn = activeStreams.remove(reqId);
+            if (conn != null) {
+                new Thread(() -> {
+                    try {
+                        conn.disconnect();
+                    } catch (Exception ignored) {
+                    }
+                }, "theworld-sse-abort").start();
+            }
         }
 
         @JavascriptInterface

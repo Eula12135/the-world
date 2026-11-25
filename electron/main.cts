@@ -357,6 +357,29 @@ ipcMain.handle(
     const controller = new AbortController();
     activeStreams.set(params.reqId, { controller, senderId: event.sender.id });
 
+    // 首包连接超时（45s）与流式 chunk 空闲超时（90s，兼容推理模型长思考），防止半开连接永久挂起
+    const FIRST_BYTE_TIMEOUT_MS = 45_000;
+    const IDLE_CHUNK_TIMEOUT_MS = 90_000;
+    let timedOutReason = '';
+    let watchdog: ReturnType<typeof setTimeout> | null = setTimeout(() => {
+      timedOutReason = '连接上游模型接口超时（45 秒未响应），请检查网络或切换节点';
+      controller.abort();
+    }, FIRST_BYTE_TIMEOUT_MS);
+
+    const resetWatchdog = (ms: number, reason: string) => {
+      if (watchdog) clearTimeout(watchdog);
+      watchdog = setTimeout(() => {
+        timedOutReason = reason;
+        controller.abort();
+      }, ms);
+    };
+    const clearWatchdog = () => {
+      if (watchdog) {
+        clearTimeout(watchdog);
+        watchdog = null;
+      }
+    };
+
     try {
       const resp = await fetch(params.url, {
         method: 'POST',
@@ -366,6 +389,7 @@ ipcMain.handle(
       });
 
       if (!resp.ok) {
+        clearWatchdog();
         const text = await resp.text().catch(() => '');
         let message = `请求失败 (HTTP ${resp.status})`;
         try {
@@ -380,15 +404,18 @@ ipcMain.handle(
       }
 
       if (!resp.body) {
+        clearWatchdog();
         safeSend(event.sender, channel, { type: 'error', status: 500, message: '响应流为空' });
         return;
       }
 
+      resetWatchdog(IDLE_CHUNK_TIMEOUT_MS, '流式响应中断超时（超过 90 秒无数据返回）');
       const reader = resp.body.getReader();
       const decoder = new TextDecoder('utf-8');
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
+        resetWatchdog(IDLE_CHUNK_TIMEOUT_MS, '流式响应中断超时（超过 90 秒无数据返回）');
         if (value) {
           const decoded = decoder.decode(value, { stream: true });
           if (decoded) {
@@ -396,13 +423,21 @@ ipcMain.handle(
           }
         }
       }
+      clearWatchdog();
       const tail = decoder.decode();
       if (tail) {
         safeSend(event.sender, channel, { type: 'chunk', data: tail });
       }
       safeSend(event.sender, channel, { type: 'done' });
     } catch (err) {
-      if (!(err instanceof Error && err.name === 'AbortError')) {
+      clearWatchdog();
+      if (timedOutReason) {
+        safeSend(event.sender, channel, {
+          type: 'error',
+          status: 408,
+          message: timedOutReason,
+        });
+      } else if (!(err instanceof Error && err.name === 'AbortError')) {
         safeSend(event.sender, channel, {
           type: 'error',
           status: 0,
@@ -410,6 +445,7 @@ ipcMain.handle(
         });
       }
     } finally {
+      clearWatchdog();
       activeStreams.delete(params.reqId);
     }
   }

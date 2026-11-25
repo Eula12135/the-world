@@ -350,7 +350,78 @@ export function streamChat(
     return cancelDesktopOrFetch;
   }
 
-  // 2. Web & Android Capacitor path
+  // 2. Android Native SSE Stream Bridge: bypasses WebView CORS & mixed-content while preserving true token streaming + abort
+  if (
+    Capacitor.isNativePlatform() &&
+    typeof window !== 'undefined' &&
+    typeof window.TheWorldAndroid?.streamStart === 'function'
+  ) {
+    const reqId = createId('req');
+    let aborted = false;
+
+    const cleanupListener = () => {
+      window.removeEventListener('theworld-stream', onNativeStream);
+    };
+
+    const onNativeStream = (ev: Event) => {
+      if (aborted || settled) return;
+      const detail = (
+        ev as CustomEvent<{
+          reqId?: string;
+          type?: 'chunk' | 'done' | 'error';
+          data?: string;
+          status?: number;
+          message?: string;
+        }>
+      ).detail;
+      if (!detail || detail.reqId !== reqId) return;
+
+      if (detail.type === 'chunk' && detail.data) {
+        processor.feed(detail.data);
+      } else if (detail.type === 'done') {
+        cleanupListener();
+        processor.finish();
+      } else if (detail.type === 'error') {
+        cleanupListener();
+        settled = true;
+        callbacks.onError(
+          new Error(detail.message || `请求失败 (HTTP ${detail.status || 0})`)
+        );
+      }
+    };
+
+    cancelDesktopOrFetch = () => {
+      aborted = true;
+      cleanupListener();
+      try {
+        window.TheWorldAndroid?.streamAbort?.(reqId);
+      } catch {
+        // ignore bridge errors
+      }
+    };
+
+    window.addEventListener('theworld-stream', onNativeStream);
+    try {
+      window.TheWorldAndroid.streamStart(
+        reqId,
+        JSON.stringify({
+          url: streamSpec.url,
+          headers: streamSpec.headers,
+          body: bodyJson,
+        })
+      );
+    } catch (err) {
+      cleanupListener();
+      if (!aborted && !settled) {
+        settled = true;
+        callbacks.onError(err instanceof Error ? err : new Error(String(err)));
+      }
+    }
+
+    return cancelDesktopOrFetch;
+  }
+
+  // 3. Web & legacy Android Capacitor fallback path
   const controller = new AbortController();
   let aborted = false;
   cancelDesktopOrFetch = () => {

@@ -6,6 +6,7 @@ import type {
   ChatMessage,
   ChatSession,
   ImageGenConfig,
+  MediaBlobEntry,
   MediaProviderCredential,
   PersonaPreset,
   ProviderConfig,
@@ -84,6 +85,7 @@ export class TheWorldDatabase extends Dexie {
   personaPresets!: Table<PersonaPreset, string>;
   userPersonas!: Table<UserPersona, string>;
   ttsCache!: Table<TtsCacheEntry, string>;
+  mediaBlobs!: Table<MediaBlobEntry, string>;
   voiceProfiles!: Table<VoiceProfile, string>;
   settings!: Table<AppSettings, string>;
 
@@ -402,6 +404,68 @@ export class TheWorldDatabase extends Dexie {
       voiceProfiles: 'id, updatedAt',
       settings: 'id',
     });
+
+    // v11：新增 mediaBlobs 独立二进制表，将角色立绘与声音样本从主表 Base64 剥离为按需读取的字节块。
+    this.version(11)
+      .stores({
+        providers: 'id, enabled, isCustom',
+        sessions: 'id, updatedAt, pinned, worldId, sourceId',
+        messages: 'id, sessionId, createdAt, [sessionId+createdAt]',
+        worlds: 'id, updatedAt',
+        characters: 'id, worldId, updatedAt',
+        relations: 'id, worldId, sourceId, targetId',
+        timelineEvents: 'id, worldId, orderIndex',
+        personaPresets: 'id, updatedAt',
+        userPersonas: 'id, updatedAt',
+        ttsCache: 'key, lastUsedAt, agnosticKey, sessionId, bytes',
+        mediaBlobs: 'id, createdAt',
+        voiceProfiles: 'id, updatedAt',
+        settings: 'id',
+      })
+      .upgrade(async (tx) => {
+        const parseDataUrlInline = (
+          raw: unknown
+        ): { mimeType: string; bytes: Uint8Array } | null => {
+          if (typeof raw !== 'string' || !raw.startsWith('data:')) return null;
+          const comma = raw.indexOf(',');
+          if (comma === -1) return null;
+          const header = raw.slice(5, comma);
+          const mimeType = header.split(';')[0]?.trim() || 'application/octet-stream';
+          const b64 = raw.slice(comma + 1);
+          try {
+            const bin = atob(b64);
+            const arr = new Uint8Array(bin.length);
+            for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+            return { mimeType, bytes: arr };
+          } catch {
+            return null;
+          }
+        };
+
+        const mediaTable = tx.table('mediaBlobs');
+        const migrateTableImage = async (tableName: string, field: string, prefix: string) => {
+          const rows = await tx.table(tableName).toArray().catch(() => []);
+          for (const row of rows as Array<Record<string, unknown>>) {
+            const parsed = parseDataUrlInline(row[field]);
+            if (!parsed || parsed.bytes.length === 0) continue;
+            const mediaId = `${prefix}_${String(row.id)}`;
+            await mediaTable.put({
+              id: mediaId,
+              mimeType: parsed.mimeType,
+              bytes: parsed.bytes,
+              size: parsed.bytes.length,
+              createdAt: Date.now(),
+            });
+            await tx.table(tableName).update(row.id, {
+              [field]: `idb://media/${mediaId}`,
+            });
+          }
+        };
+
+        await migrateTableImage('characters', 'avatarImage', 'char_avatar');
+        await migrateTableImage('userPersonas', 'avatarImage', 'up_avatar');
+        await migrateTableImage('personaPresets', 'avatarImage', 'preset_avatar');
+      });
   }
 }
 
@@ -653,7 +717,7 @@ export async function deleteWorldCascade(
   const keepChars = Boolean(options?.keepCharacters);
   await db.transaction(
     'rw',
-    [db.worlds, db.characters, db.relations, db.timelineEvents, db.sessions],
+    [db.worlds, db.characters, db.relations, db.timelineEvents, db.sessions, db.mediaBlobs],
     async () => {
       if (keepChars) {
         await db.characters
@@ -664,6 +728,10 @@ export async function deleteWorldCascade(
             c.updatedAt = Date.now();
           });
       } else {
+        const doomedChars = await db.characters.where('worldId').equals(worldId).primaryKeys();
+        if (doomedChars.length > 0) {
+          await db.mediaBlobs.bulkDelete(doomedChars.map((id) => `char_avatar_${id}`));
+        }
         await db.characters.where('worldId').equals(worldId).delete();
       }
       await db.relations.where('worldId').equals(worldId).delete();
@@ -688,10 +756,11 @@ export async function deleteWorldCascade(
 export async function deleteCharacterCascade(characterId: string): Promise<void> {
   await db.transaction(
     'rw',
-    [db.characters, db.relations, db.timelineEvents, db.sessions],
+    [db.characters, db.relations, db.timelineEvents, db.sessions, db.mediaBlobs],
     async () => {
       const char = await db.characters.get(characterId);
       if (!char) return;
+      await db.mediaBlobs.delete(`char_avatar_${characterId}`);
       await db.relations.where('sourceId').equals(characterId).delete();
       await db.relations.where('targetId').equals(characterId).delete();
       if (char.worldId) {

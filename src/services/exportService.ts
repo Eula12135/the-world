@@ -6,6 +6,13 @@ import {
   prepareProviderForStorage,
   prepareSettingsForStorage,
 } from '../db/database';
+import {
+  prepareCharacterForDb,
+  preparePersonaPresetForDb,
+  prepareUserPersonaForDb,
+  prepareVoiceProfileForDb,
+  resolveMediaToDataUrl,
+} from './mediaStore';
 import type {
   Character,
   CharacterRelation,
@@ -179,12 +186,12 @@ export async function exportFullBackupJson(includeApiKeys: boolean): Promise<str
     sessions,
     messages,
     worlds,
-    characters,
+    rawCharacters,
     relations,
     timelineEvents,
-    personaPresets,
-    userPersonas,
-    voiceProfiles,
+    rawPersonaPresets,
+    rawUserPersonas,
+    rawVoiceProfiles,
     settings,
   ] = await Promise.all([
     loadProvidersDecrypted(),
@@ -198,6 +205,33 @@ export async function exportFullBackupJson(includeApiKeys: boolean): Promise<str
     db.userPersonas.toArray(),
     db.voiceProfiles.toArray(),
     loadSettingsDecrypted(),
+  ]);
+
+  const [characters, personaPresets, userPersonas, voiceProfiles] = await Promise.all([
+    Promise.all(
+      rawCharacters.map(async (c) => ({
+        ...c,
+        avatarImage: await resolveMediaToDataUrl(c.avatarImage),
+      }))
+    ),
+    Promise.all(
+      rawPersonaPresets.map(async (p) => ({
+        ...p,
+        avatarImage: await resolveMediaToDataUrl(p.avatarImage),
+      }))
+    ),
+    Promise.all(
+      rawUserPersonas.map(async (p) => ({
+        ...p,
+        avatarImage: await resolveMediaToDataUrl(p.avatarImage),
+      }))
+    ),
+    Promise.all(
+      rawVoiceProfiles.map(async (vp) => ({
+        ...vp,
+        sampleAudio: await resolveMediaToDataUrl(vp.sampleAudio),
+      }))
+    ),
   ]);
 
   const sanitizedProviders: ProviderConfig[] = providers.map((p) => ({
@@ -295,6 +329,106 @@ export async function importFullBackupJson(rawText: string): Promise<{
     encryptedSettings = await prepareSettingsForStorage(merged);
   }
 
+  const preparedImportChars: Character[] = Array.isArray(d.characters)
+    ? await Promise.all(
+        d.characters
+          .filter(
+            (c: any) => c && typeof c === 'object' && typeof c.id === 'string' && c.id.trim()
+          )
+          .map((c: any) =>
+            prepareCharacterForDb({
+              id: c.id,
+              worldId: typeof c.worldId === 'string' ? c.worldId : '',
+              name: typeof c.name === 'string' && c.name.trim() ? c.name : '未命名角色',
+              identity: typeof c.identity === 'string' ? c.identity : '',
+              personality: typeof c.personality === 'string' ? c.personality : '',
+              status: typeof c.status === 'string' ? c.status : '',
+              relationsNote: typeof c.relationsNote === 'string' ? c.relationsNote : '',
+              notes: typeof c.notes === 'string' ? c.notes : '',
+              systemPrompt: typeof c.systemPrompt === 'string' ? c.systemPrompt : undefined,
+              imageFramingId:
+                c.imageFramingId === 'avatar' ||
+                c.imageFramingId === 'halfBody' ||
+                c.imageFramingId === 'scene'
+                  ? c.imageFramingId
+                  : undefined,
+              imageStyleId: typeof c.imageStyleId === 'string' ? c.imageStyleId : undefined,
+              avatarImage: typeof c.avatarImage === 'string' ? c.avatarImage : undefined,
+              avatarColor:
+                typeof c.avatarColor === 'string' && c.avatarColor ? c.avatarColor : '#4d6bfe',
+              voiceName: typeof c.voiceName === 'string' ? c.voiceName : undefined,
+              voiceProfileId: typeof c.voiceProfileId === 'string' ? c.voiceProfileId : undefined,
+              userRelation: normalizeUserRelationHook(c.userRelation),
+              posX: typeof c.posX === 'number' ? c.posX : undefined,
+              posY: typeof c.posY === 'number' ? c.posY : undefined,
+              updatedAt: typeof c.updatedAt === 'number' ? c.updatedAt : Date.now(),
+            })
+          )
+      )
+    : [];
+
+  const rawImportPresets = Array.isArray(d.personaPresets)
+    ? (d.personaPresets as PersonaPreset[])
+    : [];
+  const preparedImportPresets =
+    rawImportPresets.length > 0
+      ? await Promise.all(rawImportPresets.map((p) => preparePersonaPresetForDb(p)))
+      : [];
+  const preparedLegacyCharsFromPresets =
+    rawImportPresets.length > 0
+      ? await Promise.all(
+          rawImportPresets.map((p) =>
+            prepareCharacterForDb({
+              id: p.id,
+              worldId: '',
+              name: p.name || '未命名人设',
+              identity: p.description || '',
+              personality: '',
+              status: '',
+              relationsNote: '',
+              notes: '',
+              systemPrompt: p.systemPrompt || '',
+              avatarImage: p.avatarImage,
+              avatarColor: p.avatarColor || '#4d6bfe',
+              voiceName: p.voiceName,
+              voiceProfileId: p.voiceProfileId,
+              updatedAt: p.updatedAt || Date.now(),
+            })
+          )
+        )
+      : [];
+
+  const preparedImportVoices = Array.isArray(d.voiceProfiles)
+    ? await Promise.all((d.voiceProfiles as VoiceProfile[]).map((vp) => prepareVoiceProfileForDb(vp)))
+    : [];
+
+  const preparedImportUserPersonas: UserPersona[] = Array.isArray(d.userPersonas)
+    ? await Promise.all(
+        (d.userPersonas as UserPersona[])
+          .filter((p) => p && typeof p === 'object' && typeof p.id === 'string' && p.id.trim())
+          .map((p) =>
+            prepareUserPersonaForDb({
+              id: p.id,
+              name: typeof p.name === 'string' && p.name.trim() ? p.name : '未命名身份',
+              addressAs: typeof p.addressAs === 'string' ? p.addressAs : '',
+              aliases: typeof p.aliases === 'string' ? p.aliases : undefined,
+              identity: typeof p.identity === 'string' ? p.identity : '',
+              description: typeof p.description === 'string' ? p.description : '',
+              avatarImage: typeof p.avatarImage === 'string' ? p.avatarImage : undefined,
+              avatarColor:
+                typeof p.avatarColor === 'string' && p.avatarColor ? p.avatarColor : '#4d6bfe',
+              voiceProfileId:
+                typeof p.voiceProfileId === 'string' ? p.voiceProfileId : undefined,
+              voiceName: typeof p.voiceName === 'string' ? p.voiceName : undefined,
+              sourceCharacterId:
+                typeof p.sourceCharacterId === 'string' ? p.sourceCharacterId : undefined,
+              createdAt: typeof p.createdAt === 'number' ? p.createdAt : Date.now(),
+              updatedAt: typeof p.updatedAt === 'number' ? p.updatedAt : Date.now(),
+            })
+          )
+      )
+    : [];
+
   await db.transaction(
     'rw',
     [
@@ -308,6 +442,7 @@ export async function importFullBackupJson(rawText: string): Promise<{
       db.personaPresets,
       db.userPersonas,
       db.voiceProfiles,
+      db.mediaBlobs,
       db.settings,
     ],
     async () => {
@@ -353,86 +488,25 @@ export async function importFullBackupJson(rawText: string): Promise<{
           });
         }
       }
-      if (Array.isArray(d.characters)) {
-        const normalizedChars = d.characters
-          .filter(
-            (c: any) => c && typeof c === 'object' && typeof c.id === 'string' && c.id.trim()
-          )
-          .map((c: any) => ({
-            id: c.id,
-            worldId: typeof c.worldId === 'string' ? c.worldId : '',
-            name: typeof c.name === 'string' && c.name.trim() ? c.name : '未命名角色',
-            identity: typeof c.identity === 'string' ? c.identity : '',
-            personality: typeof c.personality === 'string' ? c.personality : '',
-            status: typeof c.status === 'string' ? c.status : '',
-            relationsNote: typeof c.relationsNote === 'string' ? c.relationsNote : '',
-            notes: typeof c.notes === 'string' ? c.notes : '',
-            systemPrompt: typeof c.systemPrompt === 'string' ? c.systemPrompt : undefined,
-            avatarImage: typeof c.avatarImage === 'string' ? c.avatarImage : undefined,
-            avatarPrompt: typeof c.avatarPrompt === 'string' ? c.avatarPrompt : undefined,
-            avatarColor:
-              typeof c.avatarColor === 'string' && c.avatarColor ? c.avatarColor : '#4d6bfe',
-            voiceName: typeof c.voiceName === 'string' ? c.voiceName : undefined,
-            voiceProfileId: typeof c.voiceProfileId === 'string' ? c.voiceProfileId : undefined,
-            userRelation: normalizeUserRelationHook(c.userRelation),
-            updatedAt: typeof c.updatedAt === 'number' ? c.updatedAt : Date.now(),
-          }));
-        if (normalizedChars.length > 0) {
-          await db.characters.bulkPut(normalizedChars);
-        }
+      if (preparedImportChars.length > 0) {
+        await db.characters.bulkPut(preparedImportChars);
       }
       if (Array.isArray(d.relations)) await db.relations.bulkPut(d.relations);
       if (Array.isArray(d.timelineEvents)) await db.timelineEvents.bulkPut(d.timelineEvents);
-      if (Array.isArray(d.personaPresets)) {
-        const presets = d.personaPresets as PersonaPreset[];
-        await db.personaPresets.bulkPut(presets);
-        for (const p of presets) {
-          const existing = await db.characters.get(p.id);
+      if (preparedImportPresets.length > 0) {
+        await db.personaPresets.bulkPut(preparedImportPresets);
+        for (const legChar of preparedLegacyCharsFromPresets) {
+          const existing = await db.characters.get(legChar.id);
           if (!existing) {
-            await db.characters.put({
-              id: p.id,
-              worldId: '',
-              name: p.name || '未命名人设',
-              identity: p.description || '',
-              personality: '',
-              status: '',
-              relationsNote: '',
-              notes: '',
-              systemPrompt: p.systemPrompt || '',
-              avatarImage: p.avatarImage,
-              avatarColor: p.avatarColor || '#4d6bfe',
-              voiceName: p.voiceName,
-              voiceProfileId: p.voiceProfileId,
-              updatedAt: p.updatedAt || Date.now(),
-            });
+            await db.characters.put(legChar);
           }
         }
       }
-      if (Array.isArray(d.voiceProfiles)) {
-        await db.voiceProfiles.bulkPut(d.voiceProfiles as VoiceProfile[]);
+      if (preparedImportVoices.length > 0) {
+        await db.voiceProfiles.bulkPut(preparedImportVoices);
       }
-      if (Array.isArray(d.userPersonas)) {
-        const personas = (d.userPersonas as UserPersona[])
-          .filter((p) => p && typeof p === 'object' && typeof p.id === 'string' && p.id.trim())
-          .map((p) => ({
-            id: p.id,
-            name: typeof p.name === 'string' && p.name.trim() ? p.name : '未命名身份',
-            addressAs: typeof p.addressAs === 'string' ? p.addressAs : '',
-            aliases: typeof p.aliases === 'string' ? p.aliases : undefined,
-            identity: typeof p.identity === 'string' ? p.identity : '',
-            description: typeof p.description === 'string' ? p.description : '',
-            avatarImage: typeof p.avatarImage === 'string' ? p.avatarImage : undefined,
-            avatarColor:
-              typeof p.avatarColor === 'string' && p.avatarColor ? p.avatarColor : '#4d6bfe',
-            voiceProfileId:
-              typeof p.voiceProfileId === 'string' ? p.voiceProfileId : undefined,
-            voiceName: typeof p.voiceName === 'string' ? p.voiceName : undefined,
-            sourceCharacterId:
-              typeof p.sourceCharacterId === 'string' ? p.sourceCharacterId : undefined,
-            createdAt: typeof p.createdAt === 'number' ? p.createdAt : Date.now(),
-            updatedAt: typeof p.updatedAt === 'number' ? p.updatedAt : Date.now(),
-          }));
-        if (personas.length > 0) await db.userPersonas.bulkPut(personas);
+      if (preparedImportUserPersonas.length > 0) {
+        await db.userPersonas.bulkPut(preparedImportUserPersonas);
       }
       if (encryptedSettings) {
         await db.settings.put(encryptedSettings);
