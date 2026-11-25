@@ -52,7 +52,7 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
       <div className="h-full w-full flex items-center justify-center bg-canvas text-ink p-4">
         <div className="max-w-md w-full rounded-xl border border-line bg-card p-6 space-y-4 shadow-lg">
           <div className="flex items-start gap-3">
-            <div className="w-10 h-10 rounded-xl bg-red-500/10 text-red-500 flex items-center justify-center shrink-0">
+            <div className="w-10 h-10 rounded-xl bg-danger/10 text-danger flex items-center justify-center shrink-0">
               <AlertTriangle className="w-5 h-5" />
             </div>
             <div className="space-y-1 min-w-0">

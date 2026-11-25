@@ -426,7 +426,7 @@ export const Sidebar: React.FC = () => {
                                 </button>
                                 <button
                                   onClick={() => handleDeleteSession(s)}
-                                  className="w-full flex items-center gap-2 px-3 py-2 text-left text-red-500 hover:bg-red-500/10 cursor-pointer"
+                                  className="w-full flex items-center gap-2 px-3 py-2 text-left text-danger hover:bg-danger/10 cursor-pointer"
                                 >
                                   <Trash2 className="w-3.5 h-3.5" />
                                   <span>删除对话</span>

@@ -1,9 +1,15 @@
 import React from 'react';
 import { AlertTriangle, X } from 'lucide-react';
+import { useShallow } from 'zustand/react/shallow';
 import { useAppStore } from '../../store/useAppStore';
 
 export const ConfirmDialog: React.FC = () => {
-  const { confirmRequest, requestConfirm } = useAppStore();
+  const { confirmRequest, requestConfirm } = useAppStore(
+    useShallow((s) => ({
+      confirmRequest: s.confirmRequest,
+      requestConfirm: s.requestConfirm,
+    }))
+  );
   if (!confirmRequest) return null;
 
   const handleConfirm = async () => {
@@ -20,17 +26,17 @@ export const ConfirmDialog: React.FC = () => {
 
   return (
     <div
-      className="fixed inset-0 z-50 bg-black/55 backdrop-blur-[2px] flex items-center justify-center p-4"
+      className="fixed inset-0 z-50 bg-[#111827]/45 flex items-center justify-center p-4 anim-overlay"
       onClick={() => requestConfirm(null)}
     >
       <div
-        className="w-full max-w-md rounded-xl bg-card border border-line shadow-2xl p-5 space-y-4"
+        className="w-full max-w-md rounded-xl bg-card border border-line shadow-2xl p-5 space-y-4 anim-panel"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-center gap-2.5">
             {confirmRequest.danger !== false && (
-              <div className="w-9 h-9 rounded-xl bg-red-500/12 text-red-500 flex items-center justify-center shrink-0">
+              <div className="w-9 h-9 rounded-xl bg-danger/12 text-danger flex items-center justify-center shrink-0">
                 <AlertTriangle className="w-4.5 h-4.5" />
               </div>
             )}
@@ -63,10 +69,10 @@ export const ConfirmDialog: React.FC = () => {
           )}
           <button
             onClick={handleConfirm}
-            className={`px-4 py-2 rounded-xl text-[13px] font-medium text-white cursor-pointer ${
+            className={`px-4 py-2 rounded-xl text-[13px] font-medium cursor-pointer ${
               confirmRequest.danger !== false
-                ? 'bg-red-500 hover:bg-red-600'
-                : 'bg-accent hover:opacity-90'
+                ? 'bg-danger/15 text-danger border border-danger/30 hover:bg-danger/20'
+                : 'bg-accent text-white hover:opacity-90'
             }`}
           >
             {confirmRequest.confirmLabel || '确认删除'}

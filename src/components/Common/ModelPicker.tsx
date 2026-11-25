@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Check, ChevronDown, KeyRound, Search, X } from 'lucide-react';
+import { useShallow } from 'zustand/react/shallow';
 import { useAppStore } from '../../store/useAppStore';
 import { pushBackLayer } from '../../utils/backStack';
 
@@ -11,7 +12,12 @@ interface ModelPickerProps {
 }
 
 export const ModelPicker: React.FC<ModelPickerProps> = ({ providerId, model, onSelect }) => {
-  const { providers, setActiveModal } = useAppStore();
+  const { providers, setActiveModal } = useAppStore(
+    useShallow((s) => ({
+      providers: s.providers,
+      setActiveModal: s.setActiveModal,
+    }))
+  );
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [dropdownOffset, setDropdownOffset] = useState<number>(64);

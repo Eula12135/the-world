@@ -320,7 +320,7 @@ export const MessageItem: React.FC<MessageItemProps> = React.memo(({
               </button>
               <button
                 onClick={handleDelete}
-                className="flex items-center gap-1 px-2 py-1 rounded-lg text-body text-dim hover:text-red-500 hover:bg-red-500/10 cursor-pointer"
+                className="flex items-center gap-1 px-2 py-1 rounded-lg text-body text-dim hover:text-danger hover:bg-danger/10 cursor-pointer"
               >
                 <Trash2 className="w-3.5 h-3.5" />
                 <span>删除</span>

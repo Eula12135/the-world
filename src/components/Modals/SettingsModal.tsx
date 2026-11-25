@@ -36,7 +36,7 @@ const WORLD_CHAR_PRESETS = [
 ];
 
 
-export const SettingsModal: React.FC = () => {
+export const SettingsModal: React.FC<{ closing?: boolean }> = ({ closing = false }) => {
   const {
     activeModal,
     setActiveModal,
@@ -85,12 +85,13 @@ export const SettingsModal: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    if (activeModal !== 'settings') {
+    if (activeModal !== 'settings' && !closing) {
       apkCleanupRef.current?.();
       apkCleanupRef.current = null;
       setApkProgress(null);
       return;
     }
+    if (closing) return;
     setCheckErr(null);
     if (window.theWorldDesktop?.isEncryptionAvailable) {
       window.theWorldDesktop
@@ -100,9 +101,7 @@ export const SettingsModal: React.FC = () => {
     } else {
       setDesktopEncrypted(null);
     }
-  }, [activeModal]);
-
-  if (activeModal !== 'settings') return null;
+  }, [activeModal, closing]);
 
   const readyProvider = providers.find((p) => p.enabled && isProviderReady(p));
   const voiceSummary = settings.voice.ttsEngine === 'native' ? '系统原生' : 'API 音色';
@@ -147,13 +146,11 @@ export const SettingsModal: React.FC = () => {
 
   return (
     <div
-      className="fixed inset-0 z-50 bg-black/55 md:bg-black/45 backdrop-blur-[2px] flex items-stretch md:items-center justify-center p-0 md:p-4 anim-overlay"
-      onClick={() => setActiveModal('none')}
+      className={`w-full h-full md:h-auto md:max-w-lg md:max-h-[88vh] bg-card md:rounded-xl md:border md:border-line md:shadow-2xl flex flex-col overflow-hidden ${
+        closing ? 'anim-page-out' : 'anim-page'
+      }`}
+      onClick={(e) => e.stopPropagation()}
     >
-      <div
-        className="w-full h-full md:h-auto md:max-w-lg md:max-h-[88vh] bg-card md:rounded-xl md:border md:border-line md:shadow-2xl flex flex-col overflow-hidden anim-page"
-        onClick={(e) => e.stopPropagation()}
-      >
         <div className="flex items-center gap-2 px-3 md:px-5 py-2.5 md:py-3.5 border-b border-line shrink-0 safe-top">
           <button
             onClick={() => setActiveModal('none')}
@@ -238,7 +235,7 @@ export const SettingsModal: React.FC = () => {
                   step={0.05}
                   value={settings.temperature}
                   onChange={(e) => updateSettings({ temperature: Number(e.target.value) })}
-                  className="w-full accent-[#4d6bfe]"
+                  className="w-full accent-[var(--accent)]"
                 />
               </div>
 
@@ -379,7 +376,7 @@ export const SettingsModal: React.FC = () => {
               <span>启动时自动检测更新源新版本</span>
             </label>
 
-            {checkErr && <div className="text-body text-red-500">{checkErr}</div>}
+            {checkErr && <div className="text-body text-danger">{checkErr}</div>}
 
             {checkResult && (
               <div className="p-3 rounded-control bg-canvas border border-line space-y-1.5 text-body">
@@ -469,7 +466,7 @@ export const SettingsModal: React.FC = () => {
                         )}
                         <div
                           className={`text-caption ${
-                            apkProgress.status === 'error' ? 'text-red-500' : 'text-secondary'
+                            apkProgress.status === 'error' ? 'text-danger' : 'text-secondary'
                           }`}
                         >
                           {apkProgress.message}
@@ -568,7 +565,6 @@ export const SettingsModal: React.FC = () => {
             )}
           </section>
         </div>
-      </div>
     </div>
   );
 };

@@ -16,7 +16,7 @@ export const ToastHost: React.FC = () => {
           {t.tone === 'success' ? (
             <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
           ) : t.tone === 'error' ? (
-            <XCircle className="w-4 h-4 text-red-500 shrink-0" />
+            <XCircle className="w-4 h-4 text-danger shrink-0" />
           ) : (
             <Info className="w-4 h-4 text-accent shrink-0" />
           )}

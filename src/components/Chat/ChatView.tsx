@@ -404,7 +404,7 @@ export const ChatView: React.FC = () => {
                   stopSpeaking();
                   setSpeakingMessageId(null);
                 }}
-                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl text-body border border-red-500/40 bg-red-500/10 text-red-500 font-medium hover:bg-red-500/15 transition cursor-pointer"
+                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl text-body border border-line bg-muted text-ink font-medium hover:bg-hover transition cursor-pointer"
                 title="立即中断当前语音朗读"
               >
                 <Square className="w-3 h-3 fill-current" />
@@ -420,7 +420,7 @@ export const ChatView: React.FC = () => {
           {isCurrentSessionStreaming ? (
             <button
               onClick={stopStreaming}
-              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-body font-medium bg-red-500 text-white hover:bg-red-600 cursor-pointer shrink-0"
+              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-body font-medium border border-line bg-muted text-ink hover:bg-hover cursor-pointer shrink-0"
             >
               <Square className="w-3.5 h-3.5 fill-current" />
               <span>停止生成</span>
@@ -536,7 +536,7 @@ export const ChatView: React.FC = () => {
 
           {streamingError && (
             <div className="max-w-3xl w-full mx-auto px-3 md:px-6 pb-2">
-              <div className="flex items-center justify-between gap-2 px-3.5 py-2 rounded-xl bg-red-500/10 border border-red-500/30 text-red-500 text-body">
+              <div className="flex items-center justify-between gap-2 px-3.5 py-2 rounded-xl bg-danger/10 border border-danger/30 text-danger text-body">
                 <span className="flex items-center gap-1.5">
                   <AlertCircle className="w-4 h-4 shrink-0" />
                   <span>{streamingError}</span>

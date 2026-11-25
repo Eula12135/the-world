@@ -365,7 +365,7 @@ export const UserIdentitySection: React.FC<UserIdentitySectionProps> = ({
               <button
                 type="button"
                 onClick={handleDeletePersona}
-                className="text-dim hover:text-red-500 hover:underline cursor-pointer"
+                className="text-dim hover:text-danger hover:underline cursor-pointer"
               >
                 删除该身份
               </button>

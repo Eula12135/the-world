@@ -10,6 +10,7 @@ import {
   Users,
   X,
 } from 'lucide-react';
+import { useShallow } from 'zustand/react/shallow';
 import { useAppStore } from '../../store/useAppStore';
 import { UserIdentitySection } from '../Chat/UserIdentitySection';
 import type { ChatMode, SessionUserRelationOverride, UserIdentityRef } from '../../types';
@@ -28,7 +29,22 @@ export const SessionModeModal: React.FC = () => {
     selectWorld,
     setActiveView,
     openStandaloneCharacters,
-  } = useAppStore();
+  } = useAppStore(
+    useShallow((s) => ({
+      sessions: s.sessions,
+      activeSessionId: s.activeSessionId,
+      draftConfig: s.draftConfig,
+      updateDraftConfig: s.updateDraftConfig,
+      updateSession: s.updateSession,
+      worlds: s.worlds,
+      characters: s.characters,
+      personaPresets: s.personaPresets,
+      inheritUserRelationOverride: s.inheritUserRelationOverride,
+      selectWorld: s.selectWorld,
+      setActiveView: s.setActiveView,
+      openStandaloneCharacters: s.openStandaloneCharacters,
+    }))
+  );
 
   const [open, setOpen] = useState(false);
   const [charFilter, setCharFilter] = useState<string>('all');
@@ -177,11 +193,11 @@ export const SessionModeModal: React.FC = () => {
         typeof document !== 'undefined' &&
         createPortal(
           <div
-            className="fixed inset-0 z-50 bg-black/55 backdrop-blur-[2px] flex items-end md:items-center justify-center p-0 md:p-4"
+            className="fixed inset-0 z-50 bg-[#111827]/45 flex items-end md:items-center justify-center p-0 md:p-4 anim-overlay"
             onClick={() => setOpen(false)}
           >
             <div
-              className="w-full md:max-w-xl rounded-t-2xl md:rounded-xl bg-card border border-line shadow-2xl overflow-hidden flex flex-col max-h-[88vh]"
+              className="w-full md:max-w-xl rounded-t-2xl md:rounded-xl bg-card border border-line shadow-2xl overflow-hidden flex flex-col max-h-[88vh] anim-panel"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="flex items-center justify-between px-4 py-3 border-b border-line shrink-0">

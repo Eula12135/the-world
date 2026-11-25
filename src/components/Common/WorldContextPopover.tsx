@@ -293,11 +293,11 @@ export const WorldContextPopover: React.FC<WorldContextPopoverProps> = ({ draftI
         typeof document !== 'undefined' &&
         createPortal(
           <div
-            className="fixed inset-0 z-50 bg-black/55 backdrop-blur-[2px] flex items-end md:items-center justify-center p-0 md:p-4"
+            className="fixed inset-0 z-50 bg-[#111827]/45 flex items-end md:items-center justify-center p-0 md:p-4 anim-overlay"
             onClick={() => setOpen(false)}
           >
           <div
-            className="w-full md:max-w-xl rounded-t-2xl md:rounded-xl bg-card border border-line shadow-2xl overflow-hidden flex flex-col max-h-[85vh]"
+            className="w-full md:max-w-xl rounded-t-2xl md:rounded-xl bg-card border border-line shadow-2xl overflow-hidden flex flex-col max-h-[85vh] anim-panel"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header Tabs */}

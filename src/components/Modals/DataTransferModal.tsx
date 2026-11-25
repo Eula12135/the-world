@@ -9,6 +9,7 @@ import {
   Upload,
   X,
 } from 'lucide-react';
+import { useShallow } from 'zustand/react/shallow';
 import { useAppStore } from '../../store/useAppStore';
 import {
   materializeImportedSessions,
@@ -23,9 +24,8 @@ import {
 import { db } from '../../db/database';
 import { downloadTextFile } from '../../utils/platform';
 
-export const DataTransferModal: React.FC = () => {
+export const DataTransferModal: React.FC<{ closing?: boolean }> = ({ closing = false }) => {
   const {
-    activeModal,
     setActiveModal,
     sessions,
     activeSessionId,
@@ -34,7 +34,18 @@ export const DataTransferModal: React.FC = () => {
     settings,
     reloadAll,
     showToast,
-  } = useAppStore();
+  } = useAppStore(
+    useShallow((s) => ({
+      setActiveModal: s.setActiveModal,
+      sessions: s.sessions,
+      activeSessionId: s.activeSessionId,
+      messages: s.messages,
+      providers: s.providers,
+      settings: s.settings,
+      reloadAll: s.reloadAll,
+      showToast: s.showToast,
+    }))
+  );
 
   const dsFileRef = useRef<HTMLInputElement>(null);
   const backupFileRef = useRef<HTMLInputElement>(null);
@@ -43,8 +54,6 @@ export const DataTransferModal: React.FC = () => {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [includeKeys, setIncludeKeys] = useState(false);
   const [notice, setNotice] = useState<{ ok: boolean; text: string } | null>(null);
-
-  if (activeModal !== 'dataTransfer') return null;
 
   const activeSession = sessions.find((s) => s.id === activeSessionId);
 
@@ -132,13 +141,11 @@ export const DataTransferModal: React.FC = () => {
 
   return (
     <div
-      className="fixed inset-0 z-50 bg-black/55 backdrop-blur-[2px] flex items-center justify-center p-3 md:p-4"
-      onClick={() => setActiveModal('none')}
+      className={`w-full h-full md:h-auto md:max-w-2xl md:max-h-[88vh] bg-card md:rounded-xl md:border md:border-line md:shadow-2xl flex flex-col overflow-hidden ${
+        closing ? 'anim-page-out' : 'anim-page'
+      }`}
+      onClick={(e) => e.stopPropagation()}
     >
-      <div
-        className="w-full max-w-2xl max-h-[88vh] rounded-xl bg-card border border-line shadow-2xl flex flex-col overflow-hidden"
-        onClick={(e) => e.stopPropagation()}
-      >
         <div className="flex items-center justify-between px-5 py-3.5 border-b border-line">
           <h2 className="text-[17px] font-semibold text-ink">DeepSeek 记录导入与数据备份</h2>
           <button
@@ -155,7 +162,7 @@ export const DataTransferModal: React.FC = () => {
               className={`px-3.5 py-2.5 rounded-xl border ${
                 notice.ok
                   ? 'bg-emerald-500/10 border-emerald-500/35 text-emerald-500'
-                  : 'bg-red-500/10 border-red-500/35 text-red-500'
+                  : 'bg-danger/10 border-danger/35 text-danger'
               }`}
             >
               {notice.text}
@@ -325,7 +332,6 @@ export const DataTransferModal: React.FC = () => {
             </label>
           </div>
         </div>
-      </div>
     </div>
   );
 };

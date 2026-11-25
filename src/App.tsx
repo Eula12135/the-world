@@ -4,21 +4,23 @@ import { useShallow } from 'zustand/react/shallow';
 import { useAppStore } from './store/useAppStore';
 import { AppShell } from './components/Layout/AppShell';
 import { ChatView } from './components/Chat/ChatView';
+import { AnimatedModalHost } from './components/Common/AnimatedModalHost';
 import { ConfirmDialog } from './components/Common/ConfirmDialog';
 import { ToastHost } from './components/Common/ToastHost';
 
-const WorldsView = lazy(() =>
-  import('./components/Worlds/WorldsView').then((m) => ({ default: m.WorldsView }))
-);
-const ProvidersModal = lazy(() =>
-  import('./components/Modals/ProvidersModal').then((m) => ({ default: m.ProvidersModal }))
-);
-const DataTransferModal = lazy(() =>
-  import('./components/Modals/DataTransferModal').then((m) => ({ default: m.DataTransferModal }))
-);
-const SettingsModal = lazy(() =>
-  import('./components/Modals/SettingsModal').then((m) => ({ default: m.SettingsModal }))
-);
+const loadWorldsView = () =>
+  import('./components/Worlds/WorldsView').then((m) => ({ default: m.WorldsView }));
+const loadProvidersModal = () =>
+  import('./components/Modals/ProvidersModal').then((m) => ({ default: m.ProvidersModal }));
+const loadDataTransferModal = () =>
+  import('./components/Modals/DataTransferModal').then((m) => ({ default: m.DataTransferModal }));
+const loadSettingsModal = () =>
+  import('./components/Modals/SettingsModal').then((m) => ({ default: m.SettingsModal }));
+
+const WorldsView = lazy(loadWorldsView);
+const ProvidersModal = lazy(loadProvidersModal);
+const DataTransferModal = lazy(loadDataTransferModal);
+const SettingsModal = lazy(loadSettingsModal);
 import {
   type ApkUpdateProgress,
   canInAppAndroidUpdate,
@@ -41,7 +43,7 @@ export const App: React.FC = () => {
       if (closeTopBackLayer()) return;
       const s = useAppStore.getState();
       if (s.activeModal !== 'none') {
-        s.setActiveModal('none');
+        s.closeOrStepBackModal();
         return;
       }
       if (s.activeView !== 'chat') {
@@ -101,6 +103,37 @@ export const App: React.FC = () => {
     init();
   }, [init]);
 
+  // 首屏就绪后在浏览器空闲帧预热弹窗与工坊 chunk，消除第一次点「设置 / 配置 API」的加载卡顿
+  useEffect(() => {
+    if (!initialized) return;
+    const warm = () => {
+      void loadSettingsModal();
+      void loadProvidersModal();
+      void loadDataTransferModal();
+      void loadWorldsView();
+    };
+    const win = window as Window & {
+      requestIdleCallback?: (cb: () => void) => number;
+      cancelIdleCallback?: (id: number) => void;
+    };
+    if (typeof win.requestIdleCallback === 'function') {
+      const id = win.requestIdleCallback(warm);
+      return () => win.cancelIdleCallback?.(id);
+    }
+    const timer = globalThis.setTimeout(warm, 180);
+    return () => globalThis.clearTimeout(timer);
+  }, [initialized]);
+
+  // 键盘 Escape 按弹窗栈逐级回退（比如从配置 API 退回设置，再按一次关掉设置）
+  useEffect(() => {
+    const onModalEsc = () => {
+      if (closeTopBackLayer()) return;
+      useAppStore.getState().closeOrStepBackModal();
+    };
+    window.addEventListener('theworld-modal-esc', onModalEsc);
+    return () => window.removeEventListener('theworld-modal-esc', onModalEsc);
+  }, []);
+
   // Silent update check if repo/manifest is configured or baked in
   useEffect(() => {
     const source = updateRepo?.trim() || DEFAULT_UPDATE_SOURCE;
@@ -146,7 +179,7 @@ export const App: React.FC = () => {
       <div className="h-full w-full flex items-center justify-center bg-canvas text-ink p-4">
         <div className="max-w-md w-full rounded-xl border border-line bg-card p-6 space-y-4 shadow-lg">
           <div className="flex items-start gap-3">
-            <div className="w-10 h-10 rounded-xl bg-red-500/10 text-red-500 flex items-center justify-center shrink-0">
+            <div className="w-10 h-10 rounded-xl bg-danger/10 text-danger flex items-center justify-center shrink-0">
               <AlertTriangle className="w-5 h-5" />
             </div>
             <div className="space-y-1 min-w-0">
@@ -303,11 +336,23 @@ export const App: React.FC = () => {
           </Suspense>
         )}
       </AppShell>
-      <Suspense fallback={null}>
-        {activeModal === 'providers' && <ProvidersModal />}
-        {activeModal === 'dataTransfer' && <DataTransferModal />}
-        {activeModal === 'settings' && <SettingsModal />}
-      </Suspense>
+      <AnimatedModalHost
+        activeModal={activeModal}
+        renderModal={(displayedModal, closing) => (
+          <div
+            className={`fixed inset-0 z-50 bg-[#111827]/45 flex items-stretch md:items-center justify-center p-0 md:p-4 ${
+              closing ? 'anim-overlay-out' : 'anim-overlay'
+            }`}
+            onClick={() => useAppStore.getState().setActiveModal('none')}
+          >
+            <Suspense fallback={null}>
+              {displayedModal === 'providers' && <ProvidersModal closing={closing} />}
+              {displayedModal === 'dataTransfer' && <DataTransferModal closing={closing} />}
+              {displayedModal === 'settings' && <SettingsModal closing={closing} />}
+            </Suspense>
+          </div>
+        )}
+      />
       <ConfirmDialog />
       <ToastHost />
     </>

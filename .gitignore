@@ -3,6 +3,7 @@ dist/
 dist-electron/
 release/
 android/app/build/
+android/app/src/main/assets/public/
 android/.gradle/
 android/local.properties
 *.local

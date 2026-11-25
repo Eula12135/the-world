@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Download, X } from 'lucide-react';
+import { resolveMediaToDataUrl } from '../../services/mediaStore';
 import { pushBackLayer } from '../../utils/backStack';
 
 interface ImageLightboxProps {
@@ -149,14 +150,15 @@ export const ImageLightbox: React.FC<ImageLightboxProps> = ({ src, alt = '图片
     else setScale(2.5);
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     const filename = `the-world-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}.png`;
     try {
       // 必须通过对象调用：把桥方法取出来单独调用会丢失 this，
       // Android 的 addJavascriptInterface 会抛异常。
       const bridge = window.TheWorldAndroid;
       if (bridge && typeof bridge.saveImageToGallery === 'function') {
-        bridge.saveImageToGallery(src, filename);
+        const resolvedDataUrl = (await resolveMediaToDataUrl(src)) || src;
+        bridge.saveImageToGallery(resolvedDataUrl, filename);
         return;
       }
       const a = document.createElement('a');
@@ -228,7 +230,7 @@ export const ImageLightbox: React.FC<ImageLightboxProps> = ({ src, alt = '图片
           <Download className="w-4 h-4" />
           <span>{saveState === 'done' ? '已保存' : saveState === 'error' ? '保存失败' : '下载图片'}</span>
         </button>
-        <div className={`text-[11.5px] ${saveState === 'error' ? 'text-red-300' : 'text-white/45'}`}>
+        <div className={`text-[11.5px] ${saveState === 'error' ? 'text-danger' : 'text-white/45'}`}>
           {saveMessage || '双击或双指放大 · 点击任意处关闭'}
         </div>
       </div>
