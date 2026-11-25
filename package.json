@@ -19,6 +19,7 @@
     "android:sync": "npm run build && npx cap sync android",
     "serve:lan": "node scripts/lan-update-server.mjs",
     "release:gitee": "node scripts/publish-gitee.mjs",
+    "verify:release": "node scripts/verify-release.mjs",
     "test": "vitest run",
     "typecheck": "tsc --noEmit && tsc -p tsconfig.electron.json --noEmit"
   },
