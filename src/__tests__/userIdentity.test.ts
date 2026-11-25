@@ -332,6 +332,16 @@ describe('resolveUserAddress', () => {
     expect(resolveUserAddress({ identity: unnamedPersona, roleCharacter })).toBe('旅人');
   });
 
+  it('uses the character name instead of AI card defaultAddress when playing as another character card', () => {
+    const watsonCard = makeCharacter({ id: 'c_watson', name: '约翰·H·华生' });
+    const asCharacter = resolveUserIdentity(
+      { kind: 'character', id: 'c_watson' },
+      [],
+      [watsonCard]
+    )!;
+    expect(resolveUserAddress({ identity: asCharacter, roleCharacter })).toBe('约翰·H·华生');
+  });
+
   it('falls back to the identity name when nothing else applies', () => {
     expect(resolveUserAddress({ identity: unnamedPersona, roleCharacter: null })).toBe('无名');
     expect(resolveUserAddress({ identity: null })).toBe('');

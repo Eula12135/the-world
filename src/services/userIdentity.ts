@@ -260,6 +260,12 @@ export function resolveUserAddress(params: {
   const fromIdentity = (identity.addressAs || '').trim();
   if (fromIdentity) return fromIdentity;
 
+  // 当「我」扮演的是另一张角色卡时，应该使用该角色的真实姓名，
+  // 而不是 AI 角色卡面向匿名用户的默认称呼（如「先生/旅人」）。
+  if (identity.kind === 'character') {
+    return identity.name;
+  }
+
   const fromCard = (roleCharacter?.userRelation?.defaultAddress || '').trim();
   if (fromCard) return fromCard;
 
