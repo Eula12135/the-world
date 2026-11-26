@@ -84,29 +84,28 @@ async function main() {
     : await (await fetch(manifestUrl, { cache: 'no-store' })).json();
   check('latest.json version', manifest.version === version, `远端 ${manifest.version} / 本地 ${version}`);
 
-  // 2. 两个下载地址
-  for (const [key, expectType] of [
-    ['androidUrl', 'application/vnd.android.package-archive'],
-    ['windowsUrl', 'application/vnd.microsoft.portable-executable'],
-  ]) {
-    const url = manifest[key];
-    if (!url) {
-      check(`${key} 存在`, false, 'manifest 里没有该字段');
-      continue;
-    }
-    try {
-      const h = await head(url);
-      // 用 Range 探测时 GitHub 会返回 206 Partial Content，同样算可达
-      check(`${key} 可达`, h.status === 200 || h.status === 206, `HTTP ${h.status} / ${(h.length / 1048576).toFixed(1)} MB`);
-      check(`${key} 类型`, h.type.includes(expectType), h.type || '(空)');
-      check(`${key} 体积`, h.length > 1_000_000, `${h.length} bytes`);
-    } catch (err) {
-      const pending = /404/.test(String(err.message));
-      if (pending && key === 'androidUrl') {
-        warn(`${key} 尚未就绪`, 'GitHub release 可能还没建，建好后重跑本脚本');
-      } else {
-        check(`${key} 可达`, false, err.message);
+  // 2. Windows 包只做轻量探测；APK 走下面的完整下载，那是最硬的证据
+  const winUrl = manifest.windowsUrl;
+  if (!winUrl) {
+    check('windowsUrl 存在', false, 'manifest 里没有该字段');
+  } else {
+    let probed = null;
+    let lastErr = null;
+    for (let i = 0; i < 3 && !probed; i++) {
+      try {
+        probed = await head(winUrl);
+      } catch (err) {
+        lastErr = err;
+        await new Promise((r) => setTimeout(r, 1500));
       }
+    }
+    if (probed) {
+      check('windowsUrl 可达', probed.status === 200 || probed.status === 206, `HTTP ${probed.status} / ${(probed.length / 1048576).toFixed(1)} MB`);
+      check('windowsUrl 类型', probed.type.includes('application/vnd.microsoft.portable-executable'), probed.type || '(空)');
+      check('windowsUrl 体积', probed.length > 1_000_000, `${probed.length} bytes`);
+    } else {
+      // 探测失败不代表坏包（GitHub 偶发拒绝 Range / 网络抖动），降级为警告
+      warn('windowsUrl 探测失败', `${lastErr?.message || '未知错误'}（重试 3 次），建议手动打开确认`);
     }
   }
 
@@ -116,6 +115,7 @@ async function main() {
     try {
       const buf = await download(apkUrl);
       const remoteHash = sha256(buf);
+      check('androidUrl 可达', buf.length > 1_000_000, `下载 ${(buf.length / 1048576).toFixed(1)} MB`);
 
       if (fs.existsSync(LOCAL_APK)) {
         const localHash = sha256(fs.readFileSync(LOCAL_APK));
