@@ -3,6 +3,7 @@ import { ArrowLeft, Plus, Trash2 } from 'lucide-react';
 import type { Character, CharacterRelation, RelationType, TimelineEvent } from '../../types';
 import { RELATION_TYPE_META } from '../../services/temporalGraph';
 import { createId } from '../../utils/platform';
+import { OptionPicker } from '../Common/OptionPicker';
 
 const ALL_RELATION_TYPES = Object.entries(RELATION_TYPE_META) as Array<
   [RelationType, { label: string; color: string }]
@@ -64,31 +65,33 @@ export const RelationPhaseEditor: React.FC<RelationPhaseEditorProps> = ({
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end">
             <div>
               <label className="block mb-1.5 font-medium text-secondary">角色 A</label>
-              <select
+              <OptionPicker
                 value={editing.sourceId}
-                onChange={(e) => setEditing({ ...editing, sourceId: e.target.value })}
-                className="w-full px-3 py-2 rounded-xl bg-canvas border border-line text-ink outline-none"
-              >
-                {worldChars.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
+                items={worldChars.map((c) => ({
+                  value: c.id,
+                  label: c.name,
+                  color: c.avatarColor,
+                  image: c.avatarImage,
+                }))}
+                onChange={(val) => setEditing({ ...editing, sourceId: val })}
+                searchable={worldChars.length > 8}
+                searchPlaceholder="搜索角色…"
+              />
             </div>
             <div>
               <label className="block mb-1.5 font-medium text-secondary">角色 B</label>
-              <select
+              <OptionPicker
                 value={editing.targetId}
-                onChange={(e) => setEditing({ ...editing, targetId: e.target.value })}
-                className="w-full px-3 py-2 rounded-xl bg-canvas border border-line text-ink outline-none"
-              >
-                {worldChars.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
+                items={worldChars.map((c) => ({
+                  value: c.id,
+                  label: c.name,
+                  color: c.avatarColor,
+                  image: c.avatarImage,
+                }))}
+                onChange={(val) => setEditing({ ...editing, targetId: val })}
+                searchable={worldChars.length > 8}
+                searchPlaceholder="搜索角色…"
+              />
             </div>
             <label className="flex items-center gap-2 py-2 cursor-pointer text-ink">
               <input
@@ -157,10 +160,18 @@ export const RelationPhaseEditor: React.FC<RelationPhaseEditorProps> = ({
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div>
                     <label className="block mb-1 text-[13px] text-secondary">生效时间节点</label>
-                    <select
+                    <OptionPicker
                       value={ph.fromEventId || ''}
-                      onChange={(e) => {
-                        const nextVal = e.target.value || undefined;
+                      items={[
+                        { value: '', label: '故事初始状态' },
+                        ...orderedEvents.map((ev) => ({
+                          value: ev.id,
+                          label: `事件「${ev.title}」之后`,
+                          hint: ev.timeLabel || undefined,
+                        })),
+                      ]}
+                      onChange={(val) => {
+                        const nextVal = val || undefined;
                         setEditing({
                           ...editing,
                           phases: editing.phases.map((p) =>
@@ -168,23 +179,22 @@ export const RelationPhaseEditor: React.FC<RelationPhaseEditorProps> = ({
                           ),
                         });
                       }}
-                      className="w-full px-3 py-2 rounded-xl bg-canvas border border-line text-ink outline-none"
-                    >
-                      <option value="">故事初始状态</option>
-                      {orderedEvents.map((ev) => (
-                        <option key={ev.id} value={ev.id}>
-                          事件「{ev.title}」之后
-                        </option>
-                      ))}
-                    </select>
+                      searchable={orderedEvents.length > 8}
+                      searchPlaceholder="搜索时间线事件…"
+                    />
                   </div>
 
                   <div>
                     <label className="block mb-1 text-[13px] text-secondary">关系性质</label>
-                    <select
+                    <OptionPicker
                       value={ph.type}
-                      onChange={(e) => {
-                        const t = e.target.value as RelationType;
+                      items={ALL_RELATION_TYPES.map(([k, v]) => ({
+                        value: k,
+                        label: v.label,
+                        color: v.color,
+                      }))}
+                      onChange={(val) => {
+                        const t = val as RelationType;
                         const defLabel = RELATION_TYPE_META[t].label;
                         setEditing({
                           ...editing,
@@ -193,14 +203,7 @@ export const RelationPhaseEditor: React.FC<RelationPhaseEditorProps> = ({
                           ),
                         });
                       }}
-                      className="w-full px-3 py-2 rounded-xl bg-canvas border border-line text-ink outline-none"
-                    >
-                      {ALL_RELATION_TYPES.map(([k, v]) => (
-                        <option key={k} value={k}>
-                          {v.label}
-                        </option>
-                      ))}
-                    </select>
+                    />
                   </div>
 
                   <div>

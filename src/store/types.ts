@@ -187,6 +187,8 @@ export interface WorldSlice {
     relations: CharacterRelation[];
   }) => Promise<void>;
   upsertCharacter: (char: Character) => Promise<void>;
+  toggleCharacterPin: (id: string) => Promise<void>;
+  reorderCharacters: (worldId: string, orderedIds: string[]) => Promise<void>;
   deleteCharacter: (id: string) => Promise<void>;
   upsertRelation: (rel: CharacterRelation) => Promise<void>;
   deleteRelation: (id: string) => Promise<void>;

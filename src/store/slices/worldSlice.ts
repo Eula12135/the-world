@@ -14,6 +14,7 @@ import {
   releaseMediaRefCache,
 } from '../../services/mediaStore';
 import type { WorldProject } from '../../types';
+import { sortCharacters } from '../../utils/characterSort';
 import { createId } from '../../utils/platform';
 import { loadWorldChildren } from '../helpers';
 import type { AppSliceCreator, WorldSlice } from '../types';
@@ -171,27 +172,28 @@ export const createWorldSlice: AppSliceCreator<WorldSlice> = (set, get) => ({
   upsertCharacter: async (char) => {
     const prev = await db.characters.get(char.id);
     const prepared = await prepareCharacterForDb(char);
-    const worldChanged = Boolean(prev && prev.worldId && prev.worldId !== prepared.worldId);
-    if (worldChanged && prev) {
+    const worldChanged = Boolean(prev && prev.worldId !== prepared.worldId);
+    const recordToSave = worldChanged ? { ...prepared, sortOrder: undefined } : prepared;
+    if (worldChanged && prev && prev.worldId) {
       await db.transaction('rw', [db.characters, db.relations, db.timelineEvents], async () => {
-        await db.relations.where('sourceId').equals(prepared.id).delete();
-        await db.relations.where('targetId').equals(prepared.id).delete();
+        await db.relations.where('sourceId').equals(recordToSave.id).delete();
+        await db.relations.where('targetId').equals(recordToSave.id).delete();
         const oldEvents = await db.timelineEvents.where('worldId').equals(prev.worldId).toArray();
         for (const ev of oldEvents) {
-          if (ev.characterIds.includes(prepared.id)) {
+          if (ev.characterIds.includes(recordToSave.id)) {
             await db.timelineEvents.update(ev.id, {
-              characterIds: ev.characterIds.filter((id) => id !== prepared.id),
+              characterIds: ev.characterIds.filter((id) => id !== recordToSave.id),
             });
           }
         }
-        await db.characters.put(prepared);
+        await db.characters.put(recordToSave);
       });
     } else {
-      await db.characters.put(prepared);
+      await db.characters.put(recordToSave);
     }
 
-    if (prepared.worldId) {
-      await db.worlds.update(prepared.worldId, { updatedAt: Date.now() }).catch(() => {});
+    if (recordToSave.worldId) {
+      await db.worlds.update(recordToSave.worldId, { updatedAt: Date.now() }).catch(() => {});
     }
 
     if (worldChanged) {
@@ -201,6 +203,73 @@ export const createWorldSlice: AppSliceCreator<WorldSlice> = (set, get) => ({
       const characters = await hydrateCharactersFromDb(await db.characters.toArray());
       set({ characters });
     }
+  },
+
+  toggleCharacterPin: async (id) => {
+    const inMemory = get().characters;
+    const target = inMemory.find((c) => c.id === id) ?? (await db.characters.get(id));
+    if (!target) return;
+
+    const nextPinned = !target.pinned;
+    const siblingPool =
+      inMemory.length > 0
+        ? inMemory.filter((c) => c.worldId === target.worldId)
+        : await db.characters.where('worldId').equals(target.worldId).toArray();
+
+    const sameGroup = sortCharacters(
+      siblingPool.filter((c) => c.id !== id && Boolean(c.pinned) === nextPinned)
+    );
+
+    const patches = new Map<string, { pinned?: boolean; sortOrder: number }>();
+    patches.set(id, { pinned: nextPinned, sortOrder: 0 });
+    sameGroup.forEach((c, idx) => {
+      patches.set(c.id, { sortOrder: (idx + 1) * 10 });
+    });
+
+    // 1. 0ms 同步乐观更新内存态，UI 当帧立即响应并播放 FLIP 过渡
+    if (inMemory.some((c) => c.id === id)) {
+      set((state) => ({
+        characters: state.characters.map((c) => {
+          const patch = patches.get(c.id);
+          return patch ? { ...c, ...patch } : c;
+        }),
+      }));
+    }
+
+    // 2. 单事务并行落盘，不做全表重读与媒体二次水合
+    await db.transaction('rw', db.characters, async () => {
+      await Promise.all(
+        Array.from(patches.entries()).map(([cid, patch]) => db.characters.update(cid, patch))
+      );
+    });
+
+    if (!inMemory.some((c) => c.id === id)) {
+      const characters = await hydrateCharactersFromDb(await db.characters.toArray());
+      set({ characters });
+    }
+  },
+
+  reorderCharacters: async (worldId, orderedIds) => {
+    if (orderedIds.length === 0) return;
+    const orderMap = new Map<string, number>();
+    orderedIds.forEach((id, idx) => {
+      orderMap.set(id, idx * 10);
+    });
+
+    // 先同步更新内存态，松手瞬间零闪烁
+    set((state) => ({
+      characters: state.characters.map((c) =>
+        c.worldId === worldId && orderMap.has(c.id)
+          ? { ...c, sortOrder: orderMap.get(c.id)! }
+          : c
+      ),
+    }));
+
+    await db.transaction('rw', db.characters, async () => {
+      for (const [id, sortOrder] of orderMap.entries()) {
+        await db.characters.update(id, { sortOrder });
+      }
+    });
   },
 
   deleteCharacter: async (id) => {

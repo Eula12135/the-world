@@ -5,6 +5,8 @@ import {
   ChevronRight,
   Download,
   MessageSquare,
+  MoreHorizontal,
+  Pin,
   Plus,
   Square,
   Trash2,
@@ -86,6 +88,7 @@ interface CharacterEditorProps {
   onBack: () => void;
   onSave: () => Promise<Character | null>;
   onDelete: (char: Character) => void;
+  onTogglePin?: (char: Character) => void;
   onStartRoleChat: (char: Character) => void;
   onOpenVoiceStudio: (subTab: 'library' | 'create') => void;
   onOpenImageConfig: () => void;
@@ -114,6 +117,7 @@ export const CharacterEditor: React.FC<CharacterEditorProps> = ({
   onBack,
   onSave,
   onDelete,
+  onTogglePin,
   onStartRoleChat,
   onOpenVoiceStudio,
   onOpenImageConfig,
@@ -129,38 +133,32 @@ export const CharacterEditor: React.FC<CharacterEditorProps> = ({
   const [showCustomVoiceInput, setShowCustomVoiceInput] = useState(false);
   const [previewingVoice, setPreviewingVoice] = useState(false);
   const [previewImage, setPreviewImage] = useState<{ src: string; alt: string } | null>(null);
+  const [moreMenuOpen, setMoreMenuOpen] = useState(false);
 
   const updateUserHook = (patch: Partial<NonNullable<Character['userRelation']>>) => {
     setEditing({ ...editing, userRelation: { ...(editing.userRelation || {}), ...patch } });
   };
 
+  const hasMoreActions = Boolean(
+    onTogglePin || (editing.name.trim() && onExportCard) || isSaved
+  );
+
   return (
     <>
       <div className="flex-1 flex flex-col min-h-0 rounded-xl bg-card border border-line overflow-hidden">
-        <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 border-b border-line bg-sidebar">
+        <div className="flex items-center justify-between gap-2 px-4 py-3 border-b border-line bg-sidebar shrink-0">
           <button
             onClick={() => {
               setPreviewImage(null);
               onBack();
             }}
-            className="flex items-center gap-1.5 text-[13px] font-medium text-secondary hover:text-ink cursor-pointer"
+            className="flex items-center gap-1.5 text-[13px] font-medium text-secondary hover:text-ink cursor-pointer shrink-0"
           >
             <ArrowLeft className="w-4 h-4" />
             <span>返回角色列表</span>
           </button>
 
-          <div className="flex flex-wrap items-center gap-2">
-            {editing.name.trim() && onExportCard && (
-              <button
-                type="button"
-                onClick={() => onExportCard(editing)}
-                className="flex items-center gap-1 px-3 py-1.5 rounded-xl text-[13px] border border-line bg-canvas text-secondary hover:text-ink hover:bg-hover cursor-pointer whitespace-nowrap"
-                title="打包导出可分享角色卡（含立绘与音色信息，自动剥离 API Key）"
-              >
-                <Download className="w-3.5 h-3.5" />
-                <span>分享卡片</span>
-              </button>
-            )}
+          <div className="flex items-center gap-2 shrink-0">
             {editing.name.trim() && (
               <button
                 type="button"
@@ -168,16 +166,8 @@ export const CharacterEditor: React.FC<CharacterEditorProps> = ({
                 className="flex items-center gap-1 px-3 py-1.5 rounded-xl text-[13px] border border-accent/40 bg-accent-soft text-accent font-medium hover:opacity-90 cursor-pointer whitespace-nowrap"
               >
                 <MessageSquare className="w-3.5 h-3.5" />
-                <span>以该角色对话</span>
-              </button>
-            )}
-            {isSaved && (
-              <button
-                onClick={() => onDelete(editing)}
-                className="flex items-center gap-1 px-3 py-1.5 rounded-xl text-[13px] text-danger border border-danger/30 hover:bg-danger/10 cursor-pointer whitespace-nowrap"
-              >
-                <Trash2 className="w-3.5 h-3.5" />
-                <span>删除</span>
+                <span className="hidden sm:inline">以该角色对话</span>
+                <span className="sm:hidden">对话</span>
               </button>
             )}
             <button
@@ -187,6 +177,68 @@ export const CharacterEditor: React.FC<CharacterEditorProps> = ({
             >
               保存角色
             </button>
+            {hasMoreActions && (
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setMoreMenuOpen((v) => !v)}
+                  className="p-1.5 rounded-xl border border-line bg-canvas text-secondary hover:text-ink hover:bg-hover cursor-pointer"
+                  title="更多操作"
+                  aria-label="更多操作"
+                >
+                  <MoreHorizontal className="w-4 h-4" />
+                </button>
+                {moreMenuOpen && (
+                  <>
+                    <div
+                      className="fixed inset-0 z-30"
+                      onClick={() => setMoreMenuOpen(false)}
+                    />
+                    <div className="absolute right-0 top-full mt-1.5 z-40 w-44 rounded-xl bg-card border border-line shadow-xl py-1.5 text-[13px]">
+                      {onTogglePin && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setMoreMenuOpen(false);
+                            onTogglePin(editing);
+                          }}
+                          className="w-full flex items-center gap-2 px-3.5 py-2 text-left text-ink hover:bg-hover cursor-pointer"
+                        >
+                          <Pin className={`w-3.5 h-3.5 ${editing.pinned ? 'text-accent fill-current' : ''}`} />
+                          <span>{editing.pinned ? '取消置顶' : '置顶角色'}</span>
+                        </button>
+                      )}
+                      {editing.name.trim() && onExportCard && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setMoreMenuOpen(false);
+                            onExportCard(editing);
+                          }}
+                          className="w-full flex items-center gap-2 px-3.5 py-2 text-left text-ink hover:bg-hover cursor-pointer"
+                        >
+                          <Download className="w-3.5 h-3.5" />
+                          <span>分享角色卡片</span>
+                        </button>
+                      )}
+                      {isSaved && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setMoreMenuOpen(false);
+                            onDelete(editing);
+                          }}
+                          className="w-full flex items-center gap-2 px-3.5 py-2 text-left text-danger hover:bg-danger/10 cursor-pointer"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                          <span>删除角色</span>
+                        </button>
+                      )}
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
           </div>
         </div>
 
@@ -436,24 +488,23 @@ export const CharacterEditor: React.FC<CharacterEditorProps> = ({
                       placeholder="默认称呼，例如：旅人"
                       className="w-full px-2.5 py-1.5 rounded-lg bg-canvas border border-line text-[13px] text-ink outline-none focus:border-accent"
                     />
-                    <select
+                    <OptionPicker
+                      compact
                       value={editing.userRelation?.defaultRelationType || ''}
-                      onChange={(e) =>
+                      items={[
+                        { value: '', label: '默认关系类型：不指定' },
+                        ...(Object.keys(RELATION_TYPE_META) as RelationType[]).map((t) => ({
+                          value: t,
+                          label: RELATION_TYPE_META[t].label,
+                          color: RELATION_TYPE_META[t].color,
+                        })),
+                      ]}
+                      onChange={(val) =>
                         updateUserHook({
-                          defaultRelationType: (e.target.value || undefined) as
-                            | RelationType
-                            | undefined,
+                          defaultRelationType: (val || undefined) as RelationType | undefined,
                         })
                       }
-                      className="w-full px-2.5 py-1.5 rounded-lg bg-canvas border border-line text-[13px] text-ink outline-none focus:border-accent"
-                    >
-                      <option value="">默认关系类型：不指定</option>
-                      {(Object.keys(RELATION_TYPE_META) as RelationType[]).map((t) => (
-                        <option key={t} value={t}>
-                          {RELATION_TYPE_META[t].label}
-                        </option>
-                      ))}
-                    </select>
+                    />
                   </div>
                   <input
                     value={editing.userRelation?.defaultRelationLabel || ''}

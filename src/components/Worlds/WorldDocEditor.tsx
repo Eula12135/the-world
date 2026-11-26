@@ -635,7 +635,7 @@ export const WorldDocEditor: React.FC<WorldDocEditorProps> = ({ world }) => {
                       </div>
                     </div>
 
-                    <div className="p-3">
+                    <div className="px-3.5 py-2.5">
                       <textarea
                         ref={(el) => {
                           bodyRefs.current[sec.id] = el;
@@ -651,7 +651,7 @@ export const WorldDocEditor: React.FC<WorldDocEditorProps> = ({ world }) => {
                           );
                         }}
                         placeholder="写下这一章节的设定内容..."
-                        className="w-full bg-canvas/70 rounded-xl border border-line p-3 text-[15px] leading-7 text-ink outline-none focus:border-accent resize-y placeholder:text-dim"
+                        className="w-full bg-transparent text-[15px] leading-7 text-ink outline-none resize-y placeholder:text-dim"
                       />
                     </div>
                   </div>

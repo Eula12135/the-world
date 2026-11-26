@@ -84,6 +84,10 @@ export const SwipeNavigator: React.FC<{ children: React.ReactNode }> = ({ childr
     const onMove = (e: TouchEvent) => {
       const s = start.current;
       if (!s?.active) return;
+      if (document.body.dataset.cardDragging === 'true') {
+        start.current = null;
+        return;
+      }
       const touch = e.touches[0];
       if (!touch) return;
       const dx = touch.clientX - s.x;

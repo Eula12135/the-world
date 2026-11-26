@@ -229,6 +229,10 @@ export interface Character {
   voiceProfileId?: string;
   /** 与「我」的关系钩子（可选）：AI 扮演该角色时默认怎么称呼用户、默认是什么关系 */
   userRelation?: CharacterUserRelationHook;
+  /** 是否置顶角色卡 */
+  pinned?: boolean;
+  /** 自定义排序权重（越小越靠前） */
+  sortOrder?: number;
   posX?: number;
   posY?: number;
   updatedAt: number;

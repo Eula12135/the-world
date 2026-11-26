@@ -19,6 +19,8 @@ import {
   type ExtractedWorldData,
 } from '../../services/worldImport';
 import { WORLD_GENRES } from '../../data/worldTemplates';
+import { pushBackLayer } from '../../utils/backStack';
+import { OptionPicker } from '../Common/OptionPicker';
 
 interface WorldImportModalProps {
   open: boolean;
@@ -73,6 +75,11 @@ export const WorldImportModal: React.FC<WorldImportModalProps> = ({
       providers[0],
     [providers, settings.defaultProviderId]
   );
+
+  useEffect(() => {
+    if (!open) return;
+    return pushBackLayer(onClose);
+  }, [open, onClose]);
 
   useEffect(() => {
     if (!open) return;
@@ -345,39 +352,33 @@ export const WorldImportModal: React.FC<WorldImportModalProps> = ({
           {/* Model selector for AI extraction */}
           {activeProvider && (
             <div className="p-3 rounded-xl bg-sidebar border border-line space-y-2">
-              <div className="flex flex-wrap items-center gap-2 text-[13px]">
-                <span className="text-secondary font-medium shrink-0">AI 提取模型：</span>
-                <select
+              <div className="text-secondary font-medium text-[13px]">AI 提取模型</div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <OptionPicker
+                  compact
                   value={activeProvider.id}
-                  onChange={(e) => {
-                    const nextP = providers.find((p) => p.id === e.target.value);
+                  items={providers.map((p) => ({ value: p.id, label: p.name }))}
+                  onChange={(val) => {
+                    const nextP = providers.find((p) => p.id === val);
                     if (nextP) {
                       setSelectedProviderId(nextP.id);
                       const nonReasoner = nextP.models.find(
                         (m) => !/reasoner|\br1\b|^o[13]/i.test(m)
                       );
-                      setSelectedModel(nonReasoner || nextP.selectedModel || nextP.models[0] || '');
+                      setSelectedModel(
+                        nonReasoner || nextP.selectedModel || nextP.models[0] || ''
+                      );
                     }
                   }}
-                  className="px-2.5 py-1 rounded-lg bg-canvas border border-line text-ink text-[13px] outline-none"
-                >
-                  {providers.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name}
-                    </option>
-                  ))}
-                </select>
-                <select
+                />
+                <OptionPicker
+                  compact
                   value={activeModel}
-                  onChange={(e) => setSelectedModel(e.target.value)}
-                  className="px-2.5 py-1 rounded-lg bg-canvas border border-line text-ink font-mono text-[13px] outline-none max-w-[220px]"
-                >
-                  {activeProvider.models.map((m) => (
-                    <option key={m} value={m}>
-                      {m}
-                    </option>
-                  ))}
-                </select>
+                  items={activeProvider.models.map((m) => ({ value: m, label: m }))}
+                  onChange={(val) => setSelectedModel(val)}
+                  searchable={activeProvider.models.length > 8}
+                  searchPlaceholder="搜索模型…"
+                />
               </div>
               {isReasoningSelected && (
                 <div className="flex items-center gap-1.5 text-[11.5px] text-amber-500">

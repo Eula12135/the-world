@@ -359,6 +359,11 @@ export async function importFullBackupJson(rawText: string): Promise<{
               voiceName: typeof c.voiceName === 'string' ? c.voiceName : undefined,
               voiceProfileId: typeof c.voiceProfileId === 'string' ? c.voiceProfileId : undefined,
               userRelation: normalizeUserRelationHook(c.userRelation),
+              pinned: typeof c.pinned === 'boolean' ? c.pinned : undefined,
+              sortOrder:
+                typeof c.sortOrder === 'number' && Number.isFinite(c.sortOrder)
+                  ? c.sortOrder
+                  : undefined,
               posX: typeof c.posX === 'number' ? c.posX : undefined,
               posY: typeof c.posY === 'number' ? c.posY : undefined,
               updatedAt: typeof c.updatedAt === 'number' ? c.updatedAt : Date.now(),

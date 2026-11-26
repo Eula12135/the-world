@@ -26,6 +26,7 @@ import {
 import { uploadClonedVoice } from '../../../services/voiceService';
 import { pushBackLayer } from '../../../utils/backStack';
 import { downloadBinaryFile, downloadTextFile, sanitizeFilename } from '../../../utils/platform';
+import { OptionPicker } from '../../Common/OptionPicker';
 
 interface CharacterCardShareModalProps {
   mode: 'export' | 'import';
@@ -498,18 +499,18 @@ export const CharacterCardShareModal: React.FC<CharacterCardShareModalProps> = (
 
                   <div>
                     <label className="block mb-1 text-caption text-secondary">导入到哪里</label>
-                    <select
+                    <OptionPicker
                       value={targetWorldId}
-                      onChange={(e) => setTargetWorldId(e.target.value)}
-                      className="w-full px-3 py-2 rounded-control bg-canvas border border-line text-ink outline-none"
-                    >
-                      <option value="">独立角色库（不绑定作品）</option>
-                      {worlds.map((w) => (
-                        <option key={w.id} value={w.id}>
-                          《{w.name}》{w.genre ? ` · ${w.genre}` : ''}
-                        </option>
-                      ))}
-                    </select>
+                      items={[
+                        { value: '', label: '独立角色库（不绑定作品）' },
+                        ...worlds.map((w) => ({
+                          value: w.id,
+                          label: `《${w.name}》`,
+                          hint: w.genre || undefined,
+                        })),
+                      ]}
+                      onChange={setTargetWorldId}
+                    />
                   </div>
 
                   <div className="flex justify-end gap-2 pt-1">

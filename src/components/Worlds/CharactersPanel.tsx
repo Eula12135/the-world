@@ -1,10 +1,22 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { Download, MessageSquare, Plus, Search, Trash2, Upload, Users } from 'lucide-react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  Download,
+  GripVertical,
+  MessageSquare,
+  Pin,
+  Plus,
+  Search,
+  Trash2,
+  Upload,
+  Users,
+} from 'lucide-react';
 import { useShallow } from 'zustand/react/shallow';
 import { useAppStore } from '../../store/useAppStore';
 import type { Character } from '../../types';
 import { buildCharacterImagePrompt } from '../../services/imageGenService';
 import { stopSpeaking } from '../../services/voiceService';
+import { sortCharacters } from '../../utils/characterSort';
+import { useSmoothGridSort } from '../../utils/useSmoothGridSort';
 import { createId } from '../../utils/platform';
 import { getFramingById, resolveImageFraming } from '../../utils/imageFraming';
 import { resolveCharacterStylePrompt } from '../../data/imageStyles';
@@ -19,6 +31,8 @@ export const CharactersPanel: React.FC<{ worldId: string }> = ({ worldId }) => {
     settings,
     voiceProfiles,
     upsertCharacter,
+    toggleCharacterPin,
+    reorderCharacters,
     deleteCharacter,
     startNewDraft,
     openProvidersModal,
@@ -36,6 +50,8 @@ export const CharactersPanel: React.FC<{ worldId: string }> = ({ worldId }) => {
       settings: s.settings,
       voiceProfiles: s.voiceProfiles,
       upsertCharacter: s.upsertCharacter,
+      toggleCharacterPin: s.toggleCharacterPin,
+      reorderCharacters: s.reorderCharacters,
       deleteCharacter: s.deleteCharacter,
       startNewDraft: s.startNewDraft,
       openProvidersModal: s.openProvidersModal,
@@ -58,6 +74,7 @@ export const CharactersPanel: React.FC<{ worldId: string }> = ({ worldId }) => {
   const [cardModal, setCardModal] = useState<
     { mode: 'import' } | { mode: 'export'; target: Character } | null
   >(null);
+  const panelScrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!editing || !lastCreatedVoiceForTarget) return;
@@ -80,23 +97,52 @@ export const CharactersPanel: React.FC<{ worldId: string }> = ({ worldId }) => {
     return targetWid ? worlds.find((w) => w.id === targetWid) : undefined;
   }, [worlds, editing, worldId]);
 
-  const worldChars = useMemo(
-    () =>
-      characters
-        .filter((c) => c.worldId === worldId)
-        .filter((c) => {
-          const q = query.trim().toLowerCase();
-          if (!q) return true;
-          return (
-            c.name.toLowerCase().includes(q) ||
-            c.identity.toLowerCase().includes(q) ||
-            c.personality.toLowerCase().includes(q) ||
-            (c.systemPrompt || '').toLowerCase().includes(q)
-          );
-        })
-        .sort((a, b) => b.updatedAt - a.updatedAt),
-    [characters, worldId, query]
-  );
+  const isSearching = query.trim().length > 0;
+
+  const worldChars = useMemo(() => {
+    const filtered = characters
+      .filter((c) => c.worldId === worldId)
+      .filter((c) => {
+        const q = query.trim().toLowerCase();
+        if (!q) return true;
+        return (
+          c.name.toLowerCase().includes(q) ||
+          c.identity.toLowerCase().includes(q) ||
+          c.personality.toLowerCase().includes(q) ||
+          (c.systemPrompt || '').toLowerCase().includes(q)
+        );
+      });
+    return sortCharacters(filtered);
+  }, [characters, worldId, query]);
+
+  const canDragSort = !isSearching && worldChars.length > 1;
+
+  const { gridRef, captureFlipSnapshot, bindCardDragProps, shouldSuppressCardClick } =
+    useSmoothGridSort({
+      items: worldChars,
+      enabled: canDragSort,
+      scrollContainerRef: panelScrollRef,
+      onReorder: (orderedIds) => {
+        void reorderCharacters(worldId, orderedIds);
+      },
+    });
+
+  const handleTogglePin = (char: Character, fromEditor = false) => {
+    const isSavedChar = characters.some((c) => c.id === char.id);
+    if (!isSavedChar) {
+      setEditing((prev) => (prev && prev.id === char.id ? { ...prev, pinned: !prev.pinned } : prev));
+      return;
+    }
+    const nextPinned = !char.pinned;
+    if (!fromEditor) {
+      captureFlipSnapshot(char.id);
+    }
+    void toggleCharacterPin(char.id);
+    setEditing((prev) => (prev && prev.id === char.id ? { ...prev, pinned: nextPinned } : prev));
+    if (fromEditor) {
+      showToast(nextPinned ? `已置顶「${char.name}」` : `已取消置顶「${char.name}」`, 'info');
+    }
+  };
 
   const openEditor = (char: Character) => {
     const targetWorld = char.worldId ? worlds.find((w) => w.id === char.worldId) : undefined;
@@ -256,6 +302,7 @@ export const CharactersPanel: React.FC<{ worldId: string }> = ({ worldId }) => {
           onBack={() => setEditing(null)}
           onSave={handleSave}
           onDelete={handleDelete}
+          onTogglePin={(char) => handleTogglePin(char, true)}
           onStartRoleChat={(char) => void handleStartRoleChat(char)}
           onOpenVoiceStudio={(subTab) => void handleOpenVoiceStudioForEditing(subTab)}
           onOpenImageConfig={() => openProvidersModal('image')}
@@ -275,7 +322,7 @@ export const CharactersPanel: React.FC<{ worldId: string }> = ({ worldId }) => {
   }
 
   return (
-    <div className="flex-1 overflow-y-auto space-y-4">
+    <div ref={panelScrollRef} className="flex-1 overflow-y-auto space-y-4">
       {worldId === '' && (
         <div className="px-3.5 py-2 rounded-xl bg-accent-soft/70 border border-accent/25 text-[13px] text-secondary">
           <span className="font-medium text-accent">独立角色库</span> ·
@@ -322,25 +369,47 @@ export const CharactersPanel: React.FC<{ worldId: string }> = ({ worldId }) => {
           </p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+        <div ref={gridRef} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           {worldChars.map((c) => (
             <div
               key={c.id}
-              onClick={() => openEditor(c)}
-              className="p-4 rounded-xl bg-card border border-line hover:border-accent/50 transition cursor-pointer flex flex-col justify-between gap-3"
+              data-char-card-id={c.id}
+              {...bindCardDragProps(c.id)}
+              onClick={() => {
+                if (shouldSuppressCardClick()) return;
+                openEditor(c);
+              }}
+              className={`p-4 rounded-xl bg-card border transition-colors cursor-pointer flex flex-col justify-between gap-3 ${
+                c.pinned
+                  ? 'border-accent/40 hover:border-accent/70'
+                  : 'border-line hover:border-accent/50'
+              }`}
             >
               <div className="space-y-2">
                 <div className="flex items-start justify-between gap-2">
-                  <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="flex items-center gap-2 min-w-0">
+                    {canDragSort && (
+                      <span
+                        data-drag-handle="true"
+                        data-no-swipe="true"
+                        onClick={(e) => e.stopPropagation()}
+                        className="p-1.5 -ml-2 rounded-lg text-dim hover:text-ink hover:bg-hover cursor-grab active:cursor-grabbing touch-none shrink-0"
+                        title="按住拖动调整顺序"
+                        aria-label={`拖动排序 ${c.name}`}
+                      >
+                        <GripVertical className="w-4 h-4" />
+                      </span>
+                    )}
                     {c.avatarImage ? (
                       <img
                         src={c.avatarImage}
                         alt={c.name}
-                        className="w-10 h-10 rounded-full object-cover border border-line shrink-0"
+                        draggable={false}
+                        className="w-10 h-10 rounded-full object-cover border border-line shrink-0 select-none"
                       />
                     ) : (
                       <div
-                        className="w-10 h-10 rounded-full flex items-center justify-center text-white font-semibold text-sm shrink-0"
+                        className="w-10 h-10 rounded-full flex items-center justify-center text-white font-semibold text-sm shrink-0 select-none"
                         style={{ backgroundColor: c.avatarColor || '#4d6bfe' }}
                       >
                         {c.name.slice(0, 1)}
@@ -348,9 +417,16 @@ export const CharactersPanel: React.FC<{ worldId: string }> = ({ worldId }) => {
                     )}
                     <div className="min-w-0">
                       <div className="flex items-center gap-1.5">
-                        <span className="text-[15px] font-semibold text-ink truncate">{c.name}</span>
+                        <span className="text-[15px] font-semibold text-ink truncate">
+                          {c.name}
+                        </span>
+                        {c.pinned && (
+                          <span className="px-1.5 py-0.5 rounded text-[11.5px] bg-accent-soft text-accent font-medium shrink-0">
+                            置顶
+                          </span>
+                        )}
                         {c.systemPrompt?.trim() && (
-                          <span className="px-1.5 py-0.5 rounded text-[11.5px] bg-accent-soft text-accent shrink-0">
+                          <span className="px-1.5 py-0.5 rounded text-[11.5px] bg-muted text-secondary shrink-0">
                             自由提示词
                           </span>
                         )}
@@ -361,6 +437,22 @@ export const CharactersPanel: React.FC<{ worldId: string }> = ({ worldId }) => {
                     </div>
                   </div>
                   <div className="flex items-center gap-0.5 shrink-0">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleTogglePin(c);
+                      }}
+                      className={`p-1.5 rounded-lg cursor-pointer transition-colors ${
+                        c.pinned
+                          ? 'text-accent bg-accent-soft'
+                          : 'text-dim hover:text-ink hover:bg-hover'
+                      }`}
+                      title={c.pinned ? '取消置顶' : '置顶角色'}
+                      aria-label={c.pinned ? '取消置顶' : '置顶角色'}
+                    >
+                      <Pin className={`w-3.5 h-3.5 ${c.pinned ? 'fill-current' : ''}`} />
+                    </button>
                     <button
                       type="button"
                       onClick={(e) => {
@@ -386,7 +478,11 @@ export const CharactersPanel: React.FC<{ worldId: string }> = ({ worldId }) => {
                 </div>
 
                 <p className="text-[13px] text-secondary line-clamp-2 leading-relaxed">
-                  {c.personality || c.systemPrompt || c.relationsNote || c.notes || '点击编辑角色详情...'}
+                  {c.personality ||
+                    c.systemPrompt ||
+                    c.relationsNote ||
+                    c.notes ||
+                    '点击编辑角色详情...'}
                 </p>
               </div>
 

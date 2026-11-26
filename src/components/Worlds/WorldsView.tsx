@@ -636,7 +636,7 @@ export const WorldsView: React.FC = () => {
       ) : (
         activeWorld && (
         <>
-          <div className="grid grid-cols-4 md:inline-grid md:grid-cols-4 gap-1 p-1 rounded-xl bg-muted border border-line shrink-0">
+          <div className="grid grid-cols-4 md:flex md:items-center md:gap-6 border-b border-line shrink-0">
             {(
               [
                 { id: 'doc', label: '设定', count: null, icon: FileText },
@@ -651,10 +651,10 @@ export const WorldsView: React.FC = () => {
                 <button
                   key={item.id}
                   onClick={() => setTab(item.id)}
-                  className={`flex items-center justify-center gap-1 px-2 md:px-3.5 py-1.5 rounded-lg text-[13px] md:text-[13px] font-medium transition cursor-pointer whitespace-nowrap ${
+                  className={`flex items-center justify-center gap-1.5 px-2 py-2 -mb-px border-b-2 text-[13px] transition cursor-pointer whitespace-nowrap ${
                     active
-                      ? 'bg-card text-accent shadow-xs'
-                      : 'text-secondary hover:text-ink'
+                      ? 'border-accent text-ink font-semibold'
+                      : 'border-transparent text-secondary hover:text-ink font-medium'
                   }`}
                 >
                   <Icon className="w-3.5 h-3.5 shrink-0" />
@@ -662,7 +662,7 @@ export const WorldsView: React.FC = () => {
                   {item.count !== null && (
                     <span
                       className={`text-[11.5px] leading-tight px-1.5 py-0.5 rounded-full ${
-                        active ? 'bg-accent-soft text-accent' : 'bg-canvas/70 text-dim'
+                        active ? 'bg-accent-soft text-accent' : 'bg-muted text-dim'
                       }`}
                     >
                       {item.count}

@@ -86,6 +86,10 @@ export const TemporalRelationGraph: React.FC<{ worldId: string }> = ({ worldId }
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [localCoords, setLocalCoords] = useState<Record<string, { x: number; y: number }>>({});
+  const [isPortraitCanvas, setIsPortraitCanvas] = useState(
+    () => typeof window !== 'undefined' && window.innerWidth < 640
+  );
+  const graphWrapRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<{
     kind: 'none' | 'pan' | 'node';
     charId?: string;
@@ -140,10 +144,55 @@ export const TemporalRelationGraph: React.FC<{ worldId: string }> = ({ worldId }
       .filter((res) => res.activePhase !== null);
   }, [worldRels, selectedCharId, orderedEvents, resolvedPointId]);
 
+  useEffect(() => {
+    const el = graphWrapRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver((entries) => {
+      const rect = entries[0]?.contentRect;
+      if (rect && rect.width > 0 && rect.height > 0) {
+        setIsPortraitCanvas(rect.height > rect.width * 1.05 || rect.width < 500);
+      }
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [viewMode]);
+
+  const baseVbWidth = isPortraitCanvas ? 440 : 680;
+  const baseVbHeight = isPortraitCanvas ? 520 : 440;
+
+  const viewBoxSpec = useMemo(() => {
+    let minX = 0;
+    let minY = 0;
+    let maxX = baseVbWidth;
+    let maxY = baseVbHeight;
+    for (const c of worldChars) {
+      if (typeof c.posX === 'number' && typeof c.posY === 'number') {
+        minX = Math.min(minX, c.posX - 54);
+        minY = Math.min(minY, c.posY - 54);
+        maxX = Math.max(maxX, c.posX + 54);
+        maxY = Math.max(maxY, c.posY + 62);
+      }
+    }
+    return {
+      minX: Math.round(minX),
+      minY: Math.round(minY),
+      width: Math.round(maxX - minX),
+      height: Math.round(maxY - minY),
+    };
+  }, [worldChars, baseVbWidth, baseVbHeight]);
+
   const nodePositions = useMemo(() => {
     const pos: Record<string, { x: number; y: number }> = {};
     const count = Math.max(1, worldChars.length);
-    const radius = Math.max(130, Math.min(230, count * 28));
+    const rx = isPortraitCanvas
+      ? Math.max(110, Math.min(162, count * 24))
+      : Math.max(130, Math.min(230, count * 28));
+    const ry = isPortraitCanvas
+      ? Math.max(130, Math.min(198, count * 28))
+      : Math.round(rx * 0.78);
+    const centerX = baseVbWidth / 2;
+    const centerY = baseVbHeight / 2 - 12;
+
     worldChars.forEach((c, idx) => {
       if (localCoords[c.id]) {
         pos[c.id] = localCoords[c.id];
@@ -152,13 +201,13 @@ export const TemporalRelationGraph: React.FC<{ worldId: string }> = ({ worldId }
       } else {
         const angle = (idx / count) * Math.PI * 2 - Math.PI / 2;
         pos[c.id] = {
-          x: Math.round(340 + Math.cos(angle) * radius),
-          y: Math.round(210 + Math.sin(angle) * radius * 0.78),
+          x: Math.round(centerX + Math.cos(angle) * rx),
+          y: Math.round(centerY + Math.sin(angle) * ry),
         };
       }
     });
     return pos;
-  }, [worldChars, localCoords]);
+  }, [worldChars, localCoords, isPortraitCanvas, baseVbWidth, baseVbHeight]);
 
   const pairCounts = useMemo(() => {
     const counts = new Map<string, number>();
@@ -234,8 +283,8 @@ export const TemporalRelationGraph: React.FC<{ worldId: string }> = ({ worldId }
       didDragRef.current = true;
     }
     const rect = svgRef.current?.getBoundingClientRect();
-    const scaleX = rect && rect.width > 0 ? 680 / rect.width : 1;
-    const scaleY = rect && rect.height > 0 ? 440 / rect.height : 1;
+    const scaleX = rect && rect.width > 0 ? viewBoxSpec.width / rect.width : 1;
+    const scaleY = rect && rect.height > 0 ? viewBoxSpec.height / rect.height : 1;
     const viewScale = Math.max(scaleX, scaleY);
     if (d.kind === 'node' && d.charId) {
       setLocalCoords((prev) => ({
@@ -392,8 +441,9 @@ export const TemporalRelationGraph: React.FC<{ worldId: string }> = ({ worldId }
       {/* Main Graph or List */}
       {viewMode === 'graph' ? (
         <div
+          ref={graphWrapRef}
           data-no-swipe={zoom > 1 ? 'true' : undefined}
-          className="relative flex-1 min-h-[220px] rounded-xl bg-card border border-line overflow-hidden select-none"
+          className="relative flex-1 min-h-[260px] rounded-xl bg-card border border-line overflow-hidden select-none"
         >
           <div className="absolute top-3 right-3 z-10 flex items-center gap-1">
             {selectedCharId && (
@@ -418,13 +468,13 @@ export const TemporalRelationGraph: React.FC<{ worldId: string }> = ({ worldId }
             </button>
           </div>
 
-          <div className="absolute bottom-3 left-3 z-10 px-2.5 py-1 rounded-lg bg-sidebar/90 border border-line text-[11.5px] text-dim">
-            拖拽节点可调整位置 · 点击节点聚焦 · 点击连线编辑跨时间转折
+          <div className="absolute bottom-3 left-3 right-3 sm:right-auto z-10 px-2.5 py-1 rounded-lg bg-sidebar/90 border border-line text-[11.5px] text-dim truncate">
+            拖拽节点调整位置 · 点节点聚焦 · 点连线编辑转折
           </div>
 
           <svg
             ref={svgRef}
-            viewBox="0 0 680 440"
+            viewBox={`${viewBoxSpec.minX} ${viewBoxSpec.minY} ${viewBoxSpec.width} ${viewBoxSpec.height}`}
             preserveAspectRatio="xMidYMid meet"
             className="w-full h-full"
             onPointerDown={(e) => {
@@ -450,7 +500,7 @@ export const TemporalRelationGraph: React.FC<{ worldId: string }> = ({ worldId }
                   key={id}
                   id={`arrow-v2-${id}`}
                   viewBox="0 0 10 10"
-                  refX="26"
+                  refX="28"
                   refY="5"
                   markerWidth="6"
                   markerHeight="6"
@@ -459,6 +509,13 @@ export const TemporalRelationGraph: React.FC<{ worldId: string }> = ({ worldId }
                   <path d="M 0 1 L 10 5 L 0 9 z" fill={meta.color} />
                 </marker>
               ))}
+              {worldChars.map((c) =>
+                c.avatarImage ? (
+                  <clipPath key={`clip-${c.id}`} id={`char-node-clip-${c.id}`}>
+                    <circle r={24} cx={0} cy={0} />
+                  </clipPath>
+                ) : null
+              )}
             </defs>
 
             <g transform={`translate(${pan.x}, ${pan.y}) scale(${zoom})`}>
@@ -577,23 +634,47 @@ export const TemporalRelationGraph: React.FC<{ worldId: string }> = ({ worldId }
                   >
                     <circle
                       r={24}
-                      fill={c.avatarColor || '#4d6bfe'}
-                      stroke={isSelected ? 'var(--text-ink)' : 'var(--bg-canvas)'}
-                      strokeWidth={isSelected ? 3 : 2}
+                      fill={c.avatarImage ? 'var(--bg-sidebar)' : c.avatarColor || '#4d6bfe'}
+                    />
+                    {c.avatarImage ? (
+                      <image
+                        href={c.avatarImage}
+                        x={-24}
+                        y={-24}
+                        width={48}
+                        height={48}
+                        preserveAspectRatio="xMidYMid slice"
+                        clipPath={`url(#char-node-clip-${c.id})`}
+                        pointerEvents="none"
+                      />
+                    ) : (
+                      <text
+                        textAnchor="middle"
+                        dy="5"
+                        fontSize="14"
+                        fontWeight="700"
+                        fill="#ffffff"
+                        pointerEvents="none"
+                      >
+                        {c.name.slice(0, 1)}
+                      </text>
+                    )}
+                    <circle
+                      r={24}
+                      fill="none"
+                      stroke={
+                        isSelected
+                          ? 'var(--accent)'
+                          : c.avatarImage
+                            ? c.avatarColor || 'var(--border-line)'
+                            : 'var(--bg-canvas)'
+                      }
+                      strokeWidth={isSelected ? 3 : 2.2}
+                      pointerEvents="none"
                     />
                     <text
                       textAnchor="middle"
-                      dy="5"
-                      fontSize="14"
-                      fontWeight="700"
-                      fill="#ffffff"
-                      pointerEvents="none"
-                    >
-                      {c.name.slice(0, 1)}
-                    </text>
-                    <text
-                      textAnchor="middle"
-                      y={38}
+                      y={40}
                       fontSize="12"
                       fontWeight="600"
                       fill="var(--text-ink)"
