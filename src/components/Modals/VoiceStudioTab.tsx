@@ -35,6 +35,7 @@ import {
 } from '../../services/voiceService';
 import { createId, isProviderReady } from '../../utils/platform';
 import { generateVoiceDescription } from '../../services/voicePromptService';
+import { OptionPicker } from '../Common/OptionPicker';
 import { type InspirationChip } from './voice/constants';
 import { VoiceCreateSubTab } from './voice/VoiceCreateSubTab';
 import { VoiceLibrarySubTab } from './voice/VoiceLibrarySubTab';
@@ -772,28 +773,31 @@ export const VoiceStudioTab: React.FC<VoiceStudioTabProps> = ({
             />
             <span>自动朗读</span>
           </label>
-          <label
+          <div
             className={`flex items-center gap-2 text-secondary ${
-              draftVoice.ttsAutoPlay ? '' : 'opacity-45'
+              draftVoice.ttsAutoPlay ? '' : 'opacity-50'
             }`}
             title="选择自动朗读时读到哪些台词"
           >
             <span className="text-[13px] whitespace-nowrap">朗读范围</span>
-            <select
-              value={draftVoice.ttsAutoPlayTarget || 'assistant'}
-              disabled={!draftVoice.ttsAutoPlay}
-              onChange={(e) =>
-                void handleQuickVoicePatch({
-                  ttsAutoPlayTarget: e.target.value as TtsAutoPlayTarget,
-                })
-              }
-              className="px-2 py-1 rounded-lg bg-canvas border border-line text-[13px] text-ink outline-none focus:border-accent disabled:cursor-not-allowed"
-            >
-              <option value="assistant">只读角色台词</option>
-              <option value="user">只读我的台词</option>
-              <option value="both">两边都读</option>
-            </select>
-          </label>
+            <div className="w-36">
+              <OptionPicker
+                compact
+                disabled={!draftVoice.ttsAutoPlay}
+                value={draftVoice.ttsAutoPlayTarget || 'assistant'}
+                items={[
+                  { value: 'assistant', label: '只读角色台词' },
+                  { value: 'user', label: '只读我的台词' },
+                  { value: 'both', label: '两边都读' },
+                ]}
+                onChange={(val) =>
+                  void handleQuickVoicePatch({
+                    ttsAutoPlayTarget: val as TtsAutoPlayTarget,
+                  })
+                }
+              />
+            </div>
+          </div>
           <label
             className={`flex items-center gap-2 text-secondary ${
               draftVoice.ttsAutoPlay ? '' : 'opacity-45'
@@ -845,41 +849,41 @@ export const VoiceStudioTab: React.FC<VoiceStudioTabProps> = ({
           )}
         </div>
 
-        <div className="flex items-center gap-1 p-1 rounded-xl bg-muted border border-line">
+        <div className="flex items-center gap-4 border-b border-line">
           <button
             type="button"
             onClick={() => setVoiceStudioSubTab('library')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[13px] font-medium cursor-pointer transition ${
+            className={`flex items-center gap-1.5 px-1.5 py-1.5 -mb-px border-b-2 text-[13px] whitespace-nowrap cursor-pointer transition ${
               voiceStudioSubTab === 'library'
-                ? 'bg-card text-accent shadow-xs'
-                : 'text-secondary hover:text-ink'
+                ? 'border-accent text-ink font-semibold'
+                : 'border-transparent text-secondary hover:text-ink font-medium'
             }`}
           >
-            <Library className="w-3.5 h-3.5" />
+            <Library className="w-3.5 h-3.5 shrink-0" />
             <span>我的声音库 ({voiceProfiles.length})</span>
           </button>
           <button
             type="button"
             onClick={() => setVoiceStudioSubTab('create')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[13px] font-medium cursor-pointer transition ${
+            className={`flex items-center gap-1.5 px-1.5 py-1.5 -mb-px border-b-2 text-[13px] whitespace-nowrap cursor-pointer transition ${
               voiceStudioSubTab === 'create'
-                ? 'bg-card text-accent shadow-xs'
-                : 'text-secondary hover:text-ink'
+                ? 'border-accent text-ink font-semibold'
+                : 'border-transparent text-secondary hover:text-ink font-medium'
             }`}
           >
-            <Wand2 className="w-3.5 h-3.5" />
+            <Wand2 className="w-3.5 h-3.5 shrink-0" />
             <span>{editingProfileId ? '编辑声音' : '制作声音'}</span>
           </button>
           <button
             type="button"
             onClick={() => setVoiceStudioSubTab('stt')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[13px] font-medium cursor-pointer transition ${
+            className={`flex items-center gap-1.5 px-1.5 py-1.5 -mb-px border-b-2 text-[13px] whitespace-nowrap cursor-pointer transition ${
               voiceStudioSubTab === 'stt'
-                ? 'bg-card text-accent shadow-xs'
-                : 'text-secondary hover:text-ink'
+                ? 'border-accent text-ink font-semibold'
+                : 'border-transparent text-secondary hover:text-ink font-medium'
             }`}
           >
-            <Mic className="w-3.5 h-3.5" />
+            <Mic className="w-3.5 h-3.5 shrink-0" />
             <span>语音输入 (STT)</span>
           </button>
         </div>

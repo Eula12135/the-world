@@ -1,7 +1,8 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Check, Loader2, RefreshCw, Sparkles, Wand2 } from 'lucide-react';
 import { useAppStore } from '../../../store/useAppStore';
 import type { MediaProviderCredential, VoiceConfig, VoiceProfile } from '../../../types';
+import { base64ToUint8Array } from '../../../services/llm';
 import {
   type BreezeVoiceItem,
   type BreezeVoicePreview,
@@ -10,7 +11,9 @@ import {
   saveBreezeVoiceDesign,
 } from '../../../services/voiceService';
 import { generateVoiceDescription } from '../../../services/voicePromptService';
+import { sortCharacters } from '../../../utils/characterSort';
 import { isProviderReady } from '../../../utils/platform';
+import { OptionPicker } from '../../Common/OptionPicker';
 import { type InspirationChip, VOICE_INSPIRATION_CHIPS } from './constants';
 
 interface VoiceBreezeDesignSectionProps {
@@ -79,12 +82,59 @@ export const VoiceBreezeDesignSection: React.FC<VoiceBreezeDesignSectionProps> =
   const [designing, setDesigning] = useState(false);
   const [savingDesignId, setSavingDesignId] = useState<string | null>(null);
   const [fetchingBreezeVoices, setFetchingBreezeVoices] = useState(false);
+  const [previewObjectUrls, setPreviewObjectUrls] = useState<Record<string, string>>({});
 
   useEffect(() => {
     if (pendingVoiceBindTarget?.kind === 'character' && pendingVoiceBindTarget.characterId) {
       setVoiceBriefCharacterId(pendingVoiceBindTarget.characterId);
     }
   }, [pendingVoiceBindTarget]);
+
+  // 安卓 WebView 对长 data:audio/... URL 的 <audio> 解码极易报「无法播放媒体。」，统一转为 Blob Object URL
+  useEffect(() => {
+    if (designPreviews.length === 0) {
+      setPreviewObjectUrls({});
+      return;
+    }
+    const createdUrls: string[] = [];
+    const nextMap: Record<string, string> = {};
+
+    for (const pv of designPreviews) {
+      if (!pv.audioBase64) continue;
+      const mime = pv.mediaType || 'audio/mpeg';
+      if (typeof URL !== 'undefined' && typeof URL.createObjectURL === 'function') {
+        try {
+          const raw = base64ToUint8Array(pv.audioBase64);
+          const copy = new Uint8Array(raw.byteLength);
+          copy.set(raw);
+          const blob = new Blob([copy.buffer], { type: mime });
+          const url = URL.createObjectURL(blob);
+          createdUrls.push(url);
+          nextMap[pv.generatedVoiceId] = url;
+          continue;
+        } catch {
+          // fallback to data URL below
+        }
+      }
+      nextMap[pv.generatedVoiceId] = `data:${mime};base64,${pv.audioBase64}`;
+    }
+
+    setPreviewObjectUrls(nextMap);
+
+    return () => {
+      if (typeof URL !== 'undefined' && typeof URL.revokeObjectURL === 'function') {
+        for (const u of createdUrls) {
+          try {
+            URL.revokeObjectURL(u);
+          } catch {
+            // ignore
+          }
+        }
+      }
+    };
+  }, [designPreviews]);
+
+  const sortedCharacters = useMemo(() => sortCharacters(characters), [characters]);
 
   const handleGenerateVoiceDescription = async () => {
     const character = characters.find((c) => c.id === voiceBriefCharacterId);
@@ -288,22 +338,28 @@ export const VoiceBreezeDesignSection: React.FC<VoiceBreezeDesignSectionProps> =
 
       <div className="space-y-2">
         <div className="flex flex-wrap items-center gap-2">
-          <select
-            value={voiceBriefCharacterId}
-            onChange={(e) => setVoiceBriefCharacterId(e.target.value)}
-            className="flex-1 min-w-[160px] px-3 py-1.5 rounded-xl bg-canvas border border-line text-[13px] text-ink outline-none focus:border-accent"
-          >
-            <option value="">从角色卡生成：选择角色…</option>
-            {characters.map((c) => {
-              const w = worlds.find((x) => x.id === c.worldId);
-              return (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                  {w ? ` · ${w.name}` : ''}
-                </option>
-              );
-            })}
-          </select>
+          <div className="flex-1 min-w-[180px]">
+            <OptionPicker
+              compact
+              value={voiceBriefCharacterId}
+              items={[
+                { value: '', label: '从角色卡生成：选择角色…' },
+                ...sortedCharacters.map((c) => {
+                  const w = worlds.find((x) => x.id === c.worldId);
+                  return {
+                    value: c.id,
+                    label: c.name,
+                    hint: w ? `《${w.name}》` : '独立角色',
+                    color: c.avatarColor,
+                    image: c.avatarImage,
+                  };
+                }),
+              ]}
+              onChange={setVoiceBriefCharacterId}
+              searchable={sortedCharacters.length >= 6}
+              searchPlaceholder="搜索角色…"
+            />
+          </div>
           <button
             type="button"
             onClick={handleGenerateVoiceDescription}
@@ -359,7 +415,11 @@ export const VoiceBreezeDesignSection: React.FC<VoiceBreezeDesignSectionProps> =
               <span className="text-[13px] font-medium text-ink">方案 {i + 1}</span>
               <audio
                 controls
-                src={`data:${pv.mediaType};base64,${pv.audioBase64}`}
+                preload="metadata"
+                src={
+                  previewObjectUrls[pv.generatedVoiceId] ||
+                  `data:${pv.mediaType || 'audio/mpeg'};base64,${pv.audioBase64}`
+                }
                 className="h-8 flex-1 min-w-[180px]"
               />
               <button

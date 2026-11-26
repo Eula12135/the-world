@@ -36,6 +36,8 @@ const QUICK_STARTERS = [
 ];
 
 const sessionScrollCache = new Map<string, { scrollTop: number; nearBottom: boolean }>();
+const INITIAL_VISIBLE_MESSAGES = 40;
+const LOAD_MORE_STEP = 40;
 
 export const ChatView: React.FC = () => {
   const {
@@ -90,12 +92,14 @@ export const ChatView: React.FC = () => {
 
   const [input, setInput] = useState('');
   const [voiceState, setVoiceState] = useState<'idle' | 'listening' | 'transcribing'>('idle');
+  const [visibleCount, setVisibleCount] = useState(INITIAL_VISIBLE_MESSAGES);
   const voiceHandleRef = useRef<VoiceCaptureHandle | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const nearBottomRef = useRef(true);
   const prevMsgLenRef = useRef(messages.length);
   const justMountedOrSwitchedRef = useRef(true);
+  const prependAnchorRef = useRef<{ scrollHeight: number; scrollTop: number } | null>(null);
   const keyboardOpen = useMobileKeyboardOpen();
 
   const session = sessions.find((s) => s.id === activeSessionId) ?? null;
@@ -152,6 +156,25 @@ export const ChatView: React.FC = () => {
   const wasStreamingRef = useRef(isCurrentSessionStreaming);
   const cacheKey = activeSessionId ?? '__draft__';
   const hasMessages = messages.length > 0;
+  const hiddenCount = Math.max(0, messages.length - visibleCount);
+  const visibleMessages = useMemo(
+    () => (hiddenCount > 0 ? messages.slice(hiddenCount) : messages),
+    [messages, hiddenCount]
+  );
+
+  useEffect(() => {
+    setVisibleCount(INITIAL_VISIBLE_MESSAGES);
+    prependAnchorRef.current = null;
+  }, [cacheKey]);
+
+  useLayoutEffect(() => {
+    const anchor = prependAnchorRef.current;
+    const el = scrollContainerRef.current;
+    if (!anchor || !el) return;
+    prependAnchorRef.current = null;
+    const delta = el.scrollHeight - anchor.scrollHeight;
+    el.scrollTop = anchor.scrollTop + Math.max(0, delta);
+  }, [visibleCount]);
 
   const hasReadyProvider = useMemo(
     () => providers.some((p) => p.enabled && isProviderReady(p)),
@@ -517,7 +540,27 @@ export const ChatView: React.FC = () => {
             className="flex-1 overflow-y-auto px-3 md:px-6"
           >
             <div className="max-w-3xl mx-auto py-6 space-y-6">
-              {messages.map((m) => (
+              {hiddenCount > 0 && (
+                <div className="flex justify-center">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const el = scrollContainerRef.current;
+                      if (el) {
+                        prependAnchorRef.current = {
+                          scrollHeight: el.scrollHeight,
+                          scrollTop: el.scrollTop,
+                        };
+                      }
+                      setVisibleCount((prev) => prev + LOAD_MORE_STEP);
+                    }}
+                    className="px-3.5 py-1.5 rounded-full border border-line bg-sidebar text-caption text-secondary hover:text-ink hover:bg-hover transition cursor-pointer"
+                  >
+                    加载更早的消息（还有 {hiddenCount} 条）
+                  </button>
+                </div>
+              )}
+              {visibleMessages.map((m) => (
                 <MessageItem
                   key={m.id}
                   message={m}

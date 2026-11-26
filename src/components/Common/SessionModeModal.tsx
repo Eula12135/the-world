@@ -4,6 +4,7 @@ import {
   Bot,
   ChevronDown,
   ChevronRight,
+  Pin,
   Plus,
   Sparkles,
   UserRound,
@@ -14,6 +15,8 @@ import { useShallow } from 'zustand/react/shallow';
 import { useAppStore } from '../../store/useAppStore';
 import { UserIdentitySection } from '../Chat/UserIdentitySection';
 import type { ChatMode, SessionUserRelationOverride, UserIdentityRef } from '../../types';
+import { pushBackLayer } from '../../utils/backStack';
+import { sortCharacters } from '../../utils/characterSort';
 
 export const SessionModeModal: React.FC = () => {
   const {
@@ -58,6 +61,11 @@ export const SessionModeModal: React.FC = () => {
   const worldId = session ? session.worldId : draftConfig.worldId;
   const promptOverride =
     (session ? session.systemPromptOverride : draftConfig.systemPromptOverride) || '';
+
+  useEffect(() => {
+    if (!open) return;
+    return pushBackLayer(() => setOpen(false));
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -108,7 +116,7 @@ export const SessionModeModal: React.FC = () => {
         : charFilter === 'standalone'
           ? standaloneChars
           : characters.filter((c) => c.worldId === charFilter);
-    return [...list].sort((a, b) => b.updatedAt - a.updatedAt);
+    return sortCharacters(list);
   }, [characters, standaloneChars, charFilter]);
 
   const patchSessionOrDraft = async (patch: {
@@ -461,8 +469,16 @@ export const SessionModeModal: React.FC = () => {
                                   )}
                                   <div className="min-w-0 flex-1">
                                     <div className="flex items-center justify-between gap-1.5">
-                                      <span className="text-[13px] font-medium text-ink truncate">
-                                        {c.name}
+                                      <span className="flex items-center gap-1 min-w-0">
+                                        <span className="text-[13px] font-medium text-ink truncate">
+                                          {c.name}
+                                        </span>
+                                        {c.pinned && (
+                                          <Pin
+                                            className="w-3 h-3 text-accent fill-current shrink-0"
+                                            aria-label="已置顶"
+                                          />
+                                        )}
                                       </span>
                                       <span className="text-[11.5px] px-1.5 py-0.5 rounded bg-muted text-dim shrink-0">
                                         {boundWorldName ? `《${boundWorldName}》` : '独立'}

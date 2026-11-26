@@ -1,5 +1,6 @@
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Check, ChevronDown, Search } from 'lucide-react';
+import { pushBackLayer } from '../../utils/backStack';
 
 export interface OptionPickerItem {
   value: string;
@@ -21,6 +22,9 @@ interface OptionPickerProps {
   searchable?: boolean;
   searchPlaceholder?: string;
   emptyText?: string;
+  disabled?: boolean;
+  /** 紧凑高度样式（用于工具栏或内联双列行） */
+  compact?: boolean;
 }
 
 /**
@@ -36,11 +40,54 @@ export const OptionPicker: React.FC<OptionPickerProps> = ({
   searchable = false,
   searchPlaceholder = '搜索…',
   emptyText = '没有匹配项',
+  disabled = false,
+  compact = false,
 }) => {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
+  const containerRef = useRef<HTMLDivElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
 
   const selected = items.find((item) => item.value === value);
+
+  const isCoarsePointer = useMemo(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return false;
+    return window.matchMedia('(pointer: coarse)').matches;
+  }, []);
+
+  const close = useCallback(() => {
+    setOpen(false);
+    setQuery('');
+  }, []);
+
+  useEffect(() => {
+    if (!open) return;
+    return pushBackLayer(close);
+  }, [open, close]);
+
+  useEffect(() => {
+    if (!open) return;
+    const timer = window.setTimeout(() => {
+      panelRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    }, 40);
+
+    const handleOutside = (e: PointerEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        close();
+      }
+    };
+    document.addEventListener('pointerdown', handleOutside);
+    return () => {
+      window.clearTimeout(timer);
+      document.removeEventListener('pointerdown', handleOutside);
+    };
+  }, [open, close]);
+
+  useEffect(() => {
+    if (disabled && open) {
+      close();
+    }
+  }, [disabled, open, close]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -64,17 +111,19 @@ export const OptionPicker: React.FC<OptionPickerProps> = ({
     return order.map((key) => ({ group: key, items: map.get(key)! }));
   }, [filtered]);
 
-  const close = () => {
-    setOpen(false);
-    setQuery('');
-  };
-
   return (
-    <div>
+    <div ref={containerRef} className="relative">
       <button
         type="button"
-        onClick={() => (open ? close() : setOpen(true))}
-        className="w-full flex items-center justify-between gap-2 px-3 py-2 rounded-xl bg-canvas border border-line text-[13px] text-ink outline-none focus:border-accent cursor-pointer"
+        disabled={disabled}
+        onClick={() => {
+          if (disabled) return;
+          if (open) close();
+          else setOpen(true);
+        }}
+        className={`w-full flex items-center justify-between gap-2 bg-canvas border border-line text-[13px] text-ink outline-none focus:border-accent transition ${
+          compact ? 'px-2.5 py-1.5 rounded-lg' : 'px-3 py-2 rounded-xl'
+        } ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:border-accent/50'}`}
       >
         <span className="flex items-center gap-2 min-w-0">
           {selected?.image ? (
@@ -102,12 +151,15 @@ export const OptionPicker: React.FC<OptionPickerProps> = ({
       </button>
 
       {open && (
-        <div className="mt-1.5 rounded-xl border border-line bg-canvas overflow-hidden">
+        <div
+          ref={panelRef}
+          className="mt-1.5 rounded-xl border border-line bg-canvas shadow-sm overflow-hidden"
+        >
           {searchable && (
             <div className="flex items-center gap-1.5 px-2.5 py-1.5 border-b border-line bg-sidebar">
               <Search className="w-3.5 h-3.5 text-dim shrink-0" />
               <input
-                autoFocus
+                autoFocus={!isCoarsePointer}
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder={searchPlaceholder}
@@ -116,7 +168,7 @@ export const OptionPicker: React.FC<OptionPickerProps> = ({
             </div>
           )}
 
-          <div className="max-h-64 overflow-y-auto py-1">
+          <div className="max-h-60 overflow-y-auto py-1">
             {filtered.length === 0 && (
               <div className="px-2.5 py-3 text-[13px] text-dim text-center">{emptyText}</div>
             )}

@@ -9,6 +9,7 @@ import {
   STT_PRESETS,
 } from '../../../services/voiceService';
 import { openExternalUrl } from '../../../utils/platform';
+import { OptionPicker } from '../../Common/OptionPicker';
 
 interface VoiceSttSubTabProps {
   draftVoice: VoiceConfig;
@@ -317,16 +318,16 @@ export const VoiceSttSubTab: React.FC<VoiceSttSubTabProps> = ({
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-end">
         <div>
           <label className="block mb-1 text-[13px] font-medium text-secondary">识别语言</label>
-          <select
+          <OptionPicker
             value={draftVoice.sttLanguage}
-            onChange={(e) => setDraftVoice((prev) => ({ ...prev, sttLanguage: e.target.value }))}
-            className="w-full px-3 py-2 rounded-xl bg-canvas border border-line text-ink text-[13px] outline-none focus:border-accent"
-          >
-            <option value="zh">中文 (zh)</option>
-            <option value="en">英文 (en)</option>
-            <option value="ja">日文 (ja)</option>
-            <option value="">自动识别</option>
-          </select>
+            items={[
+              { value: 'zh', label: '中文 (zh)' },
+              { value: 'en', label: '英文 (en)' },
+              { value: 'ja', label: '日文 (ja)' },
+              { value: '', label: '自动识别' },
+            ]}
+            onChange={(val) => setDraftVoice((prev) => ({ ...prev, sttLanguage: val }))}
+          />
         </div>
         <div className="flex justify-end">
           <button

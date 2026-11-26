@@ -381,41 +381,41 @@ export const ProvidersModal: React.FC<{ closing?: boolean }> = ({ closing = fals
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <div className="flex-1 md:flex-initial grid grid-cols-3 md:flex items-center gap-4 border-b border-line">
+            <div className="flex-1 md:flex-initial grid grid-cols-3 md:flex items-center gap-4 border-b border-line md:border-b-0">
               <button
                 type="button"
                 onClick={() => setProvidersModalTab('llm')}
-                className={`flex items-center justify-center gap-1 px-2.5 py-1.5 md:py-1 rounded-lg text-[13px] font-medium whitespace-nowrap cursor-pointer transition-colors ${
+                className={`flex items-center justify-center gap-1 px-2 py-2 md:py-1.5 -mb-px border-b-2 text-[13px] whitespace-nowrap cursor-pointer transition-colors ${
                   providersModalTab === 'llm'
-                    ? 'border-accent text-ink'
-                    : 'border-transparent text-secondary hover:text-ink'
+                    ? 'border-accent text-ink font-semibold'
+                    : 'border-transparent text-secondary hover:text-ink font-medium'
                 }`}
               >
-                <KeyRound className="w-3.5 h-3.5" />
+                <KeyRound className="w-3.5 h-3.5 shrink-0" />
                 <span>文本模型</span>
               </button>
               <button
                 type="button"
                 onClick={() => setProvidersModalTab('image')}
-                className={`flex items-center justify-center gap-1 px-2.5 py-1.5 md:py-1 rounded-lg text-[13px] font-medium whitespace-nowrap cursor-pointer transition-colors ${
+                className={`flex items-center justify-center gap-1 px-2 py-2 md:py-1.5 -mb-px border-b-2 text-[13px] whitespace-nowrap cursor-pointer transition-colors ${
                   providersModalTab === 'image'
-                    ? 'border-accent text-ink'
-                    : 'border-transparent text-secondary hover:text-ink'
+                    ? 'border-accent text-ink font-semibold'
+                    : 'border-transparent text-secondary hover:text-ink font-medium'
                 }`}
               >
-                <ImageIcon className="w-3.5 h-3.5" />
+                <ImageIcon className="w-3.5 h-3.5 shrink-0" />
                 <span>生图模型</span>
               </button>
               <button
                 type="button"
                 onClick={() => setProvidersModalTab('voice')}
-                className={`flex items-center justify-center gap-1 px-2.5 py-1.5 md:py-1 rounded-lg text-[13px] font-medium whitespace-nowrap cursor-pointer transition-colors ${
+                className={`flex items-center justify-center gap-1 px-2 py-2 md:py-1.5 -mb-px border-b-2 text-[13px] whitespace-nowrap cursor-pointer transition-colors ${
                   providersModalTab === 'voice'
-                    ? 'border-accent text-ink'
-                    : 'border-transparent text-secondary hover:text-ink'
+                    ? 'border-accent text-ink font-semibold'
+                    : 'border-transparent text-secondary hover:text-ink font-medium'
                 }`}
               >
-                <Volume2 className="w-3.5 h-3.5" />
+                <Volume2 className="w-3.5 h-3.5 shrink-0" />
                 <span>语音与音色</span>
               </button>
             </div>

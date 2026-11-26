@@ -10,6 +10,7 @@ import {
   resolveUserIdentity,
 } from '../../services/userIdentity';
 import { createId } from '../../utils/platform';
+import { sortCharacters } from '../../utils/characterSort';
 import type {
   ChatSession,
   RelationType,
@@ -122,7 +123,7 @@ export const UserIdentitySection: React.FC<UserIdentitySectionProps> = ({
   const identityIsCharacter = identityRef?.kind === 'character';
 
   const characterOptions = useMemo(
-    () => characters.filter((c) => c.id !== roleCharacterId),
+    () => sortCharacters(characters.filter((c) => c.id !== roleCharacterId)),
     [characters, roleCharacterId]
   );
 
@@ -143,12 +144,18 @@ export const UserIdentitySection: React.FC<UserIdentitySectionProps> = ({
       });
     }
 
+    const formatCharHint = (identity: string, fallback?: string, pinned?: boolean) => {
+      const base = identity || fallback || '';
+      if (pinned) return base ? `置顶 · ${base}` : '置顶';
+      return base || undefined;
+    };
+
     const standalone = characterOptions.filter((c) => !c.worldId);
     for (const c of standalone) {
       items.push({
         value: `character:${c.id}`,
         label: c.name,
-        hint: c.identity || '独立角色',
+        hint: formatCharHint(c.identity, '独立角色', c.pinned),
         group: '独立角色',
         color: c.avatarColor,
         image: c.avatarImage,
@@ -164,7 +171,7 @@ export const UserIdentitySection: React.FC<UserIdentitySectionProps> = ({
         items.push({
           value: `character:${c.id}`,
           label: c.name,
-          hint: c.identity || undefined,
+          hint: formatCharHint(c.identity, undefined, c.pinned),
           group: `《${world.name}》`,
           color: c.avatarColor,
           image: c.avatarImage,
@@ -178,7 +185,7 @@ export const UserIdentitySection: React.FC<UserIdentitySectionProps> = ({
       items.push({
         value: `character:${c.id}`,
         label: c.name,
-        hint: c.identity || '未归属作品',
+        hint: formatCharHint(c.identity, '未归属作品', c.pinned),
         group: '其他',
         color: c.avatarColor,
         image: c.avatarImage,

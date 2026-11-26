@@ -8,6 +8,7 @@ import {
 } from '../../services/imageGenService';
 import { IMAGE_FRAMINGS } from '../../utils/imageFraming';
 import { openExternalUrl } from '../../utils/platform';
+import { OptionPicker } from '../Common/OptionPicker';
 
 interface ImageGenTabProps {
   draftImg: ImageGenConfig;
@@ -302,20 +303,19 @@ export const ImageGenTab: React.FC<ImageGenTabProps> = ({
           <label className="block mb-1.5 font-medium text-secondary">
             分辨率尺寸（决定取景与构图）
           </label>
-          <select
+          <OptionPicker
             value={draftImg.size}
-            onChange={(e) => setDraftImg({ ...draftImg, size: e.target.value })}
-            className="w-full px-3 py-2 rounded-xl bg-canvas border border-line text-ink outline-none focus:border-accent"
-          >
-            {IMAGE_FRAMINGS.map((framing) => (
-              <option key={framing.id} value={framing.size}>
-                {framing.size}（{framing.label}）
-              </option>
-            ))}
-            {draftImg.size && !IMAGE_FRAMINGS.some((f) => f.size === draftImg.size) && (
-              <option value={draftImg.size}>{draftImg.size}（自定义尺寸）</option>
-            )}
-          </select>
+            items={[
+              ...IMAGE_FRAMINGS.map((framing) => ({
+                value: framing.size,
+                label: `${framing.size}（${framing.label}）`,
+              })),
+              ...(draftImg.size && !IMAGE_FRAMINGS.some((f) => f.size === draftImg.size)
+                ? [{ value: draftImg.size, label: `${draftImg.size}（自定义尺寸）` }]
+                : []),
+            ]}
+            onChange={(size) => setDraftImg({ ...draftImg, size })}
+          />
           <p className="mt-1.5 text-[11.5px] text-dim">
             头像只画头肩、半身到膝盖、横版带背景 —— 取景会写进内置提示词，避免选了头像却画出全身像。
           </p>

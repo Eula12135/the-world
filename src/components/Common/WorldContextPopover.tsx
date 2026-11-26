@@ -301,35 +301,37 @@ export const WorldContextPopover: React.FC<WorldContextPopoverProps> = ({ draftI
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header Tabs */}
-            <div className="flex items-center justify-between px-4 py-3 border-b border-line shrink-0">
-              <div className="flex items-center gap-1">
+            <div className="flex items-center justify-between px-4 border-b border-line shrink-0">
+              <div className="flex items-center gap-4">
                 <button
                   onClick={() => setTab('world')}
-                  className={`px-2.5 py-1.5 rounded-lg text-[13px] font-medium cursor-pointer ${
-                    tab === 'world' ? 'bg-accent-soft text-accent' : 'text-secondary hover:bg-hover'
+                  className={`px-1 py-3 -mb-px border-b-2 text-[13px] cursor-pointer transition-colors ${
+                    tab === 'world'
+                      ? 'border-accent text-ink font-semibold'
+                      : 'border-transparent text-secondary hover:text-ink font-medium'
                   }`}
                 >
                   世界观与时间点
                 </button>
                 <button
                   onClick={() => setTab('memory')}
-                  className={`px-2.5 py-1.5 rounded-lg text-[13px] font-medium cursor-pointer ${
+                  className={`px-1 py-3 -mb-px border-b-2 text-[13px] cursor-pointer transition-colors ${
                     tab === 'memory'
-                      ? 'bg-accent-soft text-accent'
-                      : 'text-secondary hover:bg-hover'
+                      ? 'border-accent text-ink font-semibold'
+                      : 'border-transparent text-secondary hover:text-ink font-medium'
                   }`}
                 >
                   前情摘要
                 </button>
                 <button
                   onClick={() => setTab('preview')}
-                  className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[13px] font-medium cursor-pointer ${
+                  className={`flex items-center gap-1 px-1 py-3 -mb-px border-b-2 text-[13px] cursor-pointer transition-colors ${
                     tab === 'preview'
-                      ? 'bg-accent-soft text-accent'
-                      : 'text-secondary hover:bg-hover'
+                      ? 'border-accent text-ink font-semibold'
+                      : 'border-transparent text-secondary hover:text-ink font-medium'
                   }`}
                 >
-                  <Eye className="w-3.5 h-3.5" />
+                  <Eye className="w-3.5 h-3.5 shrink-0" />
                   <span>预览发给 AI</span>
                 </button>
               </div>

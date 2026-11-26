@@ -31,7 +31,9 @@ import {
   TTS_PRESETS,
   type TtsPreset,
 } from '../../../services/voiceService';
+import { sortCharacters } from '../../../utils/characterSort';
 import { openExternalUrl } from '../../../utils/platform';
+import { OptionPicker } from '../../Common/OptionPicker';
 import { type InspirationChip, VOICE_INSPIRATION_CHIPS } from './constants';
 import { VoiceBreezeDesignSection } from './VoiceBreezeDesignSection';
 import { VoiceCloneSection } from './VoiceCloneSection';
@@ -342,18 +344,20 @@ export const VoiceCreateSubTab: React.FC<VoiceCreateSubTabProps> = ({
             <label className="block mb-1 text-[13px] font-medium text-secondary">
               本机可用声音 ({nativeVoices.length})
             </label>
-            <select
+            <OptionPicker
               value={draftVoice.ttsNativeVoice}
-              onChange={(e) => setDraftVoice((prev) => ({ ...prev, ttsNativeVoice: e.target.value }))}
-              className="w-full px-3 py-2 rounded-xl bg-canvas border border-line text-ink text-[13px] outline-none focus:border-accent"
-            >
-              <option value="">跟随系统默认语音</option>
-              {nativeVoices.map((v) => (
-                <option key={v.name} value={v.name}>
-                  {v.name} ({v.lang})
-                </option>
-              ))}
-            </select>
+              items={[
+                { value: '', label: '跟随系统默认语音' },
+                ...nativeVoices.map((v) => ({
+                  value: v.name,
+                  label: v.name,
+                  hint: v.lang,
+                })),
+              ]}
+              onChange={(val) => setDraftVoice((prev) => ({ ...prev, ttsNativeVoice: val }))}
+              searchable={nativeVoices.length > 8}
+              searchPlaceholder="搜索系统声音…"
+            />
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div>
@@ -517,22 +521,28 @@ export const VoiceCreateSubTab: React.FC<VoiceCreateSubTabProps> = ({
                 语气 / 情感指令（可选，CosyVoice2 与 gpt-4o-mini-tts 支持）
               </label>
               <div className="flex items-center gap-1.5 mb-1.5">
-                <select
-                  value={styleBriefCharacterId}
-                  onChange={(e) => setStyleBriefCharacterId(e.target.value)}
-                  className="flex-1 min-w-0 px-2.5 py-1 rounded-lg bg-canvas border border-line text-[11.5px] text-ink outline-none focus:border-accent"
-                >
-                  <option value="">从角色卡生成语气：选择角色…</option>
-                  {characters.map((c) => {
-                    const w = worlds.find((x) => x.id === c.worldId);
-                    return (
-                      <option key={c.id} value={c.id}>
-                        {c.name}
-                        {w ? ` · ${w.name}` : ''}
-                      </option>
-                    );
-                  })}
-                </select>
+                <div className="flex-1 min-w-0">
+                  <OptionPicker
+                    compact
+                    value={styleBriefCharacterId}
+                    items={[
+                      { value: '', label: '从角色卡生成语气：选择角色…' },
+                      ...sortCharacters(characters).map((c) => {
+                        const w = worlds.find((x) => x.id === c.worldId);
+                        return {
+                          value: c.id,
+                          label: c.name,
+                          hint: w ? `《${w.name}》` : '独立角色',
+                          color: c.avatarColor,
+                          image: c.avatarImage,
+                        };
+                      }),
+                    ]}
+                    onChange={setStyleBriefCharacterId}
+                    searchable={characters.length >= 6}
+                    searchPlaceholder="搜索角色…"
+                  />
+                </div>
                 <button
                   type="button"
                   onClick={onGenerateStyleInstruction}

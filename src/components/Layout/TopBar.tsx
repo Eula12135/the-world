@@ -72,6 +72,14 @@ export const TopBar: React.FC = () => {
           {activeView === 'chat' ? (
             <>
               <button
+                onClick={() => setActiveView('worlds')}
+                className="p-2 rounded-xl bg-muted hover:bg-hover text-secondary hover:text-ink transition md:hidden cursor-pointer"
+                title="作品与世界观"
+                aria-label="作品与世界观"
+              >
+                <BookOpen className="w-4 h-4" />
+              </button>
+              <button
                 onClick={() => startNewDraft()}
                 className="p-2 rounded-xl bg-muted hover:bg-hover text-secondary hover:text-ink transition md:hidden cursor-pointer"
                 title="新对话"
