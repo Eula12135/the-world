@@ -19,6 +19,8 @@ export const createUiSlice: AppSliceCreator<UiSlice> = (set, get) => ({
   toasts: [],
   contextTokens: null,
   swipeOffset: 0,
+  composerDraft: '',
+  worldPopoverRequest: null,
 
   setActiveView: (v) => {
     stopSpeaking();
@@ -58,6 +60,9 @@ export const createUiSlice: AppSliceCreator<UiSlice> = (set, get) => ({
   setContextTokens: (n) => set({ contextTokens: n }),
 
   setSwipeOffset: (n) => set({ swipeOffset: n }),
+  setComposerDraft: (text) => set({ composerDraft: text }),
+  requestWorldPopover: (tab) => set({ worldPopoverRequest: tab }),
+  clearWorldPopoverRequest: () => set({ worldPopoverRequest: null }),
   setVoiceStudioSubTab: (subTab) => set({ voiceStudioSubTab: subTab }),
   openProvidersModal: (tab, opts) =>
     set((s) => ({

@@ -11,8 +11,15 @@ import { WorldContextPopover } from '../Common/WorldContextPopover';
  * 顶栏腾出来的高度全部还给正文。
  */
 export const TopBar: React.FC = () => {
-  const { sidebarOpen, setSidebarOpen, activeView, setActiveView, startNewDraft, setActiveModal } =
-    useAppStore(
+  const {
+    sidebarOpen,
+    setSidebarOpen,
+    activeView,
+    setActiveView,
+    startNewDraft,
+    setActiveModal,
+    composerDraft,
+  } = useAppStore(
       useShallow((s) => ({
         sidebarOpen: s.sidebarOpen,
         setSidebarOpen: s.setSidebarOpen,
@@ -20,6 +27,7 @@ export const TopBar: React.FC = () => {
         setActiveView: s.setActiveView,
         startNewDraft: s.startNewDraft,
         setActiveModal: s.setActiveModal,
+        composerDraft: s.composerDraft,
       }))
     );
 
@@ -63,7 +71,7 @@ export const TopBar: React.FC = () => {
         {activeView === 'chat' && (
           <div className="flex-1 flex items-center gap-2 min-w-0 overflow-hidden pl-1">
             <SessionModeModal />
-            <WorldContextPopover />
+            <WorldContextPopover draftInput={composerDraft} />
           </div>
         )}
 

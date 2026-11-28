@@ -34,6 +34,8 @@ interface MessageItemProps {
   userIdentity?: ResolvedUserIdentity | null;
   /** 「我」被称呼的名字（已按 override → 身份 → 角色卡 → 名字 解析过） */
   userLabel?: string;
+  /** 未带入上下文的早期消息条数，仅最后一条助手消息显示提示 */
+  omittedCount?: number;
 }
 
 export const MessageItem: React.FC<MessageItemProps> = React.memo(({
@@ -45,6 +47,7 @@ export const MessageItem: React.FC<MessageItemProps> = React.memo(({
   personaPreset,
   userIdentity,
   userLabel,
+  omittedCount = 0,
 }) => {
   const {
     regenerateLastAssistant,
@@ -60,6 +63,7 @@ export const MessageItem: React.FC<MessageItemProps> = React.memo(({
     showToast,
     requestConfirm,
     contextTokens,
+    requestWorldPopover,
     characters,
     userPersonas,
   } = useAppStore(
@@ -77,6 +81,7 @@ export const MessageItem: React.FC<MessageItemProps> = React.memo(({
       showToast: s.showToast,
       requestConfirm: s.requestConfirm,
       contextTokens: s.contextTokens,
+      requestWorldPopover: s.requestWorldPopover,
       characters: s.characters,
       userPersonas: s.userPersonas,
     }))
@@ -246,6 +251,8 @@ export const MessageItem: React.FC<MessageItemProps> = React.memo(({
         color: userIdentity?.avatarColor,
       }
     );
+    // 有无括号动作由解析器判断，无需区分会话模式
+    const userRoleplay = message.content ? parseRoleplayContent(message.content) : null;
     const userAvatarImg = display.image;
     const userDisplayName = display.name.trim();
     const showUserIdentity = Boolean(userDisplayName) && (hasSpeakerSnapshot(message) || Boolean(userIdentity));
@@ -283,10 +290,35 @@ export const MessageItem: React.FC<MessageItemProps> = React.memo(({
           ) : (
             <div
               onClick={() => setUserActionsOpen((v) => !v)}
-              className="px-4 py-2.5 rounded-xl rounded-tr-sm bg-user-bubble text-read leading-relaxed text-ink whitespace-pre-wrap break-words cursor-pointer"
+              className="px-4 py-2.5 rounded-xl rounded-tr-sm bg-user-bubble text-read leading-relaxed text-ink break-words cursor-pointer"
               title="点击展开操作菜单"
             >
-              {message.content}
+              {/* 和 AI 侧共用的视觉语言：动作/语气词用斜体弱化，正文保持正体 */}
+              {userRoleplay && (userRoleplay.hasActions || userRoleplay.hasTones) ? (
+                <div className="space-y-1">
+                  {userRoleplay.blocks.map((block, idx) =>
+                    block.kind === 'action' ? (
+                      <p key={idx} className="text-body italic text-secondary whitespace-pre-wrap">
+                        {block.text}
+                      </p>
+                    ) : (
+                      <p key={idx} className="whitespace-pre-wrap">
+                        {block.segments.map((seg, sIdx) =>
+                          seg.kind === 'tone' ? (
+                            <span key={sIdx} className="italic text-accent/85">
+                              {seg.text}
+                            </span>
+                          ) : (
+                            <React.Fragment key={sIdx}>{seg.text}</React.Fragment>
+                          )
+                        )}
+                      </p>
+                    )
+                  )}
+                </div>
+              ) : (
+                <span className="whitespace-pre-wrap">{message.content}</span>
+              )}
             </div>
           )}
 
@@ -569,8 +601,19 @@ export const MessageItem: React.FC<MessageItemProps> = React.memo(({
               <Trash2 className="w-4 h-4" />
             </button>
 
-            {isLastAssistant && contextTokens ? (
-              <span className="ml-auto tabular-nums">{contextTokens} tokens</span>
+            {isLastAssistant && (contextTokens || omittedCount > 0) ? (
+              <div className="ml-auto flex items-center gap-2 tabular-nums">
+                {contextTokens ? <span>{contextTokens} tokens</span> : null}
+                {omittedCount > 0 ? (
+                  <button
+                    onClick={() => requestWorldPopover('memory')}
+                    title="这些早期消息没有带进本次上下文，点开查看前情摘要"
+                    className="underline decoration-dotted underline-offset-2 hover:text-ink cursor-pointer"
+                  >
+                    · 早期 {omittedCount} 条未带入
+                  </button>
+                ) : null}
+              </div>
             ) : null}
           </div>
         )}

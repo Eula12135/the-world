@@ -111,7 +111,9 @@ export const createChatSlice: AppSliceCreator<ChatSlice> = (set, get) => ({
     set({ sessions, activeSessionId: nextId, messages, speakingMessageId: null });
   },
 
-  sendMessage: async (text) => {
+  // reuseLastUser：复用已存在的最后一条用户消息（重新生成时用），不新建、不重播用户语音
+  sendMessage: async (text, options) => {
+    const reuseLastUser = Boolean(options?.reuseLastUser);
     const trimmed = text.trim();
     if (!trimmed || get().isStreaming || isSendingLock) return;
     isSendingLock = true;
@@ -161,19 +163,26 @@ export const createChatSlice: AppSliceCreator<ChatSlice> = (set, get) => ({
         .equals(targetSessionId!)
         .sortBy('createdAt');
 
-      const userMsg: ChatMessage = {
-        id: createId('msg'),
-        sessionId: targetSessionId!,
-        role: 'user',
-        content: trimmed,
-        createdAt: now,
-        ...buildSpeakerSnapshot({
+      // 重新生成时不新建用户消息：保留原时间戳与发言人快照，也避免把这句话再朗读一遍
+      const reusedUserMsg = reuseLastUser
+        ? [...existingMessages].reverse().find((m) => m.role === 'user')
+        : undefined;
+
+      const userMsg: ChatMessage =
+        reusedUserMsg ??
+        ({
+          id: createId('msg'),
+          sessionId: targetSessionId!,
           role: 'user',
-          userIdentity: session!.userIdentity,
-          characters: get().characters,
-          personas: get().userPersonas,
-        }),
-      };
+          content: trimmed,
+          createdAt: now,
+          ...buildSpeakerSnapshot({
+            role: 'user',
+            userIdentity: session!.userIdentity,
+            characters: get().characters,
+            personas: get().userPersonas,
+          }),
+        } as ChatMessage);
 
       const assistantMsg: ChatMessage = {
         id: createId('msg'),
@@ -192,13 +201,21 @@ export const createChatSlice: AppSliceCreator<ChatSlice> = (set, get) => ({
         }),
       };
 
-      await db.messages.bulkPut([userMsg, assistantMsg]);
+      if (reusedUserMsg) {
+        await db.messages.put(assistantMsg);
+      } else {
+        await db.messages.bulkPut([userMsg, assistantMsg]);
+      }
       // 会话标题在创建时已由首条消息生成，这里只需推进 updatedAt
       await db.sessions.update(targetSessionId!, { updatedAt: now });
 
       const updatedSessions = await db.sessions.orderBy('updatedAt').reverse().toArray();
       if (get().activeSessionId === targetSessionId) {
-        set({ messages: [...existingMessages, userMsg, assistantMsg] });
+        set({
+          messages: reusedUserMsg
+            ? [...existingMessages, assistantMsg]
+            : [...existingMessages, userMsg, assistantMsg],
+        });
       }
       set({
         sessions: updatedSessions,
@@ -209,6 +226,7 @@ export const createChatSlice: AppSliceCreator<ChatSlice> = (set, get) => ({
 
       const voiceCfg = get().settings.voice;
       if (
+        !reusedUserMsg &&
         shouldAutoPlaySpeech({
           enabled: voiceCfg.ttsEnabled,
           autoPlay: voiceCfg.ttsAutoPlay,
@@ -283,7 +301,10 @@ export const createChatSlice: AppSliceCreator<ChatSlice> = (set, get) => ({
         draftInput: trimmed,
       });
 
-      const historyForApi = [...recentSlice, userMsg];
+      // 复用用户消息时 recentSlice 里已经包含它，不能再追加一次
+      const historyForApi = reusedUserMsg && recentSlice.some((m) => m.id === userMsg.id)
+        ? [...recentSlice]
+        : [...recentSlice, userMsg];
       const startedAt = Date.now();
 
       // 流式过程中每个 token 都写一次 IndexedDB 会产生数千次写事务（手机端明显卡顿）。
@@ -515,35 +536,29 @@ export const createChatSlice: AppSliceCreator<ChatSlice> = (set, get) => ({
       return;
     }
 
-    const toDeleteIds: string[] = [];
-    const lastIdx = msgs.length - 1;
-    let firstDeletedIdx = lastIdx;
-    if (msgs[lastIdx].role === 'assistant') {
-      const removed = msgs.pop()!;
-      toDeleteIds.push(removed.id);
+    const last = msgs[msgs.length - 1];
+    // 只删最后一条助手消息；用户消息原样保留（时间戳、发言人快照都不动），
+    // 因此不会再「重念」用户刚说过的那句话
+    if (last.role === 'assistant') {
+      if (get().speakingMessageId === last.id) {
+        stopSpeaking();
+        set({ speakingMessageId: null });
+      }
+      await db.messages.delete(last.id);
+      const deletedIdx = msgs.length - 1;
+      if (session && session.summarizedCount && deletedIdx < session.summarizedCount) {
+        await get().updateSession(session.id, {
+          summarizedCount: Math.max(0, session.summarizedCount - 1),
+        });
+      }
+      msgs.pop();
+      set({ messages: [...msgs] });
     }
-    const lastUserIdx = msgs.map((m) => m.role).lastIndexOf('user');
-    if (lastUserIdx === -1) return;
-    const lastUser = msgs[lastUserIdx];
-    toDeleteIds.push(lastUser.id);
-    firstDeletedIdx = lastUserIdx;
 
-    if (get().speakingMessageId && toDeleteIds.includes(get().speakingMessageId!)) {
-      stopSpeaking();
-      set({ speakingMessageId: null });
-    }
+    const lastUser = [...msgs].reverse().find((m) => m.role === 'user');
+    if (!lastUser) return;
 
-    await db.messages.bulkDelete(toDeleteIds);
-    const remainingMsgs = msgs.filter((m) => m.id !== lastUser.id);
-    if (session && session.summarizedCount && firstDeletedIdx < session.summarizedCount) {
-      const nextCount = Math.min(firstDeletedIdx, remainingMsgs.length);
-      await get().updateSession(session.id, {
-        summarizedCount: nextCount,
-        rollingSummary: nextCount === 0 ? undefined : session.rollingSummary,
-      });
-    }
-    set({ messages: remainingMsgs });
-    await get().sendMessage(lastUser.content);
+    await get().sendMessage(lastUser.content, { reuseLastUser: true });
   },
 
   deleteMessage: async (messageId) => {
@@ -619,12 +634,20 @@ export const createChatSlice: AppSliceCreator<ChatSlice> = (set, get) => ({
       return;
     }
 
-    const summary = await compressConversationMemory({
-      provider,
-      model: session.model || provider.selectedModel || provider.models[0],
-      existingSummary: session.rollingSummary,
-      messagesToCompress: toCompress,
-    });
+    let summary: string;
+    try {
+      summary = await compressConversationMemory({
+        provider,
+        model: session.model || provider.selectedModel || provider.models[0],
+        existingSummary: session.rollingSummary,
+        messagesToCompress: toCompress,
+      });
+    } catch (err) {
+      // 压缩失败时保留原前情：绝不能把空摘要写回去
+      const msg = err instanceof Error ? err.message : '记忆压缩失败';
+      get().showToast(msg, 'error');
+      return;
+    }
 
     await get().updateSession(sessionId, {
       rollingSummary: summary,

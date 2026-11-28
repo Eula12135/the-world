@@ -76,6 +76,10 @@ export interface UiSlice {
   contextTokens: number | null;
   /** 右滑抽屉时的跟手位移（px），0 表示没在拖 */
   swipeOffset: number;
+  /** 输入框草稿：供世界观浮层按正在输入的内容实时预览命中章节 */
+  composerDraft: string;
+  /** 由消息行发起的「打开世界观浮层并切到某页」请求，处理完即清空 */
+  worldPopoverRequest: 'world' | 'memory' | 'preview' | null;
 
   setActiveView: (v: ActiveView) => void;
   setWorldStudioMode: (mode: 'world' | 'standalone_characters') => void;
@@ -86,6 +90,9 @@ export interface UiSlice {
   setProvidersModalTab: (tab: ProvidersModalTab) => void;
   setContextTokens: (n: number | null) => void;
   setSwipeOffset: (n: number) => void;
+  setComposerDraft: (text: string) => void;
+  requestWorldPopover: (tab: 'world' | 'memory' | 'preview') => void;
+  clearWorldPopoverRequest: () => void;
   setVoiceStudioSubTab: (subTab: VoiceStudioSubTab) => void;
   openProvidersModal: (
     tab: ProvidersModalTab,
@@ -158,7 +165,7 @@ export interface ChatSlice {
   updateDraftConfig: (patch: Partial<DraftSessionConfig>) => void;
   updateSession: (sessionId: string, patch: Partial<ChatSession>) => Promise<void>;
   deleteSession: (sessionId: string) => Promise<void>;
-  sendMessage: (text: string) => Promise<void>;
+  sendMessage: (text: string, options?: { reuseLastUser?: boolean }) => Promise<void>;
   stopStreaming: () => void;
   regenerateLastAssistant: () => Promise<void>;
   deleteMessage: (messageId: string) => Promise<void>;

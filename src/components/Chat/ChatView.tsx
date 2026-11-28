@@ -91,6 +91,7 @@ export const ChatView: React.FC = () => {
   );
 
   const [input, setInput] = useState('');
+  const setComposerDraft = useAppStore((s) => s.setComposerDraft);
   const [voiceState, setVoiceState] = useState<'idle' | 'listening' | 'transcribing'>('idle');
   const [visibleCount, setVisibleCount] = useState(INITIAL_VISIBLE_MESSAGES);
   const voiceHandleRef = useRef<VoiceCaptureHandle | null>(null);
@@ -157,12 +158,25 @@ export const ChatView: React.FC = () => {
   const cacheKey = activeSessionId ?? '__draft__';
   const hasMessages = messages.length > 0;
   const hiddenCount = Math.max(0, messages.length - visibleCount);
+  // 滑窗截断提示：只算未归档的消息，压缩后 summarizedCount 推进，提示自动归零
+  const summarizedCount = session?.summarizedCount ?? 0;
+  const contextLimit = settings.contextMessagesLimit;
+  const omittedCount = Math.max(
+    0,
+    messages.length - Math.min(messages.length, summarizedCount) - contextLimit
+  );
   const visibleMessages = useMemo(
     () => (hiddenCount > 0 ? messages.slice(hiddenCount) : messages),
     [messages, hiddenCount]
   );
 
+  // 草稿同步给世界观浮层：它要按正在输入的内容预览命中章节
   useEffect(() => {
+    setComposerDraft(input);
+  }, [input, setComposerDraft]);
+
+  useEffect(() => {
+    setComposerDraft('');
     setVisibleCount(INITIAL_VISIBLE_MESSAGES);
     prependAnchorRef.current = null;
   }, [cacheKey]);
@@ -565,6 +579,7 @@ export const ChatView: React.FC = () => {
                   key={m.id}
                   message={m}
                   isLastAssistant={m.id === lastAssistantId}
+                  omittedCount={m.id === lastAssistantId ? omittedCount : 0}
                   sessionWorldId={session?.worldId}
                   isSessionStreaming={isCurrentSessionStreaming}
                   roleCharacter={roleCharacter}

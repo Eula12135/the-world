@@ -73,6 +73,15 @@ export const WorldContextPopover: React.FC<WorldContextPopoverProps> = ({ draftI
     return pushBackLayer(() => setOpen(false));
   }, [open]);
   const [tab, setTab] = useState<'world' | 'memory' | 'preview'>('world');
+  // 消息行点「早期 N 条未带入」时，直接拉起浮层并切到指定页签
+  const worldPopoverRequest = useAppStore((s) => s.worldPopoverRequest);
+  const clearWorldPopoverRequest = useAppStore((s) => s.clearWorldPopoverRequest);
+  useEffect(() => {
+    if (!worldPopoverRequest) return;
+    setTab(worldPopoverRequest);
+    setOpen(true);
+    clearWorldPopoverRequest();
+  }, [worldPopoverRequest, clearWorldPopoverRequest]);
   const [compressing, setCompressing] = useState(false);
 
   // Debounce draftInput & pause heavy prompt recomputation per-token while streaming
