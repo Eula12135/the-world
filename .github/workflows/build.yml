@@ -1,9 +1,11 @@
-name: Build Desktop & Android
+name: Build Checks (no release)
 
 on:
+  # 只校验「能不能构建」，绝不发布。发布由本地受控脚本执行：
+  #   npm run release:gitee + gh release create + npm run verify:release
+  # 历史上 tag 触发 CI 自动发版，覆盖过正式 APK（见 docs/UNRELEASED.md）
   push:
     branches: [main, master]
-    tags: ['v*']
   workflow_dispatch:
 
 jobs:
@@ -41,7 +43,6 @@ jobs:
       - run: pnpm install --frozen-lockfile || pnpm install
       - name: Build Web & Electron
         env:
-          VITE_UPDATE_REPO: ${{ vars.VITE_UPDATE_REPO || github.repository }}
         run: npm run build && npm run build:electron
       - run: npx electron-builder --publish never
       - uses: actions/upload-artifact@v4
@@ -74,7 +75,6 @@ jobs:
       - run: pnpm install --frozen-lockfile || pnpm install
       - name: Sync Android Web Bundle
         env:
-          VITE_UPDATE_REPO: ${{ vars.VITE_UPDATE_REPO || github.repository }}
         run: npm run android:sync
 
       # 有 release keystore 就打正式签名包；没有则退回 debug，且不发布为正式版
@@ -125,49 +125,3 @@ jobs:
             android/app/build/outputs/apk/release/*.apk
             android/app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
-
-  publish-release:
-    needs: [build-desktop, build-android]
-    if: startsWith(github.ref, 'refs/tags/v')
-    permissions:
-      contents: write
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/download-artifact@v4
-        with:
-          path: raw-artifacts
-      - name: Prepare Release Assets & latest.json
-        run: |
-          VERSION="${GITHUB_REF_NAME#v}"
-          mkdir -p release-assets
-          find raw-artifacts -type f \( -name "*.exe" -o -name "*.dmg" -o -name "*.AppImage" -o -name "*.deb" -o -name "*.zip" \) -exec cp {} release-assets/ \;
-
-          # 只接受 release 签名包：debug 包绝不能当正式版发出去（签名不一致会导致老用户无法覆盖安装）
-          RELEASE_APK=$(find raw-artifacts -type f -name "app-release.apk" | head -n1)
-          if [ -n "$RELEASE_APK" ]; then
-            cp "$RELEASE_APK" "release-assets/The-World-${VERSION}-android.apk"
-            echo "已附带 release 签名 APK"
-          else
-            echo "::warning::未找到 release 签名 APK（缺少 keystore secret），本次发布不附 Android 安装包"
-          fi
-          BASE_DL="https://github.com/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}"
-          APK_PATH=$(find release-assets -maxdepth 1 -type f -name "*.apk" | head -n1)
-          APK_FILE=${APK_PATH:+$(basename "$APK_PATH")}
-          WIN_PATH=$(find release-assets -maxdepth 1 -type f -name "*Setup*.exe" | head -n1)
-          WIN_FILE=${WIN_PATH:+$(basename "$WIN_PATH")}
-          WIN_ASSET_NAME=${WIN_FILE// /.}
-          cat > release-assets/latest.json <<EOF
-          {
-            "version": "${VERSION}",
-            "name": "The World ${GITHUB_REF_NAME}",
-            "pageUrl": "https://github.com/${GITHUB_REPOSITORY}/releases/tag/${GITHUB_REF_NAME}",
-            "releaseUrl": "https://github.com/${GITHUB_REPOSITORY}/releases/tag/${GITHUB_REF_NAME}",
-            "androidUrl": "${APK_FILE:+${BASE_DL}/${APK_FILE}}",
-            "windowsUrl": "${WIN_ASSET_NAME:+${BASE_DL}/${WIN_ASSET_NAME}}",
-            "notes": "Release ${GITHUB_REF_NAME}"
-          }
-          EOF
-      - uses: softprops/action-gh-release@v2
-        with:
-          generate_release_notes: true
-          files: release-assets/*

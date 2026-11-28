@@ -1,0 +1,10 @@
+#!/bin/sh
+# 提交前类型检查（约 2 秒）。
+# 只做这一件事：完整测试交给 CI 和手动 npm test，避免提交变慢。
+echo "· pre-commit：检查类型"
+if ! npm run typecheck --silent; then
+  echo ""
+  echo "类型检查未通过，提交已中止。"
+  echo "确有急事可 git commit --no-verify 跳过，但别让它进 main。"
+  exit 1
+fi

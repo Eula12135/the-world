@@ -39,6 +39,19 @@
 
 ---
 
+## 已修复：那次「神秘覆盖」
+
+2026-11-25 23:52 的覆盖已定位：`.github/workflows/build.yml` 当时配置了 `on: push: tags: ['v*']`，
+并带一个 `publish-release` 任务（`softprops/action-gh-release`）。推 tag 触发 CI 在云端构建
+win/mac/linux + Android，然后把产物以同名覆盖到 Release，还会塞一份 `pageUrl` 指向 GitHub 的
+`latest.json`；CI 的 `VITE_UPDATE_REPO` 是 `${{ vars.VITE_UPDATE_REPO || github.repository }}`，
+未配置变量时打出来的包根本没有 Gitee 更新源。
+
+对应证据：run 45648724983，触发 ref `v0.7.1`，15:47:05Z 开始，资产在 15:52:37–45Z 被上传。
+
+处理：**删除 `publish-release` 任务，并去掉 tag 触发**。CI 现在只回答「能不能构建」，
+发布一律走本地受控脚本 + `npm run verify:release` 校验。
+
 ## 未解决的隐患
 
 - **2026-11-25 23:52 有一次外部上传**，把 v0.7.0 / v0.7.1 的 APK 覆盖成了旧版本，并往 release 里塞了 mac/linux 产物。
