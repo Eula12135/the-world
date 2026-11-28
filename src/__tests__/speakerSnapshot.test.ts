@@ -48,6 +48,17 @@ describe('发言人快照', () => {
     expect(d.known).toBe(false);
   });
 
+  it('冻结标记让「当时没有说话人」的消息不回退到当前角色', () => {
+    const d = resolveSpeakerDisplay(
+      { speakerFrozen: true },
+      { characters, personas },
+      { name: '酒德麻衣' }
+    );
+    expect(d.name).toBe('');
+    expect(d.known).toBe(false);
+    expect(hasSpeakerSnapshot({ speakerFrozen: true })).toBe(true);
+  });
+
   it('用户侧是自建身份时记 personaId', () => {
     const snap = buildSpeakerSnapshot({
       role: 'user',

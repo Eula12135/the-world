@@ -6,7 +6,7 @@ import { compressConversationMemory } from '../../services/memoryService';
 import { isVoiceSetupMissing, shouldAutoPlaySpeech, speakText, stopSpeaking } from '../../services/voiceService';
 import { resolveUserIdentity } from '../../services/userIdentity';
 import { stripActionsForSpeech } from '../../utils/dialogueParser';
-import { buildSpeakerSnapshot } from '../../utils/speakerSnapshot';
+import { buildSpeakerSnapshot, hasSpeakerSnapshot } from '../../utils/speakerSnapshot';
 import { createId } from '../../utils/platform';
 import { loadSessionContextData, pickDefaultModelConfig } from '../helpers';
 import type { AppSliceCreator, ChatSlice, DraftSessionConfig } from '../types';
@@ -20,6 +20,93 @@ function enqueueAutoPlay(task: () => Promise<void>): void {
   autoPlayChain = autoPlayChain.then(task, task).catch(() => undefined);
 }
 
+/**
+ * 切换角色 / 身份时，把「旧发言人」冻结进该会话里还没有快照的消息。
+ *
+ * 只在切换发生的那一刻冻结：用切换前的 session 值，而不是全局回填 ——
+ * 全局回填会把「中途切过角色」的会话固化成错误数据。
+ */
+async function freezeSpeakersBeforeSwitch(deps: {
+  get: () => {
+    characters: Array<{ id: string; name: string }>;
+    userPersonas: Array<{ id: string; name: string }>;
+    messages: ChatMessage[];
+    activeSessionId: string | null;
+  };
+  set: (fn: (state: { messages: ChatMessage[] }) => { messages: ChatMessage[] }) => void;
+  sessionId: string;
+  patch: { roleCharacterId?: string; userIdentity?: { kind: 'character' | 'persona'; id: string } };
+}) {
+  const { get, set, sessionId, patch } = deps;
+  const session = await db.sessions.get(sessionId);
+  if (!session) return;
+
+  const roleChanged =
+    patch.roleCharacterId !== undefined && patch.roleCharacterId !== session.roleCharacterId;
+  const identityChanged =
+    patch.userIdentity !== undefined &&
+    `${patch.userIdentity?.kind ?? ''}:${patch.userIdentity?.id ?? ''}` !==
+      `${session.userIdentity?.kind ?? ''}:${session.userIdentity?.id ?? ''}`;
+  if (!roleChanged && !identityChanged) return;
+
+  const msgs = await db.messages.where('sessionId').equals(sessionId).toArray();
+  const chars = get().characters;
+  const personas = get().userPersonas;
+
+  // 推断「这些没有快照的老消息当时是谁在说」：
+  // 优先用会话里最近一条带快照的同类消息（更新后生成的），它比 session 当前值更接近事实。
+  // 例如：老消息全是 A，装了新版后切到 B 说了几句，此时老消息应冻结成 A 而不是 B。
+  const lastAssistantSnapshot = [...msgs]
+    .reverse()
+    .find((m) => m.role === 'assistant' && m.speakerCharacterId)?.speakerCharacterId;
+  const lastUserSnapshot = [...msgs]
+    .reverse()
+    .find((m) => m.role === 'user' && (m.speakerCharacterId || m.speakerPersonaId));
+
+  const inferredRoleId = lastAssistantSnapshot ?? session.roleCharacterId;
+  const oldRoleChar = inferredRoleId ? chars.find((c) => c.id === inferredRoleId) : undefined;
+
+  const identity = session.userIdentity;
+  const inferredIdentityCharId =
+    lastUserSnapshot?.speakerCharacterId ??
+    (identity?.kind === 'character' ? identity.id : undefined);
+  const inferredIdentityPersonaId =
+    lastUserSnapshot?.speakerPersonaId ?? (identity?.kind === 'persona' ? identity.id : undefined);
+  const oldIdentityChar = inferredIdentityCharId
+    ? chars.find((c) => c.id === inferredIdentityCharId)
+    : undefined;
+  const oldIdentityPersona = inferredIdentityPersonaId
+    ? personas.find((p) => p.id === inferredIdentityPersonaId)
+    : undefined;
+
+  const updated: ChatMessage[] = [];
+  for (const m of msgs) {
+    if (hasSpeakerSnapshot(m)) continue;
+    if (m.role === 'assistant' && roleChanged) {
+      updated.push(
+        oldRoleChar
+          ? { ...m, speakerCharacterId: oldRoleChar.id, speakerName: oldRoleChar.name }
+          : { ...m, speakerFrozen: true }
+      );
+    } else if (m.role === 'user' && identityChanged) {
+      if (oldIdentityChar) {
+        updated.push({ ...m, speakerCharacterId: oldIdentityChar.id, speakerName: oldIdentityChar.name });
+      } else if (oldIdentityPersona) {
+        updated.push({ ...m, speakerPersonaId: oldIdentityPersona.id, speakerName: oldIdentityPersona.name });
+      } else {
+        updated.push({ ...m, speakerFrozen: true });
+      }
+    }
+  }
+
+  if (updated.length === 0) return;
+  await db.messages.bulkPut(updated);
+
+  if (get().activeSessionId === sessionId) {
+    const byId = new Map(updated.map((m) => [m.id, m]));
+    set((state) => ({ messages: state.messages.map((m) => byId.get(m.id) ?? m) }));
+  }
+}
 export const createChatSlice: AppSliceCreator<ChatSlice> = (set, get) => ({
   sessions: [],
   activeSessionId: null,
@@ -90,6 +177,9 @@ export const createChatSlice: AppSliceCreator<ChatSlice> = (set, get) => ({
   },
 
   updateSession: async (sessionId, patch) => {
+    // 切换扮演角色 / 「我」的身份之前，先把旧值冻结进历史消息。
+    // 否则老消息没有快照，会按回退链显示成新角色，等于篡改历史。
+    await freezeSpeakersBeforeSwitch({ get, set, sessionId, patch });
     await db.sessions.update(sessionId, { ...patch, updatedAt: patch.updatedAt ?? Date.now() });
     const sessions = await db.sessions.orderBy('updatedAt').reverse().toArray();
     set({ sessions });

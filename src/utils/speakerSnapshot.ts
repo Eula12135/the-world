@@ -4,6 +4,7 @@ export interface SpeakerLike {
   speakerCharacterId?: string;
   speakerPersonaId?: string;
   speakerName?: string;
+  speakerFrozen?: boolean;
 }
 
 /**
@@ -13,7 +14,8 @@ export interface SpeakerLike {
  * 都会被误判成新消息，反而绕过会话回退。
  */
 export function hasSpeakerSnapshot(m: SpeakerLike): boolean {
-  return Boolean(m.speakerCharacterId || m.speakerPersonaId);
+  // frozen 也算「有快照」：它表达「当时确实没有说话人」，同样不能回退
+  return Boolean(m.speakerCharacterId || m.speakerPersonaId || m.speakerFrozen);
 }
 
 export interface SpeakerLookup {
@@ -41,6 +43,11 @@ export function resolveSpeakerDisplay(
   lookup: SpeakerLookup,
   fallback: { name?: string; image?: string; color?: string }
 ): SpeakerDisplay {
+  if (message.speakerFrozen && !message.speakerCharacterId && !message.speakerPersonaId) {
+    // 明确冻结为「当时没有角色」：不显示名字，也不回退到当前角色
+    return { name: '', known: false };
+  }
+
   if (hasSpeakerSnapshot(message)) {
     const character = message.speakerCharacterId
       ? lookup.characters.find((c) => c.id === message.speakerCharacterId)

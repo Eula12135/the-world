@@ -195,6 +195,11 @@ export interface ChatMessage {
   speakerPersonaId?: string;
   /** 发言时的名字冗余：卡片被删除后历史消息仍能显示是谁说的 */
   speakerName?: string;
+  /**
+   * 切换角色时对「当时没有说话人」的消息打的冻结标记。
+   * 置位后渲染不再回退到会话当前角色，避免旧消息被改写成新角色。
+   */
+  speakerFrozen?: boolean;
 }
 
 export type WorldContextMode = 'progressive' | 'full';
