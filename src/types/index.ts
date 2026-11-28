@@ -186,6 +186,15 @@ export interface ChatMessage {
   searchQueries?: string[];
   tokenUsage?: number;
   createdAt: number;
+  /**
+   * 发言时扮演的角色卡 ID（AI 侧；「我」是角色卡时用户侧同样是角色卡 ID）。
+   * 与 speakerPersonaId 一同作为「这条消息是新消息」的判据；老消息两者皆空。
+   */
+  speakerCharacterId?: string;
+  /** 发言时「我」使用的自建身份 ID */
+  speakerPersonaId?: string;
+  /** 发言时的名字冗余：卡片被删除后历史消息仍能显示是谁说的 */
+  speakerName?: string;
 }
 
 export type WorldContextMode = 'progressive' | 'full';

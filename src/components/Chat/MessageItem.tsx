@@ -20,6 +20,7 @@ import type { Character, ChatMessage, PersonaPreset, ResolvedUserIdentity } from
 import { useAppStore } from '../../store/useAppStore';
 import { isVoiceSetupMissing, speakText, stopSpeaking } from '../../services/voiceService';
 import { parseRoleplayContent, stripActionsForSpeech } from '../../utils/dialogueParser';
+import { hasSpeakerSnapshot, resolveSpeakerDisplay } from '../../utils/speakerSnapshot';
 import { openExternalUrl } from '../../utils/platform';
 
 interface MessageItemProps {
@@ -59,6 +60,8 @@ export const MessageItem: React.FC<MessageItemProps> = React.memo(({
     showToast,
     requestConfirm,
     contextTokens,
+    characters,
+    userPersonas,
   } = useAppStore(
     useShallow((s) => ({
       regenerateLastAssistant: s.regenerateLastAssistant,
@@ -74,6 +77,8 @@ export const MessageItem: React.FC<MessageItemProps> = React.memo(({
       showToast: s.showToast,
       requestConfirm: s.requestConfirm,
       contextTokens: s.contextTokens,
+      characters: s.characters,
+      userPersonas: s.userPersonas,
     }))
   );
 
@@ -232,9 +237,18 @@ export const MessageItem: React.FC<MessageItemProps> = React.memo(({
   };
 
   if (isUser) {
-    const userAvatarImg = userIdentity?.avatarImage;
-    const userDisplayName = (userLabel || userIdentity?.name || '').trim();
-    const showUserIdentity = Boolean(userIdentity && userDisplayName);
+    const display = resolveSpeakerDisplay(
+      message,
+      { characters, personas: userPersonas },
+      {
+        name: (userLabel || userIdentity?.name || '').trim(),
+        image: userIdentity?.avatarImage,
+        color: userIdentity?.avatarColor,
+      }
+    );
+    const userAvatarImg = display.image;
+    const userDisplayName = display.name.trim();
+    const showUserIdentity = Boolean(userDisplayName) && (hasSpeakerSnapshot(message) || Boolean(userIdentity));
     return (
       <div className="flex justify-end gap-2.5">
         <div className="max-w-[85%] md:max-w-[75%] space-y-1.5">
@@ -338,7 +352,7 @@ export const MessageItem: React.FC<MessageItemProps> = React.memo(({
           ) : (
             <div
               className="w-7 h-7 rounded-full shrink-0 text-white text-xs font-bold flex items-center justify-center mt-0.5"
-              style={{ backgroundColor: userIdentity?.avatarColor || 'var(--accent)' }}
+              style={{ backgroundColor: display.color || 'var(--accent)' }}
             >
               {userDisplayName.slice(0, 1)}
             </div>
@@ -347,11 +361,20 @@ export const MessageItem: React.FC<MessageItemProps> = React.memo(({
     );
   }
 
-  const avatarImg = roleCharacter?.avatarImage || personaPreset?.avatarImage;
-  const avatarLabel = roleCharacter?.name || personaPreset?.name;
-  const avatarColor = roleCharacter?.avatarColor || personaPreset?.avatarColor || 'var(--accent)';
+  const aiDisplay = resolveSpeakerDisplay(
+    message,
+    { characters, personas: userPersonas },
+    {
+      name: roleCharacter?.name || personaPreset?.name,
+      image: roleCharacter?.avatarImage || personaPreset?.avatarImage,
+      color: roleCharacter?.avatarColor || personaPreset?.avatarColor,
+    }
+  );
+  const avatarImg = aiDisplay.image;
+  const avatarLabel = aiDisplay.name;
+  const avatarColor = aiDisplay.color || 'var(--accent)';
   const roleplayParsed =
-    (roleCharacter || personaPreset) && message.content
+    aiDisplay.known && message.content
       ? parseRoleplayContent(message.content)
       : null;
   const useRoleplayView = Boolean(

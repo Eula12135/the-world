@@ -6,6 +6,28 @@ import {
   prepareProviderForStorage,
   prepareSettingsForStorage,
 } from '../db/database';
+import { APP_VERSION } from './updateChecker';
+
+/**
+ * 备份格式版本。只在「数据结构变化、导入需要处理差异」时 +1。
+ * v8：ChatMessage 增加发言人快照（speakerCharacterId / speakerPersonaId / speakerName）。
+ * 老消息不回填快照，导入时保持 undefined，渲染侧回退到会话当前角色。
+ */
+export const CURRENT_BACKUP_VERSION = 8;
+
+/** 解析备份版本号：缺省视为最早的旧版，无法识别则判定文件损坏 */
+export function resolveBackupVersion(parsed: unknown): number {
+  const raw = (parsed as { backupVersion?: unknown } | null)?.backupVersion;
+  if (raw === undefined || raw === null) return 7;
+  if (typeof raw !== 'number' && typeof raw !== 'string') {
+    throw new Error('备份文件的版本号无法识别，可能已损坏');
+  }
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n < 1 || Math.floor(n) !== n) {
+    throw new Error('备份文件的版本号无法识别，可能已损坏');
+  }
+  return n;
+}
 import {
   prepareCharacterForDb,
   preparePersonaPresetForDb,
@@ -260,7 +282,10 @@ export async function exportFullBackupJson(includeApiKeys: boolean): Promise<str
   return JSON.stringify(
     {
       app: 'the-world',
-      backupVersion: 7,
+      // 只升不降：消息结构（发言人快照）变了，导入侧按此分流
+      backupVersion: CURRENT_BACKUP_VERSION,
+      // appVersion 给人看，backupVersion 给机器看，两者不要混用
+      appVersion: APP_VERSION,
       exportedAt: new Date().toISOString(),
       includesApiKeys: includeApiKeys,
       data: {
@@ -290,6 +315,17 @@ export async function importFullBackupJson(rawText: string): Promise<{
   if (!parsed || parsed.app !== 'the-world' || !parsed.data) {
     throw new Error('不是有效的 The World 备份文件');
   }
+  // 版本分流必须在任何写库动作之前完成：低版本走迁移，高版本直接拒绝，坏版本报损坏
+  const backupVersion = resolveBackupVersion(parsed);
+  if (backupVersion > CURRENT_BACKUP_VERSION) {
+    const from =
+      typeof parsed.appVersion === 'string' && parsed.appVersion ? `（来自 v${parsed.appVersion}）` : '';
+    throw new Error(
+      `此备份来自更新版本的 App${from}，当前版本只支持到备份格式 v${CURRENT_BACKUP_VERSION}，请先升级 App 再导入`
+    );
+  }
+  // v7 → v8：仅新增可选的发言人快照字段，无需回填；老消息保持 undefined 由渲染侧回退
+
   const d = parsed.data;
   const [currentProviders, currentSettings] = await Promise.all([
     loadProvidersDecrypted(),

@@ -6,6 +6,7 @@ import { compressConversationMemory } from '../../services/memoryService';
 import { isVoiceSetupMissing, shouldAutoPlaySpeech, speakText, stopSpeaking } from '../../services/voiceService';
 import { resolveUserIdentity } from '../../services/userIdentity';
 import { stripActionsForSpeech } from '../../utils/dialogueParser';
+import { buildSpeakerSnapshot } from '../../utils/speakerSnapshot';
 import { createId } from '../../utils/platform';
 import { loadSessionContextData, pickDefaultModelConfig } from '../helpers';
 import type { AppSliceCreator, ChatSlice, DraftSessionConfig } from '../types';
@@ -166,6 +167,12 @@ export const createChatSlice: AppSliceCreator<ChatSlice> = (set, get) => ({
         role: 'user',
         content: trimmed,
         createdAt: now,
+        ...buildSpeakerSnapshot({
+          role: 'user',
+          userIdentity: session!.userIdentity,
+          characters: get().characters,
+          personas: get().userPersonas,
+        }),
       };
 
       const assistantMsg: ChatMessage = {
@@ -175,6 +182,14 @@ export const createChatSlice: AppSliceCreator<ChatSlice> = (set, get) => ({
         content: '',
         reasoning: '',
         createdAt: now + 1,
+        ...buildSpeakerSnapshot({
+          role: 'assistant',
+          roleCharacter: session!.roleCharacterId
+            ? get().characters.find((c) => c.id === session!.roleCharacterId)
+            : undefined,
+          characters: get().characters,
+          personas: get().userPersonas,
+        }),
       };
 
       await db.messages.bulkPut([userMsg, assistantMsg]);

@@ -1,7 +1,7 @@
 import 'fake-indexeddb/auto';
 import { describe, expect, it } from 'vitest';
 import { db, ensureDatabaseInitialized } from '../db/database';
-import { exportFullBackupJson, importFullBackupJson } from '../services/exportService';
+import { CURRENT_BACKUP_VERSION, exportFullBackupJson, importFullBackupJson } from '../services/exportService';
 import {
   buildUserIdentityComboKey,
   resolveSessionUserRelation,
@@ -397,7 +397,7 @@ describe('backup round-trip', () => {
       backupVersion: number;
       data: { userPersonas?: unknown[] };
     };
-    expect(parsed.backupVersion).toBe(7);
+    expect(parsed.backupVersion).toBe(CURRENT_BACKUP_VERSION);
     expect(parsed.data.userPersonas).toHaveLength(1);
 
     await db.characters.clear();
