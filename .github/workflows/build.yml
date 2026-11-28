@@ -42,7 +42,6 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile || pnpm install
       - name: Build Web & Electron
-        env:
         run: npm run build && npm run build:electron
       - run: npx electron-builder --publish never
       - uses: actions/upload-artifact@v4
@@ -74,7 +73,6 @@ jobs:
           packages: platform-tools
       - run: pnpm install --frozen-lockfile || pnpm install
       - name: Sync Android Web Bundle
-        env:
         run: npm run android:sync
 
       # 有 release keystore 就打正式签名包；没有则退回 debug，且不发布为正式版
